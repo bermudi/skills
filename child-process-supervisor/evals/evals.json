@@ -1,0 +1,40 @@
+{
+  "skill_name": "child-process-supervisor",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm building an agent runtime and need to implement timeouts for child processes. I want a 5-minute overall timeout, but also a 30-second no-output timeout to catch hung processes. How should these two timeout mechanisms work independently vs together?",
+      "expected_output": "Should explain both timeoutMs and noOutputTimeoutMs as independent mechanisms, touchOutput() resets noOutputTimeoutMs, and both can be set simultaneously but operate separately"
+    },
+    {
+      "id": 2,
+      "prompt": "My agent runtime spawns child processes that can fork their own children. When I kill a parent process, the children keep running. How should I implement process tree termination on Linux and Windows?",
+      "expected_output": "Should explain Unix kill(-pid, SIGTERM) for process group with grace period, Windows taskkill /T, and the force-kill fallback after grace period"
+    },
+    {
+      "id": 3,
+      "prompt": "I'm implementing PTY support and need to know how to properly close stdin on both Unix and Windows. What's the correct EOF character for each platform?",
+      "expected_output": "Should explain Unix uses \\x04 (Ctrl+D) and Windows uses \\x1a (Ctrl+Z), and why this difference exists"
+    },
+    {
+      "id": 4,
+      "prompt": "A process exits with code 124. What does this convention mean and when should an agent runtime produce this exit code?",
+      "expected_output": "Should explain 124 is the standard timeout exit code (same as GNU timeout), produced when timeoutMs fires and process exited with code 0"
+    },
+    {
+      "id": 5,
+      "prompt": "I'm getting EINVAL errors when spawning npm scripts on Windows. What's happening and how should I handle Windows-specific spawn issues for .cmd/.bat files?",
+      "expected_output": "Should explain CVE-2024-27980, wrapping batch files with cmd.exe /d /s /c, and npm/npx shim to avoid direct .cmd spawn"
+    },
+    {
+      "id": 6,
+      "prompt": "How should I design the adapter interface so that child mode and PTY mode can be used interchangeably by the supervisor?",
+      "expected_output": "Should explain the common SpawnProcessAdapter interface with pid, stdin, onStdout, onStderr, wait(), kill(), dispose() methods"
+    },
+    {
+      "id": 7,
+      "prompt": "My PTY sessions are becoming zombies when I kill them - the wait() promise never resolves. How should I prevent this?",
+      "expected_output": "Should explain force-kill fallback timer (4 seconds) that resolves the wait promise even if PTY doesn't emit onExit"
+    }
+  ]
+}
