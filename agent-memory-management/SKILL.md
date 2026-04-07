@@ -1,9 +1,9 @@
 ---
 name: agent-memory-management
-description: Implements stateful AI agents using Sessions (short-term history) and Memory (long-term persistence). Use this skill when building agents that need to remember user preferences, track multi-turn state, or maintain context across different interactions.
+description: Implements stateful AI agents using Sessions (short-term history) and Memory (long-term persistence). Use this skill when building agents that need to remember across interactions — user preferences, multi-turn state, persistent knowledge. Covers memory filesystem design, versioned storage, progressive disclosure, multi-agent memory coordination, and the full lifecycle from extraction through retrieval. Use this skill even for partial needs like "how should I structure my agent's memory files" or "how do I handle concurrent memory writes across subagents."
 license: Apache-2.0
 metadata:
-  version: "3.0"
+  version: "3.1"
   topic: context-engineering
 ---
 
@@ -26,7 +26,7 @@ Choose your memory architecture based on your constraints, not your ambitions.
 | **Desktop app, cost-sensitive** | SQLite + prompt-prefix injection | SQLite + MEMORY.md compatibility | Load all memories into prompt | LobsterAI |
 | **Multi-channel deployment (WhatsApp, Discord, etc.)** | File-first + pluggable search | Markdown + ReMeLight (ChromaDB/SQLite) | Dual-channel (always-loaded + on-demand) | CoPaw |
 
-**Rule of thumb**: Start with file-based (JSONL + Markdown). Scale to SQLite when you need structured queries. Reserve PostgreSQL for multi-agent workloads. The ETL pipeline quality matters more than the storage backend.
+**Rule of thumb**: Start with file-based (JSONL + Markdown). Scale to SQLite when you need structured queries. Reserve PostgreSQL for multi-agent workloads. The ETL pipeline quality matters more than the storage backend. **Version your memory store** — whether you use git, a changelog table, or event sourcing, every mutation should be traceable. This enables rollback, audit, and concurrent write coordination (critical for multi-agent systems).
 
 ## Core Concepts
 
@@ -51,6 +51,84 @@ Choose your memory architecture based on your constraints, not your ambitions.
 │                          └─────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
+
+## Memory Filesystem Design
+
+When you choose a file-based memory architecture, the filesystem structure is your primary design lever. Getting this right determines how efficiently agents can store, discover, and update knowledge.
+
+### Three-Tier Memory Layout
+
+Organize memory into three tiers based on access frequency and cost:
+
+| Tier | Location | When to Load | Content |
+|:---|:---|:---|:---|
+| **System** | `system/` | Every turn, pinned in system prompt | Identity, persona, project conventions, critical facts. Reserve for durable, high-signal knowledge that helps across sessions. |
+| **Progressive** | Outside `system/` | On demand — descriptions always visible, content loaded when relevant | Historical records, large reference material, transient notes. The agent sees file descriptions (from frontmatter) and loads full content only when needed. |
+| **Recall** | Session logs / message history | Searchable via tools | Full conversation history. Even after messages leave the context window, they should be searchable by a recall tool or subagent. |
+
+The key insight: **descriptions are cheap, content is expensive**. A tree of file descriptions costs ~50 tokens per file. Loading the full content of every file every turn costs thousands. Progressive disclosure lets the agent know *what exists* without paying for *everything*.
+
+### Structured File Format
+
+Use Markdown with YAML frontmatter for every memory file:
+
+```yaml
+---
+description: One-line summary used for progressive disclosure (always visible)
+limit: 5000          # max characters — prevents unbounded growth
+read_only: false     # set by system; agents cannot modify read_only files
+---
+
+Memory content in markdown. Keep focused — one concept per file.
+```
+
+- **`description`** is the progressive disclosure hook. Write it so an agent can decide whether to load the full file based on the description alone.
+- **`limit`** enforces a size cap. When a file exceeds its limit, split it or extract the less-critical content to a progressive-tier file.
+- **`read_only`** protects files that shouldn't be modified by the agent (e.g., system-level configuration, user-authored identity files). Only the orchestrator or human should set this.
+
+### Hierarchical Organization
+
+Structure memory files into a focused hierarchy, not a flat pile:
+
+- **15–25 files** at steady state — enough to cover distinct concerns without overwhelming discovery.
+- **2–3 levels of nesting** using path separators (e.g., `project/tooling/testing.md`).
+- **~40 lines max per file** — split aggressively when a file covers 2+ concepts.
+- **Descriptive paths** — the filename alone should signal what's inside.
+
+Example target structure:
+```
+system/
+├── human/
+│   ├── identity.md
+│   ├── preferences/
+│   │   ├── communication.md
+│   │   └── coding_style.md
+│   └── context.md
+├── project/
+│   ├── overview.md
+│   ├── gotchas.md
+│   ├── architecture.md
+│   └── tooling/
+│       ├── testing.md
+│       └── linting.md
+└── persona/
+    ├── role.md
+    └── behavior.md
+reference/              ← progressive tier (not pinned)
+├── api-conventions.md
+└── deployment-history.md
+```
+
+### Versioned Storage
+
+Track every change to memory with a version control system (git is the natural choice for file-based memory):
+
+- **Informative commit messages**: Every write should describe *what* changed and *why* (e.g., `"feat: add user deployment preferences"`, `"fix: correct API base URL after migration"`).
+- **Auditability**: You can inspect the history of any fact — when it was added, modified, or removed.
+- **Rollback**: If a bad extraction poisons memory, revert to a known-good state.
+- **Diff-based sync**: When memory is synced between processes or machines, diffs are smaller and more efficient than full copies.
+
+This is especially critical for multi-agent systems where concurrent writes need coordination (see Multi-Agent Memory Coordination below).
 
 ## Implementation Workflow
 
@@ -99,6 +177,19 @@ Stage 3: LLM Judge (expensive, optional escalation)
     - Threshold: 0.82 — above this, merge candidates.
 - **Conflict Resolution**: When a new memory contradicts an existing one, prefer the newer one if its confidence is higher. If confidence is similar, prefer explicit user input over inferred knowledge.
 - **Confidence Scoring**: Assign a confidence score (0–1) to each memory. Decay confidence for memories not accessed in 7+ days.
+
+#### Memory Defragmentation
+
+Over long-horizon use, memory files inevitably become disorganized — files grow too large, hierarchies flatten, related facts end up scattered across files. Periodic defragmentation restructures memory back to a clean state:
+
+- **Trigger**: Run when file count exceeds 25, any single file exceeds ~40 lines, or on a fixed schedule (e.g., weekly for long-running agents).
+- **Split oversized files**: If a file covers multiple concepts, extract each into its own file with a descriptive path.
+- **Merge scattered facts**: If related information is spread across multiple files, consolidate into a single focused file.
+- **Restructure hierarchy**: Reorganize paths when the current structure no longer reflects the agent's working patterns.
+- **Backup first**: Always snapshot the memory directory before defragmentation (e.g., copy to `memory-backup-<timestamp>/`).
+- **Background execution**: Run defragmentation in an isolated workspace (a separate git branch or directory) so the main agent is not blocked. Merge changes back when complete.
+
+This is distinct from consolidation (which handles duplicates and conflicts at the record level). Defragmentation operates at the *file structure* level — it's about the shape of your memory filesystem, not the content of individual records.
 
 #### Anti-Poisoning
 
@@ -160,12 +251,41 @@ Combine keyword (FTS/BM25) and semantic (vector) search:
 
 See [Retrieval & Inference Strategies](references/RETRIEVAL.md) for fusion algorithms and placement details.
 
+### 4. Initialize Memory (The Cold Start)
+
+A new agent starts with empty memory. Cold-starting well determines how useful the agent is from its first interaction.
+
+#### Bootstrap from Codebase
+
+If the agent operates within a specific project, scan the codebase to generate initial memory:
+
+- **Project structure**: Map the directory layout, key entry points, and architectural patterns.
+- **Conventions**: Extract coding style, testing patterns, dependency management, and CI/CD configuration.
+- **Gotchas**: Flag footguns, deprecated patterns, and known issues from comments and documentation.
+- **Tooling**: Document build commands, test runners, linters, and deployment steps.
+
+Fan out across concurrent workers for large codebases — each worker processes a subset of files, then results are merged back.
+
+#### Bootstrap from Conversation History
+
+If the agent has access to prior conversation logs (from previous tools, exported histories, or user-provided context):
+
+- **Process in parallel**: Split history into time-based slices and extract facts concurrently.
+- **Extract preferences, decisions, and facts**: Run the three-stage extraction pipeline over each slice.
+- **Merge into hierarchy**: Deduplicate across slices and organize results into the hierarchical structure.
+
+#### Target State
+
+Aim for 15–25 files organized in 2–3 levels of hierarchy (see Memory Filesystem Design above). Cover: identity/preferences, project context, conventions, gotchas, and persona. Start with `system/` files for always-visible knowledge, then add progressive-tier files for reference material.
+
 ## Best Practices
 
 - **Strict Isolation**: Scope memories per-user (or per-conversation). Container-level isolation is the gold standard (NanoClaw); per-agent filesystem isolation is the pragmatic production pattern (CoPaw); application-level database scoping is the minimum (MicroClaw, OpenFang).
+- **Multi-Agent Memory Coordination**: When multiple agents or subagents write to shared memory concurrently, isolate writes and merge explicitly. Use separate branches/worktrees for each writer — each agent gets an independent copy to modify, then merges back through a coordination step. For versioned (git-backed) stores, this is natural: branch per agent, merge with conflict resolution. For database-backed stores, use optimistic concurrency with per-row version tracking. When both agents modify the same content, prefer the write with higher confidence or more recent provenance.
+- **Versioned Memory**: Treat memory mutations like you'd treat data mutations in a production system — track them. Git-based versioning works for file stores; changelog tables or event sourcing work for databases. Every write should carry a message describing what changed and why. This pays for itself the first time you need to answer "when did we start believing X?" or revert a bad extraction.
 - **PII Redaction**: Redact sensitive information before persisting. This is a universal blind spot — zero out of nine analyzed implementations do it well. Treat it as a first-class requirement, not an afterthought.
 - **Asynchronous Processing**: Run memory extraction in the background. A dedicated reflector loop is the gold standard (MicroClaw); async queued extraction after each turn is the cost-efficient approach (LobsterAI); tool-armed background summarization is the most memory-productive approach (CoPaw).
 - **Anti-Poisoning**: Filter noise before it becomes memory. Use guard levels to let users control the strictness/coverage tradeoff.
 - **Graceful Degradation**: Always have a fallback when compaction or summarization fails — raw archive, truncation, or read-only mode.
-- **File-First When Possible**: Plain Markdown is human-readable, git-friendly, and has zero vendor lock-in. Add a pluggable vector/FTS index layer on top (like ReMeLight) when you need semantic search, keeping files as the source of truth.
+- **File-First When Possible**: Plain Markdown is human-readable, git-friendly, and has zero vendor lock-in. Add a pluggable vector/FTS index layer on top (like ReMeLight) when you need semantic search, keeping files as the source of truth. When you use git for versioning, agents can manage memory using their full terminal capabilities — bash for batch operations, scripts for programmatic processing, and standard git workflows for coordination.
 - **Bilingual Awareness**: If your users are multilingual, ensure extraction patterns, tokenization, and deduplication work across languages. CJK bigram tokenization and bilingual regex patterns are validated patterns.

@@ -66,6 +66,30 @@ Tag every memory with a category to enable targeted retrieval and display:
 
 Categories with higher confidence baselines (personal-profile, personal-ownership) reflect that identity and possession facts are more stable and less likely to be noise.
 
+### Memory File Format
+
+When using file-based storage, adopt a consistent format across all memory files:
+
+```yaml
+---
+description: One-line summary used for progressive disclosure (always visible in prompt)
+limit: 5000          # max characters — prevents unbounded growth
+read_only: false     # set by system; agents cannot modify read_only files
+---
+
+Memory content in markdown. Keep focused — one concept per file.
+```
+
+**Field semantics:**
+
+| Field | Required | Purpose |
+|:---|:---|:---|
+| `description` | Yes | Progressive disclosure hook. The agent sees this without loading full content. Write it to enable relevance decisions at a glance. |
+| `limit` | Yes | Size cap in characters. When a file exceeds its limit, the extraction pipeline should flag it for splitting. Prevents any single file from dominating the context window. |
+| `read_only` | No | Access control. Set only by the system or human operator. Files marked `read_only: true` cannot be modified by the agent's memory tools — useful for identity files, system configuration, and human-authored knowledge. |
+
+**Why frontmatter?** Memory files need metadata that's readable by both the agent (to decide whether to load full content) and the infrastructure (to enforce size limits and access control). YAML frontmatter in Markdown is the simplest format that achieves this without a separate metadata store.
+
 ### Bilingual Extraction
 
 If your users are multilingual, extraction patterns must handle multiple languages:

@@ -71,6 +71,13 @@ Don't choose between proactive and reactive — use both channels simultaneously
 │  - Hot-reloaded from disk on session reconnect         │
 │  - Zero retrieval latency                              │
 │  - Contains persona, not facts                         │
+│                                                        │
+│  + Progressive Disclosure (within Channel A):          │
+│  - File tree with descriptions from frontmatter        │
+│  - Agent sees WHAT exists without loading full content │
+│  - Full content loaded on demand when relevant         │
+│  - ~50 tokens/file for descriptions vs thousands       │
+│    for full content                                    │
 ├────────────────────────────────────────────────────────┤
 │  Channel B: On-Demand (Memory Tool)                    │
 │  - Agent calls memory_search when needed               │
