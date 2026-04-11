@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models via the Responses API or Chat Completions API, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', or need to access models through Poe."
+description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models via the Responses API, Chat Completions API, or Anthropic-compatible Messages API, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
 ---
 
 # Poe Provider Integration
@@ -18,6 +18,7 @@ Poe provides unified access to hundreds of AI models from multiple providers thr
 | **Env var name** | `OPENAI_API_KEY` | `POE_API_KEY` |
 | **API key prefix** | `sk-...` or `your-key` | `poe-xxxxx-...` |
 | **Base URL** | `api.openai.com` | `api.poe.com/v1` |
+| **Anthropic base URL** | `api.anthropic.com` | `api.poe.com` |
 | **Model names** | `gpt-4`, `claude-3` | `claude-3-5-sonnet`, `gpt-4o` |
 | **Billing** | Tokens | Compute points |
 | **Auth header** | Varies by endpoint | See below |
@@ -160,6 +161,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 |----------|--------|
 | `/bot/*` | `Poe-API-Key: $POE_API_KEY` |
 | `/v1/*` | `Authorization: Bearer $POE_API_KEY` |
+| `/v1/messages` | `x-api-key: $POE_API_KEY` _or_ `Authorization: Bearer $POE_API_KEY` |
 
 ---
 
@@ -300,6 +302,7 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 | `references/authentication.md` | OAuth flow, credential storage |
 | `references/responses-api.md` | Full Responses API reference, tools |
 | `references/chat-api.md` | Chat Completions details |
+| `references/anthropic-api.md` | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use, streaming) |
 | `references/models.md` | Full model catalog (if needed) |
 | `references/content-gen.md` | Image/video/audio details |
 | `references/errors.md` | Error codes, debugging |
