@@ -23,18 +23,14 @@ Only official Anthropic bots are supported through this API. You cannot call cus
 
 ## Authentication
 
-Send your Poe API key in the `Authorization` header:
-
 ```bash
 curl "https://api.poe.com/v1/messages" \
-    -H "Authorization: Bearer $POE_API_KEY" \
+    -H "x-api-key: $POE_API_KEY" \
     -H "anthropic-version: 2023-06-01" \
     -H "Content-Type: application/json"
 ```
 
 The `anthropic-version` header is required.
-
-For compatibility, the `x-api-key` header is also supported (takes precedence if both are provided).
 
 ---
 
@@ -164,16 +160,6 @@ Or by URL:
 
 Supported types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
 
-### Multi-Turn Conversation
-
-```json
-"messages": [
-  {"role": "user", "content": "What is Python?"},
-  {"role": "assistant", "content": "Python is a programming language."},
-  {"role": "user", "content": "What can I build with it?"}
-]
-```
-
 ---
 
 ## Tool Use
@@ -266,8 +252,6 @@ Send tool results back as a `tool_result` content block in a `user` message:
 | `"any"` | Model must use at least one tool |
 | `{"type": "tool", "name": "get_weather"}` | Force a specific tool |
 
----
-
 ### Agentic Loop
 
 Models can chain multiple tool calls for complex workflows:
@@ -293,20 +277,16 @@ for i in range(max_iterations):
         messages=messages
     )
 
-    # Check for tool use
     tool_uses = [b for b in response.content if b.type == "tool_use"]
 
     if not tool_uses:
-        # No more tools, print final response
         for block in response.content:
             if block.type == "text":
                 print(f"Final response: {block.text}")
         break
 
-    # Add assistant's tool use to messages
     messages.append({"role": "assistant", "content": response.content})
 
-    # Execute tools and add results
     for tool_use in tool_uses:
         print(f"Calling {tool_use.name} with {tool_use.input}")
         result = execute_tool(tool_use.name, tool_use.input)
@@ -318,14 +298,6 @@ for i in range(max_iterations):
                 "content": result
             }]
         })
-```
-
-**Example output:**
-
-```
-Calling get_weather with {'location': 'Paris', 'unit': 'celsius'}
-Calling get_weather with {'location': 'London', 'unit': 'celsius'}
-Final response: Paris: sunny, 22°C. London: cloudy, 18°C.
 ```
 
 ---
@@ -532,15 +504,6 @@ Errors follow the [Anthropic error format](https://docs.anthropic.com/en/api/err
 | `authentication_error` | 401 | Authentication failed - Invalid API key |
 | `not_found_error` | 404 | Model not found - Only Claude models are supported |
 | `rate_limit_error` | 429 | Rate limit exceeded (500 requests per minute) |
-
-### Streaming Errors
-
-If an error occurs mid-stream, an SSE error event is sent before the stream closes:
-
-```
-event: error
-data: {"type": "error", "error": {"type": "api_error", "message": "An error occurred"}}
-```
 
 ---
 

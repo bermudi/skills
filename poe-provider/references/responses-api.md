@@ -1,6 +1,8 @@
 # Poe Responses API Reference
 
-The Responses API is Poe's primary OpenAI-compatible interface for AI text generation. It provides advanced capabilities beyond Chat Completions: built-in reasoning, web search, structured outputs, and multi-turn conversations via `previous_response_id`.
+The Responses API is Poe's primary OpenAI-compatible interface for AI text generation. It provides advanced capabilities beyond Chat Completions: built-in reasoning, web search, structured outputs, multi-turn conversations via `previous_response_id`, and multi-modal inputs (text, images).
+
+**Note:** Poe UI-specific system prompts are skipped when using the API.
 
 ---
 
@@ -27,6 +29,7 @@ curl "https://api.poe.com/v1/responses" \
 | Reasoning / extended thinking | ✅ `reasoning` param | ❌ |
 | Web search built-in | ✅ `web_search_preview` tool | ❌ |
 | Structured outputs (JSON schema) | ✅ `text.format` | ❌ |
+| Multi-modal inputs (text, images) | ✅ `input` array | ❌ |
 | Multi-turn without resending history | ✅ `previous_response_id` | ❌ |
 | Tool support | ✅ | ✅ (but limited) |
 
@@ -49,7 +52,7 @@ curl "https://api.poe.com/v1/responses" \
 {
   "model": "Claude-Sonnet-4.6",
   "input": "Explain quantum computing",
-  "system_instruction": "You are a helpful physics tutor",
+  "instructions": "You are a helpful physics tutor",
   "temperature": 0.7,
   "max_output_tokens": 2048,
   "stream": false
@@ -62,16 +65,24 @@ curl "https://api.poe.com/v1/responses" \
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | string | Required | Poe bot name (e.g., `Claude-Sonnet-4.6`, `GPT-5.4`) |
-| `input` | string | Required | User message text |
-| `system_instruction` | string | null | System prompt override |
-| `temperature` | float | 1.0 | Sampling temperature (0–2) |
-| `max_output_tokens` | int | Model default | Max response length |
-| `stream` | boolean | false | Enable streaming |
-| `reasoning` | object | null | Enable extended thinking |
-| `tools` | array | null | Tool definitions |
-| `previous_response_id` | string | null | Continue multi-turn conversation |
-| `text.format` | object | null | JSON schema for structured output |
+| `model` | string | **Required** | Poe bot name (e.g., `Claude-Sonnet-4.6`, `GPT-5.4`). Poe UI-specific system prompts are skipped. |
+| `input` | string \| object[] | **Required** | User message. Can be a simple string or an array of input items including text, images, and previous assistant messages. |
+| `instructions` | string \| null | null | System (or developer) message inserted at the beginning of the model's context |
+| `temperature` | float | null | Sampling temperature (0–2) |
+| `top_p` | float | null | Nucleus sampling parameter (0–1) |
+| `max_output_tokens` | int \| null | Model default | Max response length |
+| `stream` | boolean | false | Enable streaming via SSE |
+| `reasoning` | object \| null | null | Enable extended thinking |
+| `tools` | array \| null | null | Tool definitions |
+| `tool_choice` | string \| object | "auto" | How the model selects tools: `"auto"`, `"required"`, `"none"`, or a specific tool object |
+| `parallel_tool_calls` | boolean \| null | null | Allow the model to run tool calls in parallel |
+| `previous_response_id` | string \| null | null | Continue multi-turn conversation |
+| `text` | object \| null | null | Configuration for structured text output (JSON schema) |
+| `truncation` | string \| null | null | Truncation strategy: `"auto"` (truncate to fit context window) or `"disabled"` (fail if exceeds) |
+| `include` | array \| null | null | Additional output to include. Values: `"web_search_call.action.sources"`, `"message.output_text.logprobs"`, `"reasoning.encrypted_content"` |
+| `metadata` | object \| null | null | Key-value pairs for additional info (keys ≤64 chars, values ≤512 chars) |
+| `service_tier` | string \| null | null | Processing tier: `"auto"`, `"default"`, `"flex"`, `"priority"` |
+| `store` | boolean \| null | null | Whether to store the response for later retrieval |
 
 ---
 
@@ -334,7 +345,6 @@ import json
 
 tool_results = []
 
-# Find the function_call output blocks
 for output in response.output:
     if output.type == "function_call":
         call_id = output.id
@@ -353,10 +363,9 @@ for output in response.output:
             "output": result
         })
 
-# Continue conversation with tool results
 followup = client.responses.create(
     model="Claude-Sonnet-4.6",
-    input="...",  # Original question
+    input="...",
     tools=TOOLS,
     tool_results=tool_results,
     previous_response_id=response.id
@@ -369,25 +378,11 @@ print(followup.output_text)
 
 ### tool_choice Options
 
-Control how the model uses tools:
-
 | Option | Behavior |
 |--------|----------|
 | `"auto"` | Model decides (default) |
+| `"required"` | Model must call at least one tool |
 | `"none"` | Model must not call tools |
-
-#### Force a Specific Tool
-
-```python
-response = client.responses.create(
-    model="Claude-Sonnet-4.6",
-    input="What's 42 plus 58?",
-    tools=TOOLS,
-    tool_choice={"type": "function", "name": "plus"}
-)
-```
-
----
 
 ### Agentic Loop
 
@@ -396,7 +391,7 @@ Models can chain multiple tool calls for complex workflows:
 ```python
 import json
 
-def execute_tool(call_id, name, arguments):
+def execute_tool(name, arguments):
     if name == "plus":
         return str(arguments["a"] + arguments["b"])
     elif name == "get_weather":
@@ -411,7 +406,6 @@ response = client.responses.create(
 
 max_iterations = 10
 for i in range(max_iterations):
-    # Check if model made function calls
     func_calls = [o for o in response.output if o.type == "function_call"]
 
     if not func_calls:
@@ -421,81 +415,16 @@ for i in range(max_iterations):
     tool_results = []
     for call in func_calls:
         print(f"Calling {call.name} with {call.arguments}")
-        result = execute_tool(call.id, call.name, call.arguments)
-        print(f"Result: {result}")
+        result = execute_tool(call.name, call.arguments)
         tool_results.append({"call_id": call.id, "output": result})
 
     response = client.responses.create(
         model="GPT-5.4",
-        input="...",  # Original question
+        input="...",
         tools=TOOLS,
         tool_results=tool_results,
         previous_response_id=response.id
     )
-```
-
-**Example output:**
-
-```
-Calling plus with {'a': 30000, 'b': 30000}
-Result: 60000
-Calling plus with {'a': 60000, 'b': 30000}
-Result: 90000
-Calling plus with {'a': 90000, 'b': 4041}
-Result: 94041
-Calling get_weather with {'location': '94041', 'unit': 'fahrenheit'}
-Result: {"temperature": 72, "condition": "sunny"}
-Final response: The sum is 94,041. Weather in ZIP 94041: 72°F and sunny.
-```
-
----
-
-### Web Search as Tool
-
-The Responses API includes built-in web search:
-
-```python
-response = client.responses.create(
-    model="GPT-5.4",
-    input="What are the latest AI news today?",
-    tools=[{"type": "web_search_preview"}]
-)
-```
-
----
-
-### Tool Call Response Format
-
-When the model requests a tool:
-
-```json
-{
-  "status": "incomplete",
-  "output": [
-    {
-      "type": "function_call",
-      "id": "fc_abc123",
-      "name": "get_weather",
-      "arguments": {"location": "Paris", "unit": "celsius"}
-    }
-  ]
-}
-```
-
-### Continuing After Tool Results
-
-```json
-{
-  "model": "Claude-Sonnet-4.6",
-  "input": "What's the weather in Paris?",
-  "tools": [...],
-  "tool_results": [
-    {
-      "call_id": "fc_abc123",
-      "output": "{\"temperature\": 22, \"conditions\": \"Sunny\"}"
-    }
-  ]
-}
 ```
 
 ---
@@ -507,13 +436,15 @@ When the model requests a tool:
 ```json
 {
   "id": "resp_abc123",
-  "model": "Claude-Sonnet-4.6",
   "object": "response",
+  "created_at": 1713123456,
+  "model": "Claude-Sonnet-4.6",
   "status": "completed",
   "output": [
     {
       "type": "message",
       "id": "msg_xyz789",
+      "role": "assistant",
       "content": [
         {
           "type": "output_text",
@@ -530,6 +461,15 @@ When the model requests a tool:
   }
 }
 ```
+
+### Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `completed` | Response finished successfully |
+| `failed` | Response encountered an error |
+| `in_progress` | Response is still being generated (streaming) |
+| `incomplete` | Response requires tool results to continue |
 
 ### Output Text Shorthand
 
@@ -594,6 +534,7 @@ console.log(response.output_text);
 | `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` |
 | N/A | `tools=[{"type": "web_search_preview"}]` |
 | N/A | `previous_response_id=response.id` |
+| N/A | Multi-modal inputs (images) |
 
 ---
 
@@ -618,7 +559,7 @@ Errors return standard format:
 | 402 | `insufficient_credits` | Balance ≤ 0 |
 | 403 | `moderation_error` | Permission denied |
 | 404 | `not_found_error` | Wrong endpoint/model |
-| 429 | `rate_limit_error` | RPM cap hit |
+| 429 | `rate_limit_error` | Rate limit exceeded (500 requests per minute) |
 | 500 | `provider_error` | Server-side issue |
 
 **Retry**: Respect `Retry-After` header on 429. Use exponential backoff starting at 250ms with jitter.

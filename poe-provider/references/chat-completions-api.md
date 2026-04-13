@@ -12,11 +12,43 @@ POST https://api.poe.com/v1/chat/completions
 
 **Note**: This is similar to OpenAI's Chat Completions API but routes through Poe's infrastructure.
 
+## Breaking Change: Strict Validation Rollout
+
+Poe is moving `/v1/chat/completions` from a permissive compatibility layer to **strict OpenAI-compatible request validation**.
+
+What this means in practice:
+- Non-standard fields that previously slipped through, such as `extra_body`, may fail in strict mode
+- Older Poe-side parameter transformations and renamed compatibility params are being removed to make the endpoint behave more like the first-party service
+- If you need provider-native knobs such as reasoning controls, prefer `/v1/responses` or the provider's first-party API instead of forcing them through Chat Completions
+- Poe announced the temporary legacy fallback is scheduled to end on **2026-04-24**
+
+### Feature Flag Headers
+
+During rollout, control behavior with the `poe-feature` request header:
+
+- `poe-feature: chat-completions-strict` — opt into strict validation early
+- `poe-feature: chat-completions-legacy` — temporary fallback during the grace period
+- Multiple feature flags may be comma-separated
+- Unknown feature flags are ignored
+
+Every response includes `x-poe-feature-active` so you can confirm which mode actually served the request.
+
+### Strict-Mode Test Request
+
+```bash
+curl -X POST "https://api.poe.com/v1/chat/completions" \
+  -H "Authorization: Bearer $POE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "poe-feature: chat-completions-strict" \
+  -d '{
+    "model": "Claude-Sonnet-4.6",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
 ---
 
 ## Authentication
-
-Use Bearer token authentication:
 
 ```bash
 curl -X POST "https://api.poe.com/v1/chat/completions" \
@@ -51,12 +83,12 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
   "temperature": 0.7,
   "max_tokens": 1000,
   "top_p": 1.0,
-  "frequency_penalty": 0.0,
-  "presence_penalty": 0.0,
   "stream": false,
   "stop": null
 }
 ```
+
+> **Strict-mode rule:** Only send fields defined by the OpenAI Chat Completions schema. Do not rely on `extra_body` or other Poe compatibility transforms on this endpoint.
 
 ---
 
@@ -70,11 +102,9 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 | `max_tokens` | int | Model default | Max response tokens |
 | `max_completion_tokens` | int | null | Maximum number of completion tokens to generate |
 | `top_p` | float | 1.0 | Nucleus sampling |
-| `frequency_penalty` | float | 0.0 | Penalize repeated tokens |
-| `presence_penalty` | float | 0.0 | Penalize repeated topics |
 | `stream` | boolean | false | Enable streaming |
 | `stream_options` | object | null | Options for streaming |
-| `stop` | array | null | Stop sequences (up to 4) |
+| `stop` | string \| string[] | null | Up to 4 sequences where the API will stop generating |
 | `tools` | array | null | Available functions |
 | `tool_choice` | string | auto | Controls which function is called |
 | `parallel_tool_calls` | boolean | null | Enable parallel function calling |
@@ -120,7 +150,6 @@ Use **either** `temperature` **or** `top_p`, not both. Using both can lead to un
 | `user` | Human messages |
 | `assistant` | AI responses |
 | `tool` | Tool execution results |
-| `developer` | Developer messages (model-specific) |
 
 ### Multimodal Content
 
@@ -182,7 +211,6 @@ Use **either** `temperature` **or** `top_p`, not both. Using both can lead to un
 | `stop` | Natural stopping point |
 | `length` | Hit `max_tokens` limit |
 | `content_filter` | Content filtered |
-| `function_call` | Model requested function (legacy) |
 | `tool_calls` | Tool execution needed |
 
 ---
@@ -508,6 +536,26 @@ Final response: The sum is 94,041. Current weather in ZIP 94041: 72°F and sunny
   ]
 }
 ```
+
+---
+
+## Migration Checklist for Strict Mode
+
+1. **Check model endpoint support first**
+   - Call `GET https://api.poe.com/v1/models`
+   - Confirm your model includes `/v1/chat/completions` in `supported_endpoints`
+2. **Remove non-standard request fields**
+   - Especially `extra_body`
+   - Also remove any older Poe-specific aliases or renamed provider params
+3. **Test with strict mode during rollout**
+   - Send `poe-feature: chat-completions-strict`
+4. **Confirm the active mode**
+   - Inspect `x-poe-feature-active` on the response
+5. **Use legacy mode only as a short-lived fallback**
+   - `poe-feature: chat-completions-legacy`
+   - Do not treat this as a permanent fix
+6. **Prefer `/v1/responses` when you need provider-native features**
+   - Reasoning controls, structured outputs, built-in web search, and similar features fit better there
 
 ---
 
