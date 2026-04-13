@@ -91,7 +91,6 @@ Pricing is per-token in USD. Multiply by 1,000,000 for per-1M-token pricing. Whe
 | Model | Input | Price In/Out (per 1M) | Cache Read | Features |
 |-------|-------|-----------------------|------------|----------|
 | **GPT-5.4** | | | | |
-| `gpt-5.4-pro` | text, image | $27.00 / $160.00 | — | web_search, tools |
 | `gpt-5.4` | text, image | $2.20 / $14.00 | $0.22 | web_search, tools |
 | `gpt-5.4-mini` | text, image | $0.68 / $4.00 | $0.068 | web_search, tools |
 | `gpt-5.4-nano` | text, image | $0.18 / $1.10 | $0.018 | web_search, tools |
@@ -111,7 +110,6 @@ Pricing is per-token in USD. Multiply by 1,000,000 for per-1M-token pricing. Whe
 | `gpt-5.1` | text, image | $1.10 / $9.00 | $0.11 | web_search, tools |
 | `gpt-5.1-instant` | text, image | $1.10 / $9.00 | $0.11 | web_search, tools |
 | **GPT-5** | | | | |
-| `gpt-5-pro` | text, image | $14.00 / $110.00 | — | web_search, tools |
 | `gpt-5` | text, image | $1.10 / $9.00 | $0.11 | web_search, tools |
 | `gpt-5-chat` | text, image | $1.10 / $9.00 | $0.11 | web_search, tools |
 | `gpt-5-codex` | text, image | $1.10 / $9.00 | — | tools |
@@ -127,18 +125,13 @@ Pricing is per-token in USD. Multiply by 1,000,000 for per-1M-token pricing. Whe
 | `gpt-4o-search` | text | $2.20 / $9.00 | — | tools |
 | `gpt-4o-mini-search` | text | $0.14 / $0.54 | — | tools |
 | `gpt-4-turbo` | text, image | $9.00 / $27.00 | — | tools |
-| **Reasoning (o-series)** | | | | |
-| `o1-pro` | text, image | $140.00 / $540.00 | — | web_search, tools |
-| `o1` | text, image | $14.00 / $54.00 | — | tools |
-| `o3-pro` | text, image | $18.00 / $72.00 | — | tools |
+| **Legacy Reasoning (o-series)** | | | | |
 | `o3-deep-research` | text | $9.00 / $36.00 | $2.20 | web_search, tools |
 | `o3` | text, image | $1.80 / $7.20 | $0.45 | tools |
 | `o3-mini` | text, image | $0.99 / $4.00 | — | tools |
 | `o3-mini-high` | text, image | $0.99 / $4.00 | — | tools |
 | `o4-mini-deep-research` | text | $1.80 / $7.20 | $0.45 | web_search, tools |
 | `o4-mini` | text, image | $0.99 / $4.00 | $0.25 | tools |
-
-Anything older than what is listed is not recommended.
 
 ### Google
 
