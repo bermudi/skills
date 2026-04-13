@@ -2,6 +2,26 @@
 
 OpenAI-compatible Chat Completions endpoint for drop-in replacement with existing code.
 
+## ✅ Tested & Confirmed (2026-04-13)
+
+All core features were tested against both `Claude-Haiku-4.5` and `gpt-5.4-mini`. This endpoint has **fewer platform gaps than the Responses API** through Poe right now:
+
+| Feature | Claude-Haiku-4.5 | gpt-5.4-mini |
+|---------|:---:|:---:|
+| Basic text generation | ✅ | ✅ |
+| System messages (`role: "system"`) | ✅ | ✅ |
+| Tool calling | ✅ | ✅ |
+| Parallel tool calls | ✅ | ✅ |
+| Agentic loop (tool result roundtrip) | ✅ | ✅ |
+| Multi-turn (message history) | ✅ | ✅ |
+| Streaming (SSE) | ✅ | ✅ |
+| Image input (base64 data URI) | ✅ | ✅ |
+| Strict mode header (`poe-feature: chat-completions-strict`) | ✅ | ✅ |
+| `temperature=0` deterministic | ✅ | ✅ |
+| `max_tokens` enforcement | ✅ | ⚠️ returned empty content in test |
+
+**Contrast with Responses API:** the Responses API's `instructions` and `previous_response_id` fields are both broken through Poe (as of 2026-04-13). Chat Completions has no equivalent gaps — `role: "system"` and multi-turn via message history both work. See `responses-api.md` for details on those gaps.
+
 ---
 
 ## Endpoint
@@ -284,7 +304,7 @@ async function* streamChat(messages: any[], model: string) {
 
 Tool calling enables LLMs to interact with external functions. The model suggests tool calls with specific arguments, your client executes them, and returns results to continue the conversation.
 
-> **⚠️ Limitation**: Tool calling support varies by model on this endpoint. Many Poe models do not support tools via Chat Completions. Prefer the Responses API or Messages API when tools are critical.
+> **Tool calling works** — tested with both Claude and GPT models through Poe. The model returns `function` tool calls with correct arguments, supports parallel calls, and correctly incorporates tool results when you send them back. Note that tool support still varies across *all* Poe models (not every model supports tools); the major ones (Claude, GPT) do.
 
 ---
 

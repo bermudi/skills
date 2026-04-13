@@ -6,6 +6,34 @@ The Responses API is Poe's primary OpenAI-compatible interface for AI text gener
 
 ---
 
+## ⚠️ Known Platform Gaps (tested 2026-04-13)
+
+These are features that are part of the OpenAI Responses API spec but currently **do not work through Poe**, even though Poe accepts the fields without error. They may be temporary — Poe is actively evolving the Responses API endpoint. Check back if you hit issues.
+
+| Feature | Status | Workaround |
+|---------|--------|------------|
+| `instructions` (system prompt) | **Silently ignored** — the field is accepted but has no effect on model behavior for any provider (tested Claude-Haiku-4.5, gpt-5.4-mini) | Inject system context in the `input` array, e.g. `{"role": "user", "content": "<system instructions>"}` before the real user message, or try `{"role": "developer", "content": "..."}` |
+| `previous_response_id` | **Broken** — returns `500 Internal Server Error` for Claude models, and `"Previous response cannot be used for this organization due to Zero Data Retention"` for OpenAI models | Send the full conversation history as an `input` array with `role`-tagged messages |
+
+### Confirmed working (both Claude-Haiku-4.5 and gpt-5.4-mini)
+
+| Feature | Result |
+|---------|--------|
+| Basic text generation | ✅ |
+| Streaming (SSE `output_text.delta` events) | ✅ |
+| Tool calling (`function_call` with args) | ✅ |
+| Agentic loop (send `function_call` + `function_call_output` back in `input`) | ✅ |
+| Structured output (`json_schema`) | ✅ |
+| Multi-turn via `input` array (role-based messages) | ✅ |
+| Image input (`input_image` with base64 data URI) | ✅ |
+
+### Model-specific notes
+
+- **Claude** models tend to give verbose safety lectures when conversation history looks synthetic (e.g., injected `assistant` messages about "secret codes"). They work correctly with natural-looking context.
+- **GPT** models are more terse and just answer, even with synthetic-looking history.
+
+---
+
 ## Endpoint
 
 ```
@@ -163,20 +191,37 @@ Get responses conforming to a specific JSON schema:
 
 ## Multi-Turn Conversations
 
-Use `previous_response_id` to continue a conversation without resending full history:
+### Via `input` array (currently recommended)
+
+Send the full conversation history as an array of role-tagged messages. This is the reliable method through Poe today:
 
 ```python
-# First message
+response = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input=[
+        {"role": "user", "content": "The capital of France is Paris. The capital of Germany is Berlin."},
+        {"role": "assistant", "content": "Understood, I have noted the capitals."},
+        {"role": "user", "content": "What is the capital of Germany?"}
+    ]
+)
+print(response.output_text)  # "Berlin"
+```
+
+### Via `previous_response_id` (currently broken)
+
+> **⚠️ Platform gap (as of 2026-04-13):** `previous_response_id` returns `500` for Claude models and a data-retention error for OpenAI models. This may be temporary. Use the `input` array approach above instead.
+
+```python
+# This does NOT currently work through Poe
 response = client.responses.create(
     model="Claude-Sonnet-4.6",
     input="What is the capital of France?"
 )
 
-# Follow-up using previous_response_id
 followup = client.responses.create(
     model="Claude-Sonnet-4.6",
     input="What is its population?",
-    previous_response_id=response.id
+    previous_response_id=response.id  # 500 error
 )
 ```
 
@@ -340,39 +385,54 @@ print(response.output)
 
 #### Step 2: Execute Tools and Continue
 
+Send the original user message, the function call, and the function result back as an `input` array:
+
 ```python
 import json
 
+# Build the input array with the full conversation so far
 tool_results = []
+func_calls = []
 
 for output in response.output:
     if output.type == "function_call":
         call_id = output.id
         name = output.name
-        args = output.arguments
+        args = json.loads(output.arguments) if isinstance(output.arguments, str) else output.arguments
 
         if name == "plus":
-            result = args["a"] + args["b"]
+            result = str(args["a"] + args["b"])
         elif name == "get_weather":
             result = json.dumps({"temperature": 72, "condition": "sunny"})
         else:
             result = "Unknown tool"
 
+        func_calls.append({
+            "type": "function_call",
+            "call_id": call_id,
+            "name": name,
+            "arguments": json.dumps(args)
+        })
         tool_results.append({
+            "type": "function_call_output",
             "call_id": call_id,
             "output": result
         })
 
 followup = client.responses.create(
     model="Claude-Sonnet-4.6",
-    input="...",
-    tools=TOOLS,
-    tool_results=tool_results,
-    previous_response_id=response.id
+    input=[
+        {"role": "user", "content": "What is 1999 + 2036? Also, what's the weather in New York?"},
+        *func_calls,
+        *tool_results
+    ],
+    tools=TOOLS
 )
 
 print(followup.output_text)
 ```
+
+> **Why `input` array and not `previous_response_id`?** As of 2026-04-13, `previous_response_id` does not work through Poe (500 for Claude, data-retention error for GPT). Sending the full conversation via the `input` array is the reliable approach. This may be temporary.
 
 ---
 
@@ -418,12 +478,16 @@ for i in range(max_iterations):
         result = execute_tool(call.name, call.arguments)
         tool_results.append({"call_id": call.id, "output": result})
 
+    # Send the full conversation history back via input array
+    input_items = [{"role": "user", "content": original_input}]
+    for call in func_calls:
+        input_items.append(call)
+        input_items.append({"type": "function_call_output", "call_id": call["id"], "output": execute_tool(call["name"], json.loads(call["arguments"]))})
+
     response = client.responses.create(
         model="GPT-5.4",
-        input="...",
-        tools=TOOLS,
-        tool_results=tool_results,
-        previous_response_id=response.id
+        input=input_items,
+        tools=TOOLS
     )
 ```
 
@@ -531,9 +595,9 @@ console.log(response.output_text);
 | `POST /v1/chat/completions` | `POST /v1/responses` |
 | `messages: [{"role": "user", "content": "..."}]` | `input: "..."` |
 | `response.choices[0].message.content` | `response.output_text` |
-| `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` |
+| `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` (note: `extra_body` is being removed from Chat Completions — see `feature-flags.md`) |
 | N/A | `tools=[{"type": "web_search_preview"}]` |
-| N/A | `previous_response_id=response.id` |
+| N/A | `previous_response_id=response.id` (⚠️ broken on Poe as of 2026-04-13, use input array instead) |
 | N/A | Multi-modal inputs (images) |
 
 ---

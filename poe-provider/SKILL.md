@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — prefer the Responses API first, then the Anthropic-compatible Messages API for Claude models, and only use Chat Completions as a last resort (many models don't support tools via that endpoint), (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
+description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — prefer the Responses API first, then the Anthropic-compatible Messages API for Claude models, then Chat Completions for OpenAI SDK compatibility, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
 ---
 
 # Poe Provider Integration
@@ -139,25 +139,46 @@ Poe exposes three APIs. **Always use the highest-priority API that fits your use
 
 | Priority | API | Use When | Why |
 |----------|-----|----------|-----|
-| **1st** | **Responses API** | Any model, any task | Full tool support, streaming, multi-turn, Poe-native features |
+| **1st** | **Responses API** | Any model, any task — but see caveats below | Most feature-rich endpoint (reasoning, structured outputs, web search). **Caveat:** `instructions` and `previous_response_id` are currently broken on Poe (tested 2026-04-13) — may be temporary |
 | **2nd** | **Messages API** (Anthropic-compatible) | Claude/Anthropic models, or when integrating with the Anthropic SDK | Drop-in replacement for `api.anthropic.com`, native Claude tool use format |
-| **3rd** | **Chat Completions API** (OpenAI-compatible) | Only when you must use the OpenAI SDK/API shape | Last resort — many models on Poe do not support tools via this endpoint |
+| **3rd** | **Chat Completions API** (OpenAI-compatible) | OpenAI SDK users, or when you need `role: "system"` / reliable multi-turn | Fully working through Poe — system messages, tool calling (including parallel), agentic loops, streaming, multi-turn, and image input all confirmed. Use this when Responses API gaps matter for your integration. |
 
-### ⚠️ Chat Completions Limitations
+### ⚠️ Responses API Platform Gaps (tested 2026-04-13, may be temporary)
 
-The Chat Completions API is an OpenAI-compatibility shim. It works for basic text generation, but:
-- **Not all Poe models support tools** through this endpoint
-- Tool calling behavior may differ from the Responses or Messages APIs
-- Poe is rolling this endpoint toward **strict OpenAI-compatible request validation**
-- Older permissive behavior may have tolerated non-standard fields like `extra_body`; strict mode can reject them
-- Prefer Responses API or Messages API when tools, reasoning controls, or provider-native features are needed
+The Responses API is the most feature-rich endpoint but currently has two significant gaps through Poe:
+- **`instructions` is silently ignored** — accepted but has no effect on any provider
+- **`previous_response_id` returns errors** — 500 for Claude, data-retention rejection for GPT
 
-Before recommending `/v1/chat/completions`, do all of the following:
-1. Check `GET https://api.poe.com/v1/models` and confirm the model lists `/v1/chat/completions` in `supported_endpoints`
-2. During the rollout, test with `poe-feature: chat-completions-strict`
-3. Inspect `x-poe-feature-active` on the response to confirm which mode actually handled the request
-4. Use `chat-completions-legacy` only as a temporary migration fallback, not a long-term fix
-5. If the user needs non-standard or provider-specific parameters, move them to `/v1/responses` or the first-party provider API instead of trying to pass them through Chat Completions
+Workaround: inject system context in the `input` array; use `input` array for multi-turn history. See `references/responses-api.md` for details.
+
+### Chat Completions — More Reliable Than You'd Expect
+
+Despite being listed as 3rd priority, Chat Completions actually has **fewer platform gaps** than the Responses API right now. Tested against both `Claude-Haiku-4.5` and `gpt-5.4-mini` on 2026-04-13:
+
+| Feature | Status |
+|---------|--------|
+| Basic text | ✅ |
+| System messages (`role: "system"`) | ✅ |
+| Tool calling | ✅ |
+| Parallel tool calls | ✅ |
+| Agentic loop (tool result roundtrip) | ✅ |
+| Multi-turn (message history) | ✅ |
+| Streaming | ✅ |
+| Image input | ✅ |
+| Strict mode header | ✅ |
+| `temperature`, `max_tokens` | ✅ |
+
+Use Chat Completions when you need `role: "system"` or reliable multi-turn and don't want to work around the Responses API gaps.
+
+### Chat Completions Strict Validation Rollout
+
+Poe is rolling `/v1/chat/completions` toward **strict OpenAI-compatible request validation**. Non-standard fields like `extra_body` that previously worked may now fail.
+
+1. Check `GET https://api.poe.com/v1/models` — confirm the model lists `/v1/chat/completions` in `supported_endpoints`
+2. Test with `poe-feature: chat-completions-strict`
+3. Inspect `x-poe-feature-active` on the response to confirm which mode handled the request
+4. Use `chat-completions-legacy` only as a temporary migration fallback
+5. If the user needs provider-specific parameters, move to `/v1/responses` or the first-party provider API
 
 ---
 
@@ -186,7 +207,7 @@ curl -X POST "https://api.poe.com/v1/messages" \
 
 **Ideal for**: Claude Code, Anthropic SDK integrations, or any tool that already speaks the Anthropic API protocol. Just swap `ANTHROPIC_BASE_URL` → `https://api.poe.com` and `ANTHROPIC_API_KEY` → your Poe key.
 
-### Chat Completions API (Last Resort)
+### Chat Completions API
 
 ```bash
 curl -X POST "https://api.poe.com/v1/chat/completions" \
@@ -198,9 +219,9 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
   }'
 ```
 
-**Use only when**: you're locked into the OpenAI SDK or need OpenAI-shaped responses and can't use either of the above.
+**Use when**: you need the OpenAI SDK shape, or when `instructions`/`previous_response_id` gaps on the Responses API matter for your integration. System messages, multi-turn, tools, streaming, and image input all work reliably.
 
-**Current rollout note**: Poe announced a strict-validation migration window for `/v1/chat/completions`, with legacy fallback scheduled to end on **2026-04-24**. Read `references/feature-flags.md` before advising on migrations, validation errors, or `extra_body` / custom-parameter issues.
+**Strict validation note**: Poe announced a strict-validation migration window for `/v1/chat/completions`, with legacy fallback scheduled to end on **2026-04-24**. Read `references/feature-flags.md` before advising on migrations, validation errors, or `extra_body` / custom-parameter issues.
 
 ### Auth Header by Endpoint
 
@@ -349,7 +370,7 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 |------|----------|--------------|
 | `references/responses-api.md` | **1st** | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use) |
 | `references/anthropic-api.md` | **2nd** | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use) |
-| `references/chat-completions-api.md` | **3rd** | Chat Completions API (last resort — limited tool support) |
+| `references/chat-completions-api.md` | **3rd** | Chat Completions API — fully working (system messages, tools, multi-turn, streaming, images). Prefer when Responses API gaps matter. |
 | `references/feature-flags.md` | — | `/v1/chat/completions` rollout guidance: strict vs legacy headers, response confirmation, and migration steps |
 | `references/authentication.md` | — | OAuth flow, Poe-specific auth gotchas |
 | `references/models.md` | — | Full model catalog |
