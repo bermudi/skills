@@ -23,20 +23,7 @@ Only official Anthropic bots are supported through this API. You cannot call cus
 
 ## Authentication
 
-### x-api-key header (recommended)
-
-This is Anthropic's standard authentication method:
-
-```bash
-curl "https://api.poe.com/v1/messages" \
-    -H "x-api-key: $POE_API_KEY" \
-    -H "anthropic-version: 2023-06-01" \
-    -H "Content-Type: application/json"
-```
-
-### Authorization: Bearer header
-
-For compatibility with tools that use Bearer token authentication:
+Send your Poe API key in the `Authorization` header:
 
 ```bash
 curl "https://api.poe.com/v1/messages" \
@@ -45,7 +32,9 @@ curl "https://api.poe.com/v1/messages" \
     -H "Content-Type: application/json"
 ```
 
-If both headers are provided, `x-api-key` takes precedence.
+The `anthropic-version` header is required.
+
+For compatibility, the `x-api-key` header is also supported (takes precedence if both are provided).
 
 ---
 
@@ -478,6 +467,26 @@ for await (const delta of streamMessages(
 }
 ```
 
+### Content Block Types
+
+**Text content block:**
+```json
+{
+  "type": "text",
+  "text": "Hello! How can I help you today?"
+}
+```
+
+**Tool use content block:**
+```json
+{
+  "type": "tool_use",
+  "id": "toolu_01A09q90qw90lq917835lq9",
+  "name": "get_weather",
+  "input": {"location": "Paris", "unit": "celsius"}
+}
+```
+
 ### Stop Reasons
 
 | Reason | Meaning |
@@ -495,7 +504,7 @@ Use either the Poe bot name or the Anthropic API model name:
 
 | Model | Poe Bot Name | Anthropic API Name |
 |-------|-------------|-------------------|
-| Claude Sonnet 4.6 | `claude-sonnet-4.6` | `claude-sonnet-4-6` |
+| Claude Sonnet 4.6 | `claude-sonnet-4.6` | `claude-sonnet-4.6` |
 | Claude Opus 4.6 | `claude-opus-4.6` | `claude-opus-4-6` |
 | Claude Haiku 4.5 | `claude-haiku-4.5` | `claude-haiku-4-5` |
 
@@ -519,12 +528,10 @@ Errors follow the [Anthropic error format](https://docs.anthropic.com/en/api/err
 
 | Type | Status | Description |
 |------|--------|-------------|
-| `authentication_error` | 401 | Invalid API key |
-| `permission_error` | 403 | Insufficient subscription |
-| `not_found_error` | 404 | Model not found |
-| `rate_limit_error` | 429 | Too many requests |
-| `invalid_request_error` | 400 | Malformed request |
-| `api_error` | 500 | Server error |
+| `invalid_request_error` | 400 | Invalid request - Malformed request or missing required fields |
+| `authentication_error` | 401 | Authentication failed - Invalid API key |
+| `not_found_error` | 404 | Model not found - Only Claude models are supported |
+| `rate_limit_error` | 429 | Rate limit exceeded (500 requests per minute) |
 
 ### Streaming Errors
 
@@ -540,16 +547,6 @@ data: {"type": "error", "error": {"type": "api_error", "message": "An error occu
 ## Rate Limits
 
 **500 requests per minute (rpm)**
-
-### Rate Limit Headers
-
-| Header | Description |
-|--------|-------------|
-| `x-ratelimit-limit-requests` | Max requests per time window (500) |
-| `x-ratelimit-remaining-requests` | Remaining requests in current window |
-| `x-ratelimit-reset-requests` | Seconds until rate limit resets |
-
-**Retry**: Use exponential backoff starting at 250ms with jitter. Check rate limit headers to proactively avoid limits.
 
 ---
 
