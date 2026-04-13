@@ -1,6 +1,13 @@
-# Poe Anthropic-Compatible API Reference
+# Anthropic Compatible API
 
-Drop-in replacement for the Anthropic Messages API. Use your Poe API key and subscription points to access Claude models through the same request/response format that the Anthropic SDK uses.
+The Poe API provides access to Claude models through an Anthropic-compatible endpoint. Use your Poe API key to access Claude without needing a separate Anthropic API key.
+
+**Key benefits:**
+- Use your existing Poe subscription points with no additional setup
+- Drop-in replacement for the Anthropic API - works with existing Anthropic SDK code
+- Requests are proxied directly to the provider with minimal transformation
+
+If you're already using the Anthropic SDK, you can switch to using Poe by simply changing the base URL and API key. For full API reference, see [Anthropic's official documentation](https://docs.anthropic.com/en/api/messages).
 
 ---
 
@@ -10,33 +17,35 @@ Drop-in replacement for the Anthropic Messages API. Use your Poe API key and sub
 POST https://api.poe.com/v1/messages
 ```
 
-Requests are proxied directly to Anthropic with minimal transformation — this is not a reimplementation, it's a pass-through. Only official Anthropic models are supported on this endpoint. For custom bots or other providers, use the Responses API or the OpenAI-compatible Chat Completions API instead.
+Only official Anthropic bots are supported through this API. You cannot call custom bots or bots from other providers. For other bots, use the Responses API or Chat Completions API.
 
 ---
 
 ## Authentication
 
-Two methods are supported. If both are provided, `x-api-key` takes precedence.
+### x-api-key header (recommended)
 
-### x-api-key header (Anthropic standard)
+This is Anthropic's standard authentication method:
 
 ```bash
 curl "https://api.poe.com/v1/messages" \
-  -H "x-api-key: $POE_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "Content-Type: application/json"
+    -H "x-api-key: $POE_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "Content-Type: application/json"
 ```
 
 ### Authorization: Bearer header
 
-For tools that use Bearer token authentication:
+For compatibility with tools that use Bearer token authentication:
 
 ```bash
 curl "https://api.poe.com/v1/messages" \
-  -H "Authorization: Bearer $POE_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "Content-Type: application/json"
+    -H "Authorization: Bearer $POE_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "Content-Type: application/json"
 ```
+
+If both headers are provided, `x-api-key` takes precedence.
 
 ---
 
@@ -49,7 +58,7 @@ export ANTHROPIC_API_KEY=$POE_API_KEY
 export ANTHROPIC_BASE_URL="https://api.poe.com"
 ```
 
-Then restart Claude Code. Verify with the `/status` command.
+Restart Claude Code and verify with the `/status` command.
 
 ---
 
@@ -59,10 +68,10 @@ Then restart Claude Code. Verify with the `/status` command.
 
 ```json
 {
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4.6",
   "max_tokens": 1024,
   "messages": [
-    {"role": "user", "content": "Hello"}
+    {"role": "user", "content": "What are the top 3 things to do in NYC?"}
   ]
 }
 ```
@@ -71,7 +80,7 @@ Then restart Claude Code. Verify with the `/status` command.
 
 ```json
 {
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4.6",
   "max_tokens": 4096,
   "messages": [
     {"role": "user", "content": "Explain quantum computing"}
@@ -90,14 +99,14 @@ Then restart Claude Code. Verify with the `/status` command.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | string | Required | Model identifier (see model table below) |
+| `model` | string | Required | Model identifier |
 | `max_tokens` | int | Required | Maximum tokens in the response |
 | `messages` | array | Required | Conversation messages |
 | `system` | string/array | null | System prompt |
 | `temperature` | float | 1.0 | Sampling randomness (0.0–1.0) |
 | `top_p` | float | null | Nucleus sampling |
 | `top_k` | int | null | Top-K sampling |
-| `stream` | boolean | false | Stream response with SSE |
+| `stream` | boolean | false | Enable streaming with SSE |
 | `stop_sequences` | array | null | Custom stop sequences (max 10) |
 | `metadata` | object | null | User metadata (user_id) |
 | `tools` | array | null | Tool definitions |
@@ -105,7 +114,7 @@ Then restart Claude Code. Verify with the `/status` command.
 
 ### system Parameter
 
-Can be a plain string or a structured array for multi-part system prompts:
+Can be a plain string or structured array for multi-part prompts:
 
 ```json
 "system": [
@@ -113,10 +122,6 @@ Can be a plain string or a structured array for multi-part system prompts:
   {"type": "text", "text": "Always respond in French.", "cache_control": {"type": "ephemeral"}}
 ]
 ```
-
-### Temperature vs Top-P
-
-Use `temperature` **or** `top_p`, not both simultaneously — combining them can produce unexpected results.
 
 ---
 
@@ -129,7 +134,7 @@ Use `temperature` **or** `top_p`, not both simultaneously — combining them can
 | `user` | Human messages |
 | `assistant` | AI responses (for multi-turn) |
 
-Unlike the OpenAI Chat Completions API, Anthropic's Messages API does **not** use a `system` role inside the messages array. System prompts go in the top-level `system` field instead.
+System prompts go in the top-level `system` field, not in the messages array.
 
 ### Text Content
 
@@ -168,7 +173,7 @@ Or by URL:
 }
 ```
 
-Supported image types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
+Supported types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
 
 ### Multi-Turn Conversation
 
@@ -188,7 +193,7 @@ Supported image types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
 
 ```json
 {
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4.6",
   "max_tokens": 4096,
   "tools": [
     {
@@ -219,7 +224,7 @@ Supported image types: `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
 
 ### Tool Use Response
 
-When the model wants to call a tool:
+When the model calls a tool:
 
 ```json
 {
@@ -236,7 +241,7 @@ When the model wants to call a tool:
     }
   ],
   "stop_reason": "tool_use",
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4.6",
   "usage": {
     "input_tokens": 250,
     "output_tokens": 50
@@ -246,7 +251,7 @@ When the model wants to call a tool:
 
 ### Continuing After Tool Use
 
-Send the tool result back as a `tool_result` content block in a `user` message:
+Send tool results back as a `tool_result` content block in a `user` message:
 
 ```json
 "messages": [
@@ -268,45 +273,71 @@ Send the tool result back as a `tool_result` content block in a `user` message:
 
 | Value | Behavior |
 |-------|----------|
-| `"auto"` | Model decides whether to use tools (default) |
+| `"auto"` | Model decides (default) |
 | `"any"` | Model must use at least one tool |
 | `{"type": "tool", "name": "get_weather"}` | Force a specific tool |
 
 ---
 
-## Response Format
+### Agentic Loop
 
-### Non-Streaming
+Models can chain multiple tool calls for complex workflows:
 
-```json
-{
-  "id": "msg_01XFDUDYJhyAAC8vn8option",
-  "type": "message",
-  "role": "assistant",
-  "content": [
-    {
-      "type": "text",
-      "text": "Hello! How can I help you today?"
-    }
-  ],
-  "model": "claude-sonnet-4-6",
-  "stop_reason": "end_turn",
-  "stop_sequence": null,
-  "usage": {
-    "input_tokens": 10,
-    "output_tokens": 15
-  }
-}
+```python
+import json
+
+def execute_tool(tool_name, tool_input):
+    if tool_name == "get_weather":
+        return json.dumps({"temperature": 72, "conditions": "sunny"})
+    return "Unknown tool"
+
+messages = [
+    {"role": "user", "content": "What's the weather in Paris and London?"}
+]
+
+max_iterations = 10
+for i in range(max_iterations):
+    response = client.messages.create(
+        model="claude-sonnet-4.6",
+        max_tokens=4096,
+        tools=TOOLS,
+        messages=messages
+    )
+
+    # Check for tool use
+    tool_uses = [b for b in response.content if b.type == "tool_use"]
+
+    if not tool_uses:
+        # No more tools, print final response
+        for block in response.content:
+            if block.type == "text":
+                print(f"Final response: {block.text}")
+        break
+
+    # Add assistant's tool use to messages
+    messages.append({"role": "assistant", "content": response.content})
+
+    # Execute tools and add results
+    for tool_use in tool_uses:
+        print(f"Calling {tool_use.name} with {tool_use.input}")
+        result = execute_tool(tool_use.name, tool_use.input)
+        messages.append({
+            "role": "user",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": result
+            }]
+        })
 ```
 
-### Stop Reasons
+**Example output:**
 
-| Reason | Meaning |
-|--------|---------|
-| `end_turn` | Natural end of response |
-| `max_tokens` | Hit `max_tokens` limit |
-| `stop_sequence` | Hit a custom stop sequence |
-| `tool_use` | Model requested tool execution |
+```
+Calling get_weather with {'location': 'Paris', 'unit': 'celsius'}
+Calling get_weather with {'location': 'London', 'unit': 'celsius'}
+Final response: Paris: sunny, 22°C. London: cloudy, 18°C.
+```
 
 ---
 
@@ -314,11 +345,9 @@ Send the tool result back as a `tool_result` content block in a `user` message:
 
 ### Request
 
-Set `stream: true`:
-
 ```json
 {
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4.6",
   "max_tokens": 1024,
   "stream": true,
   "messages": [
@@ -329,11 +358,11 @@ Set `stream: true`:
 
 ### Streaming Response Format
 
-Server-Sent Events with these event types:
+Server-Sent Events:
 
 ```
 event: message_start
-data: {"type": "message_start", "message": {"id": "msg_...", "type": "message", "role": "assistant", "content": [], "model": "claude-sonnet-4-6", "usage": {"input_tokens": 10, "output_tokens": 0}}}
+data: {"type": "message_start", "message": {"id": "msg_...", "type": "message", "role": "assistant", "content": [], "model": "claude-sonnet-4.6", "usage": {"input_tokens": 10, "output_tokens": 0}}}
 
 event: content_block_start
 data: {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}
@@ -358,9 +387,9 @@ data: {"type": "message_stop"}
 
 | Event | Description |
 |-------|-------------|
-| `message_start` | Beginning of response, includes metadata |
-| `content_block_start` | New content block beginning |
-| `content_block_delta` | Incremental content (text or tool input) |
+| `message_start` | Beginning of response |
+| `content_block_start` | New content block |
+| `content_block_delta` | Incremental text or tool input |
 | `content_block_stop` | Content block complete |
 | `message_delta` | Stop reason and final usage |
 | `message_stop` | Response complete |
@@ -414,7 +443,7 @@ async function* streamMessages(messages: any[], model: string) {
 // Usage
 for await (const delta of streamMessages(
   [{ role: 'user', content: 'Hello' }],
-  'claude-sonnet-4-6'
+  'claude-sonnet-4.6'
 )) {
   if (delta.type === 'text_delta') {
     process.stdout.write(delta.text);
@@ -424,9 +453,59 @@ for await (const delta of streamMessages(
 
 ---
 
-## Error Format
+## Response Format
 
-Errors follow Anthropic's error format:
+### Non-Streaming
+
+```json
+{
+  "id": "msg_01XFDUDYJhyAAC8vn8option",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello! How can I help you today?"
+    }
+  ],
+  "model": "claude-sonnet-4.6",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 15
+  }
+}
+```
+
+### Stop Reasons
+
+| Reason | Meaning |
+|--------|---------|
+| `end_turn` | Natural end of response |
+| `max_tokens` | Hit `max_tokens` limit |
+| `stop_sequence` | Hit a custom stop sequence |
+| `tool_use` | Model requested tool execution |
+
+---
+
+## Supported Models
+
+Use either the Poe bot name or the Anthropic API model name:
+
+| Model | Poe Bot Name | Anthropic API Name |
+|-------|-------------|-------------------|
+| Claude Sonnet 4.6 | `claude-sonnet-4.6` | `claude-sonnet-4-6` |
+| Claude Opus 4.6 | `claude-opus-4.6` | `claude-opus-4-6` |
+| Claude Haiku 4.5 | `claude-haiku-4.5` | `claude-haiku-4-5` |
+
+Only official Anthropic models are available on this endpoint. For custom bots or other providers, use the Responses API or Chat Completions API.
+
+---
+
+## Error Handling
+
+Errors follow the [Anthropic error format](https://docs.anthropic.com/en/api/errors):
 
 ```json
 {
@@ -437,8 +516,6 @@ Errors follow Anthropic's error format:
   }
 }
 ```
-
-### Error Types
 
 | Type | Status | Description |
 |------|--------|-------------|
@@ -460,20 +537,6 @@ data: {"type": "error", "error": {"type": "api_error", "message": "An error occu
 
 ---
 
-## Supported Models
-
-Use either the Poe bot name or the Anthropic API model name:
-
-| Anthropic API Name | Poe Bot Name | Description |
-|--------------------|-------------|-------------|
-| `claude-sonnet-4-6` | `claude-sonnet-4.6` | Claude Sonnet 4.6 |
-| `claude-opus-4-6` | `claude-opus-4.6` | Claude Opus 4.6 |
-| `claude-haiku-4-5` | `claude-haiku-4.5` | Claude Haiku 4.5 |
-
-Only official Anthropic models are available on this endpoint. For custom bots or other providers, use the Responses API or OpenAI-compatible Chat Completions API.
-
----
-
 ## Rate Limits
 
 **500 requests per minute (rpm)**
@@ -486,15 +549,13 @@ Only official Anthropic models are available on this endpoint. For custom bots o
 | `x-ratelimit-remaining-requests` | Remaining requests in current window |
 | `x-ratelimit-reset-requests` | Seconds until rate limit resets |
 
-When rate limited, you receive HTTP 429 with `rate_limit_error`.
-
-**Retry strategy**: Use exponential backoff starting at 250ms with jitter. Check the rate limit headers to proactively avoid hitting limits.
+**Retry**: Use exponential backoff starting at 250ms with jitter. Check rate limit headers to proactively avoid limits.
 
 ---
 
 ## Anthropic SDK Compatibility
 
-Since this is a pass-through to the Anthropic API, the official Anthropic SDKs work with just a base URL change.
+Since this is a pass-through to the Anthropic API, official Anthropic SDKs work with just a base URL change.
 
 ### Python
 
@@ -507,7 +568,7 @@ client = anthropic.Anthropic(
 )
 
 message = client.messages.create(
-    model="claude-sonnet-4-6",
+    model="claude-sonnet-4.6",
     max_tokens=1024,
     messages=[
         {"role": "user", "content": "Hello, Claude!"}
@@ -515,7 +576,7 @@ message = client.messages.create(
 )
 ```
 
-### TypeScript
+### Node.js
 
 ```typescript
 import Anthropic from '@anthropic-ai/sdk';
@@ -526,7 +587,7 @@ const client = new Anthropic({
 });
 
 const message = await client.messages.create({
-  model: 'claude-sonnet-4-6',
+  model: 'claude-sonnet-4.6',
   max_tokens: 1024,
   messages: [
     { role: 'user', content: 'Hello, Claude!' }
@@ -542,4 +603,4 @@ const message = await client.messages.create({
 2. **Replace API key**: `ANTHROPIC_API_KEY` → `POE_API_KEY`
 3. **Run your code** — Everything else stays the same
 
-No other changes needed. Request/response formats, streaming events, tool use, and error handling are identical to the Anthropic API.
+Request/response formats, streaming events, tool use, and error handling are identical to the Anthropic API.

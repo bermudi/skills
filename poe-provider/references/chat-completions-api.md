@@ -236,37 +236,228 @@ async function* streamChat(messages: any[], model: string) {
 
 ---
 
-## Function/Tool Calling
+## Tool Calling
 
-### With Functions
+Tool calling enables LLMs to interact with external functions. The model suggests tool calls with specific arguments, your client executes them, and returns results to continue the conversation.
 
-```json
-{
-  "model": "claude-3-5-sonnet",
-  "messages": [
-    {"role": "user", "content": "What's the weather in San Francisco?"}
-  ],
-  "tools": [
+> **⚠️ Limitation**: Tool calling support varies by model on this endpoint. Many Poe models do not support tools via Chat Completions. Prefer the Responses API or Messages API when tools are critical.
+
+---
+
+### Defining Tools
+
+```python
+TOOLS = [
     {
-      "type": "function",
-      "function": {
-        "name": "get_weather",
-        "description": "Get weather for a location",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "location": {"type": "string"},
-            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
-          },
-          "required": ["location"]
+        "type": "function",
+        "function": {
+            "name": "plus",
+            "description": "Add two integers together",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "integer", "description": "First integer"},
+                    "b": {"type": "integer", "description": "Second integer"}
+                },
+                "required": ["a", "b"]
+            }
         }
-      }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "City and state, e.g. San Francisco, CA"},
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+                },
+                "required": ["location"]
+            }
+        }
     }
-  ]
-}
+]
 ```
 
-### Response with Function Call
+---
+
+### Tool Calling Flow
+
+#### Step 1: Request with Tools
+
+```python
+messages = [
+    {"role": "user", "content": "What is 1999 + 2036? Also, what's the weather like in New York?"}
+]
+
+response = client.chat.completions.create(
+    model="Claude-Sonnet-4.6",
+    messages=messages,
+    tools=TOOLS,
+    tool_choice="auto"
+)
+
+print(response.choices[0].message.tool_calls)
+```
+
+**Example output:**
+
+```python
+[
+  ChatCompletionMessageToolCall(
+    id='call_abc123',
+    function=Function(arguments='{"a": 1999, "b": 2036}', name='plus'),
+    type='function'
+  ),
+  ChatCompletionMessageToolCall(
+    id='call_def456',
+    function=Function(arguments='{"location": "New York"}', name='get_weather'),
+    type='function'
+  )
+]
+```
+
+#### Step 2: Execute Tools (Client)
+
+```python
+import json
+
+tool_messages = []
+
+for tool_call in response.choices[0].message.tool_calls:
+    if tool_call.function.name == "plus":
+        args = json.loads(tool_call.function.arguments)
+        result = args["a"] + args["b"]  # 4035
+        tool_messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": str(result)
+        })
+
+    elif tool_call.function.name == "get_weather":
+        args = json.loads(tool_call.function.arguments)
+        result = {"temperature": 72, "unit": "fahrenheit", "condition": "sunny"}
+        tool_messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": json.dumps(result)
+        })
+```
+
+#### Step 3: Continue Conversation with Tool Results
+
+```python
+messages.append(response.choices[0].message)
+messages.extend(tool_messages)
+
+final_response = client.chat.completions.create(
+    model="Claude-Sonnet-4.6",
+    messages=messages,
+    tools=TOOLS
+)
+
+print(final_response.choices[0].message.content)
+```
+
+**Example output:**
+
+```
+1999 + 2036 = 4035.
+
+Current weather in New York, NY: sunny, around 72°F.
+```
+
+---
+
+### tool_choice Options
+
+Control how the model uses tools:
+
+| Option | Behavior |
+|--------|----------|
+| `"auto"` | Model decides (default) |
+| `"none"` | Model must not call tools |
+| `{"type": "function", "function": {"name": "get_weather"}}` | Force a specific tool |
+
+#### Force a Specific Tool
+
+```python
+response = client.chat.completions.create(
+    model="Claude-Sonnet-4.6",
+    messages=[{"role": "user", "content": "What's 42 plus 58?"}],
+    tools=TOOLS,
+    tool_choice={"type": "function", "function": {"name": "plus"}}
+)
+
+print(response.choices[0].message.tool_calls)
+```
+
+> **Note**: The `allowed_tools` option (`{"type": "allowed_tools", "allowed_tools": {...}}`) is not supported by most Poe models, even though it's in the OpenAI spec. Only specific models like `o3-mini` may support it.
+
+---
+
+### Agentic Loop
+
+Models can chain multiple tool calls for complex workflows:
+
+```python
+import json
+
+def execute_tool_call(tool_call):
+    function_name = tool_call.function.name
+    arguments = json.loads(tool_call.function.arguments)
+
+    if function_name == "plus":
+        return str(arguments["a"] + arguments["b"])
+    elif function_name == "get_weather":
+        return json.dumps({"temperature": 72, "condition": "sunny"})
+    return "Tool not found"
+
+messages = [
+    {"role": "user", "content": "What is 30000 + 30000 + 30000 + 4000 + 41? Treat that number as a ZIP code and tell me the weather there."}
+]
+
+max_iterations = 10
+for i in range(max_iterations):
+    response = client.chat.completions.create(
+        model="GPT-5.4",
+        messages=messages,
+        tools=TOOLS
+    )
+
+    assistant_message = response.choices[0].message
+
+    if not assistant_message.tool_calls:
+        print(f"Final response: {assistant_message.content}")
+        break
+
+    messages.append(assistant_message)
+
+    for tool_call in assistant_message.tool_calls:
+        print(f"Calling {tool_call.function.name} with {tool_call.function.arguments}")
+        result = execute_tool_call(tool_call)
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": result
+        })
+```
+
+**Example output:**
+
+```
+Calling plus with {"a": 30000, "b": 30000}
+Calling plus with {"a": 60000, "b": 30000}
+Calling plus with {"a": 90000, "b": 4041}
+Calling get_weather with {"location": "94041", "unit": "fahrenheit"}
+Final response: The sum is 94,041. Current weather in ZIP 94041: 72°F and sunny.
+```
+
+---
+
+### Tool Response Format
 
 ```json
 {
@@ -293,7 +484,7 @@ async function* streamChat(messages: any[], model: string) {
 
 ```json
 {
-  "model": "claude-3-5-sonnet",
+  "model": "Claude-Sonnet-4.6",
   "messages": [
     {"role": "user", "content": "What's the weather in San Francisco?"},
     {"role": "assistant", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco\"}"}}]},

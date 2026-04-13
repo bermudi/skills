@@ -1,21 +1,34 @@
 # Poe Responses API Reference
 
-The Responses API is Poe's primary interface for AI text generation with support for tools, streaming, and multi-turn conversations.
+The Responses API is Poe's primary OpenAI-compatible interface for AI text generation. It provides advanced capabilities beyond Chat Completions: built-in reasoning, web search, structured outputs, and multi-turn conversations via `previous_response_id`.
 
 ---
 
 ## Endpoint
 
 ```
-POST https://api.poe.com/bot/{bot_name}
+POST https://api.poe.com/v1/responses
 ```
 
-### Headers
+### Authentication
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Poe-API-Key` | Yes | Your Poe API key |
-| `Content-Type` | Yes | Must be `application/json` |
+```bash
+curl "https://api.poe.com/v1/responses" \
+  -H "Authorization: Bearer $POE_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+## Why Responses Over Chat Completions?
+
+| Feature | Responses API | Chat Completions |
+|---------|--------------|------------------|
+| Reasoning / extended thinking | ✅ `reasoning` param | ❌ |
+| Web search built-in | ✅ `web_search_preview` tool | ❌ |
+| Structured outputs (JSON schema) | ✅ `text.format` | ❌ |
+| Multi-turn without resending history | ✅ `previous_response_id` | ❌ |
+| Tool support | ✅ | ✅ (but limited) |
 
 ---
 
@@ -25,7 +38,8 @@ POST https://api.poe.com/bot/{bot_name}
 
 ```json
 {
-  "query": "Your question or prompt here"
+  "model": "Claude-Sonnet-4.6",
+  "input": "What are the top 3 things to do in NYC?"
 }
 ```
 
@@ -33,12 +47,12 @@ POST https://api.poe.com/bot/{bot_name}
 
 ```json
 {
-  "query": "Explain machine learning",
+  "model": "Claude-Sonnet-4.6",
+  "input": "Explain quantum computing",
+  "system_instruction": "You are a helpful physics tutor",
   "temperature": 0.7,
   "max_output_tokens": 2048,
-  "stop_sequences": ["\n\n", "END"],
-  "stream": false,
-  "system_instruction": "You are a helpful tutor"
+  "stream": false
 }
 ```
 
@@ -48,115 +62,180 @@ POST https://api.poe.com/bot/{bot_name}
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `query` | string | Required | User message |
-| `temperature` | float | 1.0 | Creativity (0.0-2.0) |
-| `max_output_tokens` | int | Model default | Max response length |
-| `stop_sequences` | array | null | Stop generation at these |
-| `stream` | boolean | false | Enable streaming |
+| `model` | string | Required | Poe bot name (e.g., `Claude-Sonnet-4.6`, `GPT-5.4`) |
+| `input` | string | Required | User message text |
 | `system_instruction` | string | null | System prompt override |
+| `temperature` | float | 1.0 | Sampling temperature (0–2) |
+| `max_output_tokens` | int | Model default | Max response length |
+| `stream` | boolean | false | Enable streaming |
+| `reasoning` | object | null | Enable extended thinking |
+| `tools` | array | null | Tool definitions |
+| `previous_response_id` | string | null | Continue multi-turn conversation |
+| `text.format` | object | null | JSON schema for structured output |
 
-### Temperature Guide
+---
 
-| Value | Use Case |
-|-------|----------|
-| 0.0 - 0.3 | Precise, factual responses |
-| 0.4 - 0.7 | Balanced (default) |
-| 0.8 - 1.0 | Creative, varied outputs |
-| 1.0+ | Highly random (use sparingly) |
+## Reasoning
+
+Enable extended thinking for complex tasks (works best with Claude Sonnet 4.6, o3, o4-mini):
+
+```json
+{
+  "model": "Claude-Sonnet-4.6",
+  "input": "Solve: if a train leaves at 3pm going 60mph and another at 4pm going 90mph, when do they meet?",
+  "reasoning": {
+    "effort": "high",
+    "summary": "auto"
+  }
+}
+```
+
+### Reasoning Effort Levels
+
+| Effort | Use Case |
+|--------|----------|
+| `low` | Quick, simple tasks |
+| `medium` | Balanced (default) |
+| `high` | Complex reasoning, math, coding |
+
+---
+
+## Web Search
+
+Use the built-in `web_search_preview` tool for up-to-date information:
+
+```json
+{
+  "model": "GPT-5.4",
+  "input": "What are the latest AI news today?",
+  "tools": [{"type": "web_search_preview"}]
+}
+```
+
+---
+
+## Structured Outputs
+
+Get responses conforming to a specific JSON schema:
+
+```json
+{
+  "model": "GPT-5.4",
+  "input": "List the top 3 programming languages in 2025",
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "name": "languages",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "reason": {"type": "string"}
+              },
+              "required": ["name", "reason"]
+            }
+          }
+        },
+        "required": ["languages"]
+      }
+    }
+  }
+}
+```
 
 ---
 
 ## Multi-Turn Conversations
 
-### With Messages Array
+Use `previous_response_id` to continue a conversation without resending full history:
 
-```json
-{
-  "messages": [
-    {"role": "user", "content": "What is Python?"},
-    {"role": "assistant", "content": "Python is a programming language..."},
-    {"role": "user", "content": "What can I build with it?"}
-  ]
-}
-```
+```python
+# First message
+response = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="What is the capital of France?"
+)
 
-### Roles
-
-| Role | Description |
-|------|-------------|
-| `user` | Human input |
-| `assistant` | AI response |
-| `system` | System-level instructions |
-
-### Message Content Formats
-
-**Text only:**
-```json
-{"role": "user", "content": "Hello"}
-```
-
-**Multimodal (with images):**
-```json
-{
-  "role": "user",
-  "content": [
-    {"type": "text", "text": "What's in this image?"},
-    {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}}
-  ]
-}
+# Follow-up using previous_response_id
+followup = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="What is its population?",
+    previous_response_id=response.id
+)
 ```
 
 ---
 
-## Streaming Responses
+## Streaming
 
 ### Request
 
-Set `stream: true` in your request:
-
-```bash
-curl -X POST "https://api.poe.com/bot/claude-3-5-sonnet" \
-  -H "Poe-API-Key: $POE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Write a poem", "stream": true}'
+```json
+{
+  "model": "Claude-Sonnet-4.6",
+  "input": "Write a story about a robot",
+  "stream": true
+}
 ```
 
-### Response Format
+### Streaming Response Format
 
-Server-Sent Events (SSE):
+Server-Sent Events:
 
 ```
-data: {"text": "Roses"}
+data: {"type":"response_started","response":{"id":"resp_abc123","model":"Claude-Sonnet-4.6"}}
 
-data: {"text": " are"}
+data: {"type":"content_block_started","index":0,"content_block":{"type":"text"}}
 
-data: {"text": " red"}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Once"}}
 
-data: [DONE]
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" upon"}}
+
+data: {"type":"content_block_stopped"}
+
+data: {"type":"response_done","response":{"id":"resp_abc123","usage":{"output_tokens":150}}}
 ```
+
+### SSE Event Types
+
+| Event | Description |
+|-------|-------------|
+| `response_started` | Response begins |
+| `content_block_started` | New content block |
+| `content_block_delta` | Incremental text/tool input |
+| `content_block_stopped` | Block complete |
+| `response_done` | Response complete with usage |
+| `error` | Error occurred |
 
 ### Client Implementation
 
 ```typescript
-async function* streamResponse(prompt: string) {
-  const response = await fetch('https://api.poe.com/bot/claude-3-5-sonnet', {
+async function* streamResponse(model: string, input: string) {
+  const response = await fetch('https://api.poe.com/v1/responses', {
     method: 'POST',
     headers: {
-      'Poe-API-Key': process.env.POE_API_KEY!,
+      'Authorization': `Bearer ${process.env.POE_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ query: prompt, stream: true })
+    body: JSON.stringify({ model, input, stream: true })
   });
 
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
+  let buffer = '';
 
   while (reader) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
 
     for (const line of lines) {
       if (line.startsWith('data: ')) {
@@ -171,56 +250,231 @@ async function* streamResponse(prompt: string) {
 }
 
 // Usage
-for await (const token of streamResponse('Write a story')) {
-  process.stdout.write(token.text);
+for await (const event of streamResponse('Claude-Sonnet-4.6', 'Write a haiku')) {
+  if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+    process.stdout.write(event.delta.text);
+  }
 }
 ```
 
 ---
 
-## Tools (Function Calling)
+## Tool Use
 
 ### Defining Tools
 
-```json
-{
-  "query": "What's the weather in Paris?",
-  "tools": [
+```python
+TOOLS = [
     {
-      "type": "function",
-      "function": {
-        "name": "get_weather",
-        "description": "Get current weather for a location",
+        "type": "function",
+        "name": "plus",
+        "description": "Add two integers",
         "parameters": {
-          "type": "object",
-          "properties": {
-            "location": {
-              "type": "string",
-              "description": "City name"
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "integer"}
             },
-            "unit": {
-              "type": "string",
-              "enum": ["celsius", "fahrenheit"],
-              "default": "celsius"
-            }
-          },
-          "required": ["location"]
+            "required": ["a", "b"]
         }
-      }
+    },
+    {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get weather for a location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"},
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+            },
+            "required": ["location"]
+        }
     }
-  ]
-}
+]
 ```
 
-### Tool Response Format
+### Tool Calling Flow
+
+#### Step 1: Request with Tools
+
+```python
+response = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="What is 1999 + 2036? Also, what's the weather in New York?",
+    tools=TOOLS
+)
+
+print(response.output)
+```
+
+**Example output** (when model requests tools):
+
+```python
+[
+    {
+        "type": "function_call",
+        "id": "fc_abc123",
+        "name": "plus",
+        "arguments": {"a": 1999, "b": 2036}
+    },
+    {
+        "type": "function_call",
+        "id": "fc_def456",
+        "name": "get_weather",
+        "arguments": {"location": "New York"}
+    }
+]
+```
+
+#### Step 2: Execute Tools and Continue
+
+```python
+import json
+
+tool_results = []
+
+# Find the function_call output blocks
+for output in response.output:
+    if output.type == "function_call":
+        call_id = output.id
+        name = output.name
+        args = output.arguments
+
+        if name == "plus":
+            result = args["a"] + args["b"]
+        elif name == "get_weather":
+            result = json.dumps({"temperature": 72, "condition": "sunny"})
+        else:
+            result = "Unknown tool"
+
+        tool_results.append({
+            "call_id": call_id,
+            "output": result
+        })
+
+# Continue conversation with tool results
+followup = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="...",  # Original question
+    tools=TOOLS,
+    tool_results=tool_results,
+    previous_response_id=response.id
+)
+
+print(followup.output_text)
+```
+
+---
+
+### tool_choice Options
+
+Control how the model uses tools:
+
+| Option | Behavior |
+|--------|----------|
+| `"auto"` | Model decides (default) |
+| `"none"` | Model must not call tools |
+
+#### Force a Specific Tool
+
+```python
+response = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="What's 42 plus 58?",
+    tools=TOOLS,
+    tool_choice={"type": "function", "name": "plus"}
+)
+```
+
+---
+
+### Agentic Loop
+
+Models can chain multiple tool calls for complex workflows:
+
+```python
+import json
+
+def execute_tool(call_id, name, arguments):
+    if name == "plus":
+        return str(arguments["a"] + arguments["b"])
+    elif name == "get_weather":
+        return json.dumps({"temperature": 72, "condition": "sunny"})
+    return "Unknown tool"
+
+response = client.responses.create(
+    model="GPT-5.4",
+    input="What is 30000 + 30000 + 30000 + 4000 + 41? Treat that as a ZIP code and tell me the weather.",
+    tools=TOOLS
+)
+
+max_iterations = 10
+for i in range(max_iterations):
+    # Check if model made function calls
+    func_calls = [o for o in response.output if o.type == "function_call"]
+
+    if not func_calls:
+        print(f"Final response: {response.output_text}")
+        break
+
+    tool_results = []
+    for call in func_calls:
+        print(f"Calling {call.name} with {call.arguments}")
+        result = execute_tool(call.id, call.name, call.arguments)
+        print(f"Result: {result}")
+        tool_results.append({"call_id": call.id, "output": result})
+
+    response = client.responses.create(
+        model="GPT-5.4",
+        input="...",  # Original question
+        tools=TOOLS,
+        tool_results=tool_results,
+        previous_response_id=response.id
+    )
+```
+
+**Example output:**
+
+```
+Calling plus with {'a': 30000, 'b': 30000}
+Result: 60000
+Calling plus with {'a': 60000, 'b': 30000}
+Result: 90000
+Calling plus with {'a': 90000, 'b': 4041}
+Result: 94041
+Calling get_weather with {'location': '94041', 'unit': 'fahrenheit'}
+Result: {"temperature": 72, "condition": "sunny"}
+Final response: The sum is 94,041. Weather in ZIP 94041: 72°F and sunny.
+```
+
+---
+
+### Web Search as Tool
+
+The Responses API includes built-in web search:
+
+```python
+response = client.responses.create(
+    model="GPT-5.4",
+    input="What are the latest AI news today?",
+    tools=[{"type": "web_search_preview"}]
+)
+```
+
+---
+
+### Tool Call Response Format
 
 When the model requests a tool:
 
 ```json
 {
-  "tool_calls": [
+  "status": "incomplete",
+  "output": [
     {
-      "id": "call_abc123",
+      "type": "function_call",
+      "id": "fc_abc123",
       "name": "get_weather",
       "arguments": {"location": "Paris", "unit": "celsius"}
     }
@@ -228,16 +482,16 @@ When the model requests a tool:
 }
 ```
 
-### Continuing After Tools
+### Continuing After Tool Results
 
 ```json
 {
-  "tool_calls": [
-    {"id": "call_abc123", "name": "get_weather", "arguments": {...}}
-  ],
+  "model": "Claude-Sonnet-4.6",
+  "input": "What's the weather in Paris?",
+  "tools": [...],
   "tool_results": [
     {
-      "tool_call_id": "call_abc123",
+      "call_id": "fc_abc123",
       "output": "{\"temperature\": 22, \"conditions\": \"Sunny\"}"
     }
   ]
@@ -252,87 +506,119 @@ When the model requests a tool:
 
 ```json
 {
-  "text": "Generated response text...",
-  "model": "claude-3-5-sonnet",
+  "id": "resp_abc123",
+  "model": "Claude-Sonnet-4.6",
+  "object": "response",
+  "status": "completed",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_xyz789",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "The top 3 things to do in NYC are..."
+        }
+      ]
+    }
+  ],
+  "output_text": "The top 3 things to do in NYC are...",
   "usage": {
+    "input_tokens": 25,
     "output_tokens": 150,
-    "input_tokens": 50
+    "total_tokens": 175
   }
 }
 ```
 
-### Usage Tracking
+### Output Text Shorthand
 
-| Field | Description |
-|-------|-------------|
-| `input_tokens` | Tokens in your prompt |
-| `output_tokens` | Tokens in generated response |
+For simple text responses, `output_text` is a direct string:
 
-**Note**: Poe bills in compute points, not raw tokens. Usage shown is for reference.
-
----
-
-## Examples
-
-### Basic Question
-
-```bash
-curl -X POST "https://api.poe.com/bot/claude-3-5-sonnet" \
-  -H "Poe-API-Key: $POE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is the capital of Japan?"}'
-```
-
-### Code Generation
-
-```bash
-curl -X POST "https://api.poe.com/bot/claude-3-5-sonnet" \
-  -H "Poe-API-Key: $POE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "Write a Python function to calculate fibonacci",
-    "temperature": 0.2
-  }'
-```
-
-### Conversation
-
-```bash
-curl -X POST "https://api.poe.com/bot/claude-3-5-sonnet" \
-  -H "Poe-API-Key: $POE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "I need to sort a list in Python"},
-      {"role": "assistant", "content": "You can use the sorted() function..."},
-      {"role": "user", "content": "What about descending order?"}
-    ]
-  }'
+```json
+{
+  "id": "resp_abc123",
+  "output_text": "The capital of France is Paris.",
+  "usage": {...}
+}
 ```
 
 ---
 
-## Rate Limits
+## OpenAI SDK Compatibility
 
-| Tier | Requests/minute |
-|------|-----------------|
-| Free | 10 |
-| Basic | 60 |
-| Pro | 240 |
+### Python
 
-Implement exponential backoff on 429 responses:
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.poe.com/v1",
+    api_key=os.environ.get("POE_API_KEY")
+)
+
+response = client.responses.create(
+    model="Claude-Sonnet-4.6",
+    input="What is the capital of France?"
+)
+print(response.output_text)
+```
+
+### Node.js
 
 ```typescript
-async function requestWithBackoff(params: RequestParams) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const response = await fetch(url, params);
-    
-    if (response.ok) return response;
-    if (response.status !== 429) throw new Error(`HTTP ${response.status}`);
-    
-    const delay = Math.pow(2, attempt) * 1000;
-    await new Promise(r => setTimeout(r, delay));
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  baseURL: 'https://api.poe.com/v1',
+  apiKey: process.env.POE_API_KEY
+});
+
+const response = await client.responses.create({
+  model: 'Claude-Sonnet-4.6',
+  input: 'What is the capital of France?'
+});
+console.log(response.output_text);
+```
+
+---
+
+## Migration: Chat Completions → Responses API
+
+| Chat Completions | Responses API |
+|-----------------|---------------|
+| `client.chat.completions.create()` | `client.responses.create()` |
+| `POST /v1/chat/completions` | `POST /v1/responses` |
+| `messages: [{"role": "user", "content": "..."}]` | `input: "..."` |
+| `response.choices[0].message.content` | `response.output_text` |
+| `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` |
+| N/A | `tools=[{"type": "web_search_preview"}]` |
+| N/A | `previous_response_id=response.id` |
+
+---
+
+## Error Handling
+
+Errors return standard format:
+
+```json
+{
+  "error": {
+    "code": 401,
+    "type": "authentication_error",
+    "message": "Invalid API key"
   }
-  throw new Error('Max retries exceeded');
 }
 ```
+
+| Status | Type | When |
+|--------|------|------|
+| 400 | `invalid_request_error` | Malformed JSON, missing fields |
+| 401 | `authentication_error` | Bad/expired key |
+| 402 | `insufficient_credits` | Balance ≤ 0 |
+| 403 | `moderation_error` | Permission denied |
+| 404 | `not_found_error` | Wrong endpoint/model |
+| 429 | `rate_limit_error` | RPM cap hit |
+| 500 | `provider_error` | Server-side issue |
+
+**Retry**: Respect `Retry-After` header on 429. Use exponential backoff starting at 250ms with jitter.

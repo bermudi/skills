@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models via the Responses API, Chat Completions API, or Anthropic-compatible Messages API, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
+description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — prefer the Responses API first, then the Anthropic-compatible Messages API for Claude models, and only use Chat Completions as a last resort (many models don't support tools via that endpoint), (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
 ---
 
 # Poe Provider Integration
@@ -132,18 +132,51 @@ npx poe-code@latest mcp configure claude-code
 
 ---
 
-## API Endpoints
+## API Selection Guide
 
-### Responses API (Recommended)
+Poe exposes three APIs. **Always use the highest-priority API that fits your use case.**
+
+| Priority | API | Use When | Why |
+|----------|-----|----------|-----|
+| **1st** | **Responses API** | Any model, any task | Full tool support, streaming, multi-turn, Poe-native features |
+| **2nd** | **Messages API** (Anthropic-compatible) | Claude/Anthropic models, or when integrating with the Anthropic SDK | Drop-in replacement for `api.anthropic.com`, native Claude tool use format |
+| **3rd** | **Chat Completions API** (OpenAI-compatible) | Only when you must use the OpenAI SDK/API shape | Last resort — many models on Poe do not support tools via this endpoint |
+
+### ⚠️ Chat Completions Limitations
+
+The Chat Completions API is an OpenAI-compatibility shim. It works for basic text generation, but:
+- **Not all Poe models support tools** through this endpoint
+- Tool calling behavior may differ from the Responses or Messages APIs
+- Prefer Responses API or Messages API when tools are needed
+
+---
+
+### Responses API (Primary Choice)
 
 ```bash
-curl -X POST "https://api.poe.com/bot/claude-3-5-sonnet" \
-  -H "Poe-API-Key: $POE_API_KEY" \
+curl -X POST "https://api.poe.com/v1/responses" \
+  -H "Authorization: Bearer $POE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Your question"}'
+  -d '{"model": "Claude-Sonnet-4.6", "input": "Your question"}'
 ```
 
-### Chat Completions API (OpenAI-compatible)
+### Messages API (Anthropic-Compatible — Secondary Choice for Claude Models)
+
+```bash
+curl -X POST "https://api.poe.com/v1/messages" \
+  -H "x-api-key: $POE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4.6",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+**Ideal for**: Claude Code, Anthropic SDK integrations, or any tool that already speaks the Anthropic API protocol. Just swap `ANTHROPIC_BASE_URL` → `https://api.poe.com` and `ANTHROPIC_API_KEY` → your Poe key.
+
+### Chat Completions API (Last Resort)
 
 ```bash
 curl -X POST "https://api.poe.com/v1/chat/completions" \
@@ -155,13 +188,16 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
   }'
 ```
 
+**Use only when**: you're locked into the OpenAI SDK or need OpenAI-shaped responses and can't use either of the above.
+
 ### Auth Header by Endpoint
 
 | Endpoint | Header |
 |----------|--------|
-| `/bot/*` | `Poe-API-Key: $POE_API_KEY` |
-| `/v1/*` | `Authorization: Bearer $POE_API_KEY` |
+| `/v1/responses` | `Authorization: Bearer $POE_API_KEY` |
 | `/v1/messages` | `x-api-key: $POE_API_KEY` _or_ `Authorization: Bearer $POE_API_KEY` |
+| `/v1/chat/completions` | `Authorization: Bearer $POE_API_KEY` |
+| `/bot/*` | `Poe-API-Key: $POE_API_KEY` (legacy, for content generation) |
 
 ---
 
@@ -297,12 +333,12 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 
 ## Reference Files
 
-| File | When to Read |
-|------|--------------|
-| `references/authentication.md` | OAuth flow, credential storage |
-| `references/responses-api.md` | Full Responses API reference, tools |
-| `references/chat-api.md` | Chat Completions details |
-| `references/anthropic-api.md` | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use, streaming) |
-| `references/models.md` | Full model catalog (if needed) |
-| `references/content-gen.md` | Image/video/audio details |
-| `references/errors.md` | Error codes, debugging |
+| File | Priority | When to Read |
+|------|----------|--------------|
+| `references/responses-api.md` | **1st** | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use, agentic loops) |
+| `references/anthropic-api.md` | **2nd** | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use, streaming, agentic loops) |
+| `references/chat-completions-api.md` | **3rd** | Chat Completions API details (last resort — limited tool support, agentic loops) |
+| `references/authentication.md` | — | OAuth flow, credential storage |
+| `references/models.md` | — | Full model catalog (if needed) |
+| `references/content-gen.md` | — | Image/video/audio details |
+| `references/errors.md` | — | Error codes, debugging |
