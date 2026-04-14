@@ -374,4 +374,6 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 | `references/feature-flags.md` | — | `/v1/chat/completions` rollout guidance: strict vs legacy headers, response confirmation, and migration steps |
 | `references/authentication.md` | — | OAuth flow, Poe-specific auth gotchas |
 | `references/models.md` | — | Full model catalog |
+| `references/costs_and_usage.md` | — | Compute point balance, usage history API, pagination patterns |
+| `references/cache.md` | — | Prompt caching: what works, what doesn't, point savings, per-endpoint guide |
 | `references/errors.md` | — | Error codes and debugging |
