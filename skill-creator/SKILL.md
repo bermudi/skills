@@ -1,44 +1,34 @@
 ---
 name: skill-creator
-description: Create new Agent Skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
+description: Create and iteratively improve Agent Skills. Use when users want to create a skill from scratch, edit or improve an existing skill, run evals or benchmarks, or optimize a skill's description for better triggering accuracy.
 ---
 
 # Skill Creator
 
-A skill for creating new Agent Skills and iteratively improving them.
+The creation process:
 
-At a high level, the process of creating a skill goes like this:
+1. Decide what the skill should do
+2. Write a draft
+3. Create test prompts and run them
+4. Evaluate results qualitatively and quantitatively
+   - While runs execute in the background, draft quantitative evals
+   - Use the eval viewer to present results
+5. Rewrite based on feedback
+6. Repeat until satisfied, then expand the test set
 
-- Decide what you want the skill to do and roughly how it should do it
-- Write a draft of the skill
-- Create a few test prompts and run the skill on them
-- Help the user evaluate the results both qualitatively and quantitatively
-  - While the runs happen in the background, draft quantitative evals if there aren't any
-  - Use the eval viewer to show the user the results and quantitative metrics
-- Rewrite the skill based on feedback from the user's evaluation
-- Repeat until satisfied
-- Expand the test set and try again at larger scale
+Meet the user where they are. If they say "I want to make a skill for X", work through the full process. If they already have a draft, jump to eval/iterate. If they say "I don't need evaluations, just vibe with me", do that instead.
 
-Your job is to figure out where the user is in this process and help them progress. If they say "I want to make a skill for X", you can help narrow down what they mean, write a draft, write test cases, figure out how they want to evaluate, run all the prompts, and repeat. If they already have a draft, go straight to the eval/iterate loop. And if they say "I don't need evaluations, just vibe with me", do that instead.
-
-After the skill is done, you can also run the description optimizer to improve triggering accuracy.
+After the skill is done, offer to run the description optimizer for better triggering accuracy.
 
 ## Communicating with the user
 
-The skill creator may be used by people across a wide range of coding familiarity. Pay attention to context cues to understand how to phrase your communication. In the default case:
-
-- "evaluation" and "benchmark" are borderline but OK
-- for "JSON" and "assertion", check if the user knows these terms before using them without explanation
-
-It's fine to briefly explain terms if you're in doubt.
+Most skill creators are experienced developers, but don't assume. Match terminology to the user's demonstrated familiarity — clarify jargon (e.g., "progressive disclosure") only when the user's phrasing suggests they need it. Show, don't tell: demonstrate concepts through examples rather than defining them.
 
 ---
 
 ## Best practices
 
-Effective skills are grounded in real expertise. Extract from hands-on tasks (what worked, what you corrected, what context you had to provide) or synthesize from existing artifacts (runbooks, API specs, code review history, failure cases). The first draft usually needs refinement — run it, read the execution traces (not just outputs), and iterate.
-
-Read `references/best-practices.md` for detailed guidance on starting from real expertise, spending context wisely, calibrating control, and effective instruction patterns (gotchas, templates, checklists, validation loops, plan-validate-execute).
+**Read `references/best-practices.md` at the start of every skill creation session.** It covers expertise sourcing, context spending, calibrating prescriptiveness, and reusable instruction patterns. Don't summarize it here — the agent will read the full file.
 
 ---
 
@@ -46,25 +36,25 @@ Read `references/best-practices.md` for detailed guidance on starting from real 
 
 ### Capture Intent
 
-Start by understanding the user's intent. The current conversation might already contain a workflow the user wants to capture. If so, extract answers from the conversation history first — the tools used, the sequence of steps, corrections the user made, input/output formats observed. The user may need to fill gaps, and should confirm before proceeding.
+Start by understanding the user's intent. Check the current conversation — it may already contain a workflow to capture. Extract the tools used, step sequences, corrections made, and I/O formats, then have the user fill gaps and confirm.
 
 1. What should this skill enable the agent to do?
 2. When should this skill trigger? (what user phrases/contexts)
 3. What's the expected output format?
-4. Should we set up test cases to verify the skill works? Skills with objectively verifiable outputs (file transforms, data extraction, code generation, fixed workflow steps) benefit from test cases. Skills with subjective outputs (writing style, art) often don't need them. Suggest the appropriate default based on the skill type, but let the user decide.
+4. Should we set up test cases? Skills with verifiable outputs (file transforms, data extraction, code generation) benefit; subjective skills (writing style, art) often don't. Suggest the default, let the user decide.
 
 ### Interview and Research
 
-Proactively ask questions about edge cases, input/output formats, example files, success criteria, and dependencies. Wait to write test prompts until you've got this part ironed out.
+Ask about edge cases, I/O formats, example files, success criteria, and dependencies. Don't write test prompts until these are clear.
 
-Check available MCPs and tools — if useful for research (searching docs, finding similar skills, looking up best practices), research in parallel via subagents if available, otherwise inline. Come prepared with context to reduce burden on the user.
+For research (finding similar skills, looking up patterns), use available MCPs or spawn subagents in parallel. Bring findings back to reduce back-and-forth with the user.
 
 ### Write the SKILL.md
 
 Based on the user interview, fill in these components:
 
 - **name**: Skill identifier (kebab-case, max 64 chars, must match directory name)
-- **description**: When to trigger, what it does. This is the primary triggering mechanism — include both what the skill does AND specific contexts for when to use it. All "when to use" info goes here. Make descriptions a little "pushy" — e.g., "Use this skill whenever the user mentions dashboards, data visualization, or internal metrics, even if they don't explicitly ask for a 'dashboard.'"
+- **description**: When to trigger and what the skill does. All "when to use" information goes here — this is the primary triggering mechanism. See [Description Optimization](#description-optimization) for writing effective descriptions.
 - **compatibility**: Required tools, dependencies (optional, rarely needed)
 - **the rest of the skill**
 
@@ -81,21 +71,19 @@ skill-name/
     └── assets/     - Files used in output (templates, icons, fonts)
 ```
 
-Read `references/specification.md` for the complete format reference including all frontmatter fields, naming constraints, and validation tooling.
-
 #### Progressive Disclosure
 
 Skills use a three-level loading system:
 1. **Metadata** (name + description) - Always in context (~100 words)
 2. **SKILL.md body** - In context whenever skill triggers (<500 lines ideal)
-3. **Bundled resources** - As needed (unlimited, scripts can execute without loading)
+3. **Bundled resources** - Loaded on demand
 
 **Key patterns:**
-- Keep SKILL.md under 500 lines; if approaching this limit, add hierarchy with clear pointers to follow-up resources
-- Reference files clearly from SKILL.md with guidance on when to read them
+- Keep SKILL.md under 500 lines; approaching this limit → add hierarchy with clear pointers
+- Reference files **with trigger conditions**: tell the agent when to load them (e.g., "Read `references/aws.md` if deploying to AWS")
 - For large reference files (>300 lines), include a table of contents
 
-**Domain organization**: When a skill supports multiple domains/frameworks, organize by variant:
+**Domain organization** (skills supporting multiple frameworks):
 ```
 cloud-deploy/
 ├── SKILL.md (workflow + selection)
@@ -105,41 +93,15 @@ cloud-deploy/
     └── azure.md
 ```
 
-#### Writing Style
+Read `references/specification.md` for complete format details (all frontmatter fields, naming constraints, validation).
 
-Explain *why* things are important rather than heavy-handed MUSTs. Use theory of mind and make the skill general. If you find yourself writing ALWAYS or NEVER in all caps, that's a yellow flag — try to reframe and explain the reasoning so the model understands *why* something matters.
-
-For a complete end-to-end example of creating a skill from scratch, read `references/quickstart.md`.
-
-#### Principle of Lack of Surprise
-
-Skills must not contain malware, exploit code, or any content that could compromise system security. A skill's contents should not surprise the user in their intent if described.
-
-#### Writing Patterns
-
-**Defining output formats:**
-```markdown
-## Report structure
-ALWAYS use this exact template:
-# [Title]
-## Executive summary
-## Key findings
-## Recommendations
-```
-
-**Examples pattern:**
-```markdown
-## Commit message format
-**Example 1:**
-Input: Added user authentication with JWT tokens
-Output: feat(auth): implement JWT-based authentication
-```
+Read `references/quickstart.md` for a complete end-to-end example (especially useful on your first skill).
 
 ### Test Cases
 
-After writing the skill draft, come up with 2-3 realistic test prompts — the kind of thing a real user would actually say. Share them with the user: "Here are a few test cases I'd like to try. Do these look right, or do you want to add more?" Then run them.
+After drafting the skill, create at least three realistic test prompts. Share them with the user for confirmation before running.
 
-Read `references/evaluating-skills.md` for detailed guidance on designing test cases, writing assertions, grading outputs, and structuring eval workspaces.
+Read `references/evaluating-skills.md` when setting up evals (covers test case design, assertions, grading, and workspace structure).
 
 Save test cases to `evals/evals.json`:
 
@@ -163,9 +125,9 @@ See `references/schemas.md` for the full schema (including the `assertions` fiel
 
 ## Running and evaluating test cases
 
-This section is one continuous sequence — don't stop partway through.
+**Execute this section as a continuous sequence** — stopping mid-way leaves runs incomplete and feedback uncollected.
 
-Put results in `<skill-name>-workspace/` as a sibling to the skill directory. Within the workspace, organize results by iteration (`iteration-1/`, `iteration-2/`, etc.) and within that, each test case gets a directory (`eval-0/`, `eval-1/`, etc.). Don't create all of this upfront — just create directories as you go.
+**Workspace structure**: Use `<skill-name>-workspace/` as a sibling to the skill directory. Within it, organize by iteration (`iteration-1/`, `iteration-2/`, etc.) and within each, by test case (`eval-0/`, `eval-1/`, etc.). Create directories as needed rather than upfront.
 
 ### Step 1: Spawn all runs (with-skill AND baseline) in the same turn
 
@@ -231,7 +193,7 @@ Once all runs are done:
    ```
    This produces `benchmark.json` and `benchmark.md`. See `references/schemas.md` for the exact schema.
 
-3. **Do an analyst pass** — read the benchmark data and surface patterns the aggregate stats might hide. See `references/analysis-subagent.md` for what to look for.
+3. **Run an analyst pass** — read the benchmark data and surface patterns the aggregate stats might hide. See `references/analysis-subagent.md` for what to look for.
 
 4. **Launch the viewer** with both qualitative outputs and quantitative data:
    ```bash
@@ -263,15 +225,15 @@ This is the heart of the loop. You've run the test cases, the user has reviewed 
 
 ### How to think about improvements
 
-1. **Generalize from the feedback.** The skill will be used many times across many different prompts. Rather than put in fiddly overfitty changes, if there's some stubborn issue, try branching out and using different metaphors or recommending different patterns.
+1. **Generalize from feedback.** A skill runs against many prompts. Resist overfitting to a single test case — if a problem persists across cases, rewrite the underlying instruction rather than patching around it.
 
-2. **Keep the prompt lean.** Remove things that aren't pulling their weight. Read the transcripts, not just the final outputs — if the skill makes the model waste time on unproductive steps, cut the parts causing that.
+2. **Read transcripts, not just outputs.** If the agent wastes time on unproductive steps, trace which instruction triggered the detour and cut it.
 
-3. **Explain the why.** Explain the **why** behind everything you're asking the model to do. Even if the feedback is terse, understand the task and transmit this understanding into the instructions. If you find yourself writing ALWAYS or NEVER in all caps, reframe and explain the reasoning.
+3. **Explain why, don't just command.** Instructions that explain their purpose let the agent adapt to edge cases. Replace `MUST do X` with `Do X because Y` — the agent will make better judgment calls when it understands the reasoning.
 
-4. **Look for repeated work across test cases.** If all test cases resulted in the agent writing similar helper scripts, that's a signal the skill should bundle that script. Write it once, put it in `scripts/`, and tell the skill to use it. Read `references/using-scripts.md` for details on making scripts self-contained with inline dependency declarations.
+4. **Bundle repeated work.** If the agent independently writes similar helper scripts across test cases, extract it into `scripts/`. Read `references/using-scripts.md` for making scripts self-contained with inline dependency declarations.
 
-Take your time and really mull things over. Write a draft revision and then look at it anew and make improvements.
+Write a draft revision, then re-read it as if you're encountering it for the first time. Cut anything that doesn't pull its weight.
 
 ### The iteration loop
 
@@ -297,15 +259,15 @@ This is optional and most users won't need it. The human review loop is usually 
 
 ## Description Optimization
 
-The description field in SKILL.md frontmatter is the primary mechanism that determines whether an agent invokes a skill. After creating or improving a skill, offer to optimize the description for better triggering accuracy.
+The `description` field determines whether an agent invokes a skill. After creating or improving a skill, offer to optimize it for better triggering accuracy.
 
 ### How skill triggering works
 
-Agents use progressive disclosure to manage context. At startup, they load only the `name` and `description` of each available skill. When a user's task matches a description, the agent reads the full `SKILL.md` into context. The description carries the entire burden of triggering.
+Agents use progressive disclosure. At startup, only `name` and `description` load. When a task matches, the full SKILL.md loads. The description carries the entire triggering burden.
 
-Important nuance: agents typically only consult skills for tasks that require knowledge beyond what they can handle alone. Simple, one-step queries may not trigger a skill even if the description matches. Tasks that involve specialized knowledge are where a well-written description makes the difference.
+Important nuance: agents typically only consult skills for tasks that require knowledge beyond what they can handle alone. Simple, one-step queries may not trigger a skill even if the description matches. Specialized-knowledge tasks are where a well-written description makes the difference.
 
-Read `references/optimizing-descriptions.md` for the full guide on designing trigger eval queries, running the optimization loop, and avoiding overfitting.
+**Read `references/optimizing-descriptions.md`** for the full trigger optimization guide (eval query design, the optimization loop, train/validation splits).
 
 ### Writing effective descriptions
 
@@ -381,40 +343,30 @@ Take the best description and update the skill's SKILL.md frontmatter. Show the 
 
 ---
 
-## Checklist for effective Skills
+## Checklist: Before sharing a skill
 
-Before sharing a Skill, verify:
+Run through this before declaring a skill complete:
 
 ### Core quality
 
-- [ ] Description is specific and includes key terms
-- [ ] Description includes both what the Skill does and when to use it
+- [ ] Description includes both what the skill does and when to use it
 - [ ] SKILL.md body is under 500 lines
-- [ ] Additional details are in separate files (if needed)
-- [ ] No time-sensitive information (or in "old patterns" section)
-- [ ] Consistent terminology throughout
-- [ ] Examples are concrete, not abstract
-- [ ] File references are one level deep
+- [ ] Reference files have clear "when to read" triggers
+- [ ] Examples are concrete (real file paths, real commands)
 - [ ] Progressive disclosure used appropriately
-- [ ] Workflows have clear steps
+- [ ] Skill contents are transparent — nothing that would surprise the user if they read the raw files
 
 ### Code and scripts
 
 - [ ] Scripts solve problems rather than punt to the agent
-- [ ] Error handling is explicit and helpful
-- [ ] No "voodoo constants" (all values justified)
-- [ ] Required packages listed in instructions and verified as available
-- [ ] Scripts have clear documentation
-- [ ] No Windows-style paths (all forward slashes)
-- [ ] Validation/verification steps for critical operations
-- [ ] Feedback loops included for quality-critical tasks
+- [ ] Error handling is explicit
+- [ ] Required packages listed and verified available
+- [ ] Validation steps included for critical operations
 
 ### Testing
 
-- [ ] At least three evaluations created
-- [ ] Tested across multiple models
-- [ ] Tested with real usage scenarios
-- [ ] Team feedback incorporated (if applicable)
+- [ ] At least three test cases created
+- [ ] Evaluated against real usage scenarios
 
 ---
 
@@ -432,29 +384,18 @@ This creates a `.skill` file (zip format) that can be installed by any agent cli
 
 ## Reference files
 
-### Skill reference docs (`references/`)
+**When to read each reference:**
 
-- `references/best-practices.md` — Writing well-scoped, calibrated skills (expertise sourcing, context management, instruction patterns)
-- `references/specification.md` — Complete format reference for SKILL.md (frontmatter fields, naming rules, validation)
-- `references/evaluating-skills.md` — Test case design, assertions, grading, workspace structure, iteration
-- `references/optimizing-descriptions.md` — Trigger eval queries, optimization loop, train/validation splits
-- `references/using-scripts.md` — Bundling self-contained scripts with inline dependency declarations
-- `references/quickstart.md` — End-to-end example of creating a skill from scratch
-- `references/schemas.md` — JSON structures for evals.json, grading.json, benchmark.json, etc.
-- `references/grading-subagent.md` — How to evaluate assertions against outputs (for subagent spawning)
-- `references/comparison-subagent.md` — How to do blind A/B comparison between two outputs
-- `references/analysis-subagent.md` — How to analyze why one version beat another
+| Read when you need... | File |
+|-----------------------|------|
+| Complete SKILL.md format (all frontmatter fields, naming rules, validation) | `references/specification.md` |
+| Your first end-to-end walkthrough | `references/quickstart.md` |
+| Test case design, assertions, grading, workspace structure | `references/evaluating-skills.md` |
+| Trigger optimization, train/validation splits | `references/optimizing-descriptions.md` |
+| Making bundled scripts with inline dependencies | `references/using-scripts.md` |
+| JSON schemas (evals.json, grading.json, benchmark.json) | `references/schemas.md` |
+| Grading via subagent | `references/grading-subagent.md` |
+| Blind A/B comparison between outputs | `references/comparison-subagent.md` |
+| Analyzing why one version beat another | `references/analysis-subagent.md` |
 
----
 
-The core loop, stated once more for emphasis:
-
-- Figure out what the skill is about
-- Draft or edit the skill
-- Run the skill on test prompts
-- With the user, evaluate the outputs:
-  - Create benchmark.json and run `eval-viewer/generate_review.py` to help the user review them
-  - Run quantitative evals
-- Repeat until you and the user are satisfied
-- Optimize the description for triggering accuracy
-- Package the final skill and return it to the user
