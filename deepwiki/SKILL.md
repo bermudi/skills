@@ -98,6 +98,28 @@ mcporter call deepwiki.ask_question repoName="redis/redis" question="What are th
 
 ---
 
+## Known Issues
+
+### `ask_question` may report "repo not indexed" for repos that are indexed
+
+The `ask_question` endpoint sometimes returns an error claiming a repo isn't indexed, even though `read_wiki_structure` and `read_wiki_contents` return results for the same repo. 
+
+**Fallback pattern:** If `ask_question` fails with "not indexed", fall back to `read_wiki_contents` and reason over the wiki text yourself:
+
+```bash
+# If ask_question fails...
+mcporter call deepwiki.ask_question repoName="some/repo" question="how does X work?"  # fails
+
+# ...fall back to reading the wiki directly
+mcporter call deepwiki.read_wiki_contents repoName="some/repo"
+```
+
+### Only `ask_question` does AI reasoning
+
+`read_wiki_structure` and `read_wiki_contents` return pre-generated text with no AI processing. `ask_question` is the only endpoint that uses AI to generate a context-grounded answer to your specific question. If you need synthesis, comparison, or explanation — use `ask_question`.
+
+---
+
 ## Workflow Guide
 
 ### Quick Answer

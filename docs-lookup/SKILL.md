@@ -90,11 +90,11 @@ mcporter call context7.query-docs libraryId="/eslint/eslint" query="how to confi
 
 ## Context7 vs tavily_skill vs deepwiki
 
-| Need | Tool | Why |
-|------|------|-----|
-| Current docs for a specific library version | **context7** | Structured, version-aware, high quality |
-| Quick doc lookup without knowing the library ID | **tavily_skill** | One-step, broader but less precise |
-| Understand a GitHub repo's architecture | **deepwiki** | Repo-level understanding, not just docs |
-| Find real code examples in the wild | **code-search** | Actual production code, not documentation |
+| Need | Tool | AI reasoning? | Why |
+|------|------|:---:|-----|
+| Current docs for a specific library version | **context7** | ❌ | Returns raw doc chunks — exact text, no synthesis. Best for verifying API signatures. |
+| Quick synthesized doc lookup | **tavily_skill** | ✅ | AI generates a structured answer. One-step, broader but less precise. |
+| Understand a GitHub repo's architecture | **deepwiki** | ✅ | Repo-level understanding, not just docs. |
+| Find real code examples in the wild | **code-search** | ❌ | Actual production code, not documentation. |
 
-Context7 is the best choice when you know exactly which library you need docs for and want structured, version-specific results. Use `tavily_skill` for quick one-shot lookups where the extra precision isn't needed.
+Context7 is the best choice when you need the exact documentation text for a specific library version — it returns raw, unsynthesized chunks from its doc index. The agent (you) must reason over these chunks yourself. Use `tavily_skill` when you'd rather have an AI-synthesized answer in one shot and don't need version precision.

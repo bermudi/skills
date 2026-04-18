@@ -305,9 +305,10 @@ mcporter call tavily.tavily_research input="State of the art in LLM reasoning: c
 
 ---
 
-## tavily_skill — Library Documentation Search
+## tavily_skill — AI-Synthesized Library Documentation
 
-Search documentation for any library, API, or tool. Returns structured documentation chunks relevant to your query.
+Search documentation for any library, API, or tool. Unlike Context7 (which returns raw doc chunks), `tavily_skill` uses AI to synthesize a structured response — it searches a doc index, then generates a coherent answer with setup guides, code examples, gotchas, and version notes. The output follows a consistent template (`What it is`, `When to use`, `Correct setup`, `Critical gotchas`) that is clearly AI-generated, not raw scraped content.
+
 
 ### Basic Usage
 ```bash
@@ -343,8 +344,15 @@ mcporter call tavily.tavily_skill query="setting up WebSocket connections" libra
 ```
 
 ### When to use tavily_skill vs context7
-- `tavily_skill` is broader and doesn't require resolving a library ID first. Good for quick lookups.
-- `context7` (separate MCP server) gives more structured, version-specific docs but requires a two-step call (resolve library ID, then query).
+
+| | `tavily_skill` | `context7` |
+|---|---|---|
+| **AI synthesis** | ✅ Yes — generates structured response | ❌ No — returns raw doc chunks |
+| **Steps** | One call | Two calls (resolve ID, then query) |
+| **Version targeting** | No | Yes — can pin to specific version |
+| **Best for** | Quick "how do I..." lookups | When you need exact doc text or a specific version |
+
+Use `tavily_skill` when you want a quick, synthesized answer. Use `context7` when you need the raw documentation text (e.g., to verify exact API signatures) or need a specific library version.
 
 ---
 
@@ -357,6 +365,10 @@ Need info from the web?
 ├── Content from specific HTML URLs → tavily_extract
 ├── Multi-page content from a site → tavily_crawl
 ├── Just see what URLs exist on a site → tavily_map
-├── Comprehensive research on a topic → tavily_research
-└── Library/framework documentation → tavily_skill
+├── Library docs, quick synthesized answer → tavily_skill (AI-synthesized, one-step)
+├── Library docs, specific version or raw text → context7 (raw chunks, two-step)
+├── Understand a GitHub repo's architecture → deepwiki
+├── Research a topic (general) → tavily_research or poe-research.research
+├── Deep research (most thorough) → poe-research.deep_research
+└── Real code examples in production repos → code-search (grep.app)
 ```
