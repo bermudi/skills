@@ -277,6 +277,16 @@ The same base model may be available through multiple providers at different pri
 
 ---
 
+## Live Probe Note
+
+Live chat-completions probes on 2026-04-18 showed that some models with `supported_endpoints: []` are still callable through `POST /v1/chat/completions`:
+
+- `minimax-m2.7` accepted repeated identical prompts and showed a `Cache discount` on the second call in `points_history`.
+- `kimi-k2.5` accepted the same protocol but did not show a cache hit in this probe.
+- `kimi-k2.5-fw` and `glm-5.1-t` both returned `cost_points: 0` / `cost_usd: "0.00"` in API usage history.
+
+Treat this as a live-behavior note, not a guarantee. Re-check the API before relying on any of these models for production caching or billing assumptions.
+
 ## Model Selection Guide
 
 ### By Task
