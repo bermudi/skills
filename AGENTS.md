@@ -48,6 +48,8 @@ skills update -g
 
 This copies skills from this repo into `~/.agents/skills/`. Always edit here, then reinstall — never edit the installed copies directly.
 
+**`skills` detects changes via git state, not filesystem mtime.** You must `git add && git commit` before `skills update -g` will pick up your edits. Pushing ensures remote mirrors stay in sync too.
+
 ## Validation
 
 Uses [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) (the official reference validator). CI runs on every push.
