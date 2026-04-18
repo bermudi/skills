@@ -7,6 +7,29 @@ description: "Search the web, extract page content, crawl websites, map site str
 
 Tavily is an AI-native search and extraction API. You access it through mcporter, which acts as the MCP client. All calls go through `mcporter call tavily.<tool> key=value`.
 
+## Use the Right Tool for the Job
+
+**Not everything that touches the internet should go through Tavily.** Tavily is for searching, extracting web pages as markdown, crawling sites, and deep research. It is NOT a general-purpose internet Swiss army knife.
+
+### Use native CLI tools instead of Tavily for:
+
+| Task | Tool | Why
+|------|------|----
+| Clone a git repo | `git clone` | Tavily can't do this
+| Fetch a raw text/code/markdown file | `curl -sL <url>` | Faster, cheaper, exact bytes (see Curl-First Policy below)
+| Download a file | `curl -O` or `wget` | Tavily isn't a download manager
+| Interact with an API | `curl` / `httpie` | Tavily isn't an HTTP client
+| Install a package | `bun add`, `uv add`, etc. | Tavily isn't a package manager
+| Run a command on a remote host | `ssh` | Tavily isn't SSH
+
+### When Tavily IS the right choice:
+
+- **Search** the web for information you don't have a URL for
+- **Extract** a web page's content as markdown (JS-rendered, HTML-heavy)
+- **Crawl** a multi-page documentation site
+- **Research** a topic comprehensively across many sources
+- **Look up** library/framework documentation
+
 ## Available Tools
 
 | Tool | Purpose | When to use |
