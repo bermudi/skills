@@ -195,6 +195,8 @@ Get responses conforming to a specific JSON schema:
 
 Send the full conversation history as an array of role-tagged messages. This is the reliable method through Poe today:
 
+> **Caching note:** replaying full history does not automatically kill prompt caching. Keep the transcript append-only and byte-stable so the unchanged prefix can still be reused. See `cache.md` for best practices and cache killers to avoid.
+
 ```python
 response = client.responses.create(
     model="Claude-Sonnet-4.6",
@@ -432,7 +434,7 @@ followup = client.responses.create(
 print(followup.output_text)
 ```
 
-> **Why `input` array and not `previous_response_id`?** As of 2026-04-13, `previous_response_id` does not work through Poe (500 for Claude, data-retention error for GPT). Sending the full conversation via the `input` array is the reliable approach. This may be temporary.
+> **Why `input` array and not `previous_response_id`?** As of 2026-04-13, `previous_response_id` does not work through Poe (500 for Claude, data-retention error for GPT). Sending the full conversation via the `input` array is the reliable approach. This may be temporary. For how to do that without blowing prompt cache hits, see `cache.md`.
 
 ---
 

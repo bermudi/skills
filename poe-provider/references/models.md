@@ -74,6 +74,7 @@ Pricing is per-token in USD. Multiply by 1,000,000 for per-1M-token pricing. Whe
 
 | Model | Input | Price In/Out (per 1M tokens) | Cache Read | Cache Write | Features |
 |-------|-------|------------------------------|------------|-------------|----------|
+| `claude-opus-4.7` | text, image | $4.30 / $21.00 | $0.43 | $5.30 | web_search, tools |
 | `claude-opus-4.6` | text, image | $4.30 / $21.00 | $0.43 | $5.30 | web_search, tools |
 | `claude-opus-4.5` | text, image | $4.30 / $21.00 | $0.43 | $5.30 | web_search, tools |
 | `claude-opus-4.1` | text, image | $13.00 / $64.00 | $1.30 | $16.00 | web_search, tools |

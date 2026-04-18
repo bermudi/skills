@@ -196,9 +196,56 @@ These were tested with identical repeated prompts and showed zero cached tokens:
 2. **Structure prompts for prefix reuse.** Place static content (system instructions, documents, tool definitions) at the start. Put variable content (user messages, timestamps) at the end.
 3. **For Claude, use explicit `cache_control`.** Mark the last stable block with `"cache_control": {"type": "ephemeral"}`. Don't place it on blocks that change every request.
 4. **For GPT, just repeat the same prefix.** Caching is automatic — no special fields needed. Keep the prefix identical across requests.
-5. **Verify with `points_history`.** Check `cost_breakdown_in_points` for `Cache discount` lines to confirm caching is active. Note: the entry may briefly show `cost_points: 0` before the final cost lands.
-6. **Monitor with usage fields.** Check `cache_read_input_tokens` (Messages) or `cached_tokens` (Chat Completions / Responses) in the response to measure cache hit rates.
-7. **Don't bother caching small prompts.** Claude Haiku 4.5 requires ≥4096 tokens; OpenAI models require ≥1024 tokens. Below these thresholds, caching is silently skipped.
+5. **Because `previous_response_id` is broken on Poe Responses, replay history as an append-only log.** Keep the exact prior transcript client-side and resend it in `input`, then append only the new turn at the end. This still preserves cacheability for the unchanged prefix.
+6. **Serialize tool calls and tool results deterministically.** Reuse the exact same `function_call` / `function_call_output` payloads when replaying history. Stable JSON key order, whitespace, and field ordering matter for prefix matching.
+7. **Keep volatile data late.** Timestamps, request IDs, diagnostics, retrieval metadata, and other per-turn context should appear after the stable prefix, not inside it.
+8. **Verify with `points_history`.** Check `cost_breakdown_in_points` for `Cache discount` lines to confirm caching is active. Note: the entry may briefly show `cost_points: 0` before the final cost lands.
+9. **Monitor with usage fields.** Check `cache_read_input_tokens` (Messages) or `cached_tokens` (Chat Completions / Responses) in the response to measure cache hit rates.
+10. **Don't bother caching small prompts.** Claude Haiku 4.5 requires ≥4096 tokens; OpenAI models require ≥1024 tokens. Below these thresholds, caching is silently skipped.
+
+### Multi-turn workaround without killing cache
+
+When `previous_response_id` works, the provider can reuse prior context server-side. Poe's Responses API does not currently support that path reliably, so the workaround is to resend history yourself.
+
+That does **not** automatically invalidate caching.
+
+What matters is whether each new request starts with the exact same prefix as the prior request. If turn 2 is just turn 1 plus appended messages, the shared prefix can still hit cache and only the new suffix needs fresh processing.
+
+Good pattern:
+
+```json
+[
+  {"role": "user", "content": "Turn 1"},
+  {"role": "assistant", "content": "Reply 1"},
+  {"role": "user", "content": "Turn 2"}
+]
+```
+
+Bad pattern:
+
+```json
+[
+  {"role": "user", "content": "Turn 1", "debug_id": "req_123"},
+  {"role": "assistant", "content": "Reply 1 reformatted"},
+  {"role": "user", "content": "Turn 2"}
+]
+```
+
+In the bad pattern, the prefix changed before the new turn, so the cacheable region is lost from that point onward.
+
+## Cache killers to avoid
+
+These are the common ways to accidentally turn a cache hit into a miss:
+
+1. **Rewriting earlier turns.** Editing prior user/assistant content, even cosmetically, changes the prefix.
+2. **Non-deterministic JSON serialization.** Different key order, indentation, spacing, or escaping in replayed tool payloads can invalidate the prefix.
+3. **Injecting timestamps or UUIDs into old messages.** If old transcript items get regenerated with fresh metadata, caching breaks early.
+4. **Reordering tool definitions.** Tools belong in the stable prefix; shuffling their order changes the prompt.
+5. **Changing system instructions between turns.** System and developer prompts should stay fixed unless you expect the cache to reset.
+6. **Mixing stable and volatile context in the same cached block.** For Claude, don't put rapidly changing content inside the same `cache_control` segment as your large static context.
+7. **Reformatting tool outputs when replaying them.** If you sent compact JSON on turn 1 and pretty JSON on turn 2, the replayed prefix is different.
+8. **Prepending fresh context.** Adding new content at the front is worse than appending it at the end because it shifts the entire prefix.
+9. **Assuming semantically identical means cache identical.** Cache matching is about repeated prompt bytes/tokens, not meaning.
 
 ---
 
