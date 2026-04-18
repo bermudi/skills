@@ -1,6 +1,6 @@
 ---
 name: ai-research
-description: Perform AI-powered research on any topic using Poe models with built-in web search via mcporter. Use this skill when you need a comprehensive, synthesized answer to a research question — not just search results, but actual analysis and reasoning. Triggers on: "research this topic", "deep dive into", "comprehensive analysis of", "investigate", "what's the state of", "compare X and Y", "give me a thorough overview", "I need to understand", "write a research brief on". This is different from web search (tavily_search) — it uses AI models that can reason, synthesize multiple sources, and provide structured analysis.
+description: "Perform AI-powered research on any topic using Poe models with built-in web search via mcporter. Use this skill when you need a comprehensive, synthesized answer to a research question — not just search results, but actual analysis and reasoning. Triggers on: \"research this topic\", \"deep dive into\", \"comprehensive analysis of\", \"investigate\", \"what's the state of\", \"compare X and Y\", \"give me a thorough overview\", \"I need to understand\", \"write a research brief on\". This is different from web search (tavily_search) — it uses AI models that can reason, synthesize multiple sources, and provide structured analysis."
 ---
 
 # AI-Powered Research with Poe

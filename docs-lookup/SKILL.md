@@ -1,6 +1,6 @@
 ---
 name: docs-lookup
-description: Look up up-to-date documentation and code examples for any programming library or framework using Context7 via mcporter. Use this skill whenever you need current docs for a library, framework, or package — how to use an API, configuration options, migration guides, or code examples. Triggers on: "how to use X library", "X framework docs", "look up docs for", "find documentation for", "what's the API for", "how do I configure X", "X library reference", "show me the docs", "latest docs for", "check the documentation". Prefer this over relying on potentially outdated built-in knowledge.
+description: "Look up up-to-date documentation and code examples for any programming library or framework using Context7 via mcporter. Use this skill whenever you need current docs for a library, framework, or package — how to use an API, configuration options, migration guides, or code examples. Triggers on: \"how to use X library\", \"X framework docs\", \"look up docs for\", \"find documentation for\", \"what's the API for\", \"how do I configure X\", \"X library reference\", \"show me the docs\", \"latest docs for\", \"check the documentation\". Prefer this over relying on potentially outdated built-in knowledge."
 ---
 
 # Library Documentation Lookup with Context7

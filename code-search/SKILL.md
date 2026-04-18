@@ -1,6 +1,6 @@
 ---
 name: code-search
-description: Find real-world code examples from over a million public GitHub repositories using grep.app via mcporter. Use this skill whenever you need to see how other developers actually use an API, library, or pattern in production code — not documentation, but real working code. Triggers on: "how do people use", "show me examples of", "find code that uses", "real-world usage of", "how is X implemented in the wild", "show me production code for", "grep for", "search GitHub for code". This is a literal code search engine (like grep across GitHub), not a keyword search — you search for actual code patterns, not natural language queries.
+description: "Find real-world code examples from over a million public GitHub repositories using grep.app via mcporter. Use this skill whenever you need to see how other developers actually use an API, library, or pattern in production code — not documentation, but real working code. Triggers on: \"how do people use\", \"show me examples of\", \"find code that uses\", \"real-world usage of\", \"how is X implemented in the wild\", \"show me production code for\", \"grep for\", \"search GitHub for code\". This is a literal code search engine (like grep across GitHub), not a keyword search — you search for actual code patterns, not natural language queries."
 ---
 
 # Code Search with grep.app

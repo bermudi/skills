@@ -1,6 +1,6 @@
 ---
 name: web-search
-description: Search the web, extract page content, crawl websites, map site structure, and perform deep multi-source research using Tavily via mcporter. Use this skill whenever you need current information from the internet — web search, scraping/extracting content from URLs, crawling a site, understanding a site's structure, or doing comprehensive research on a topic. Triggers on: "search the web", "look this up", "what's the latest on", "scrape this page", "extract content from", "crawl this site", "map this website", "research this topic", "find information about", "what does the web say about". Also use when you need library docs via tavily_skill (search documentation for any library/API/tool).
+description: "Search the web, extract page content, crawl websites, map site structure, and perform deep multi-source research using Tavily via mcporter. Use this skill whenever you need current information from the internet — web search, scraping/extracting content from URLs, crawling a site, understanding a site's structure, or doing comprehensive research on a topic. Triggers on: \"search the web\", \"look this up\", \"what's the latest on\", \"scrape this page\", \"extract content from\", \"crawl this site\", \"map this website\", \"research this topic\", \"find information about\", \"what does the web say about\". Also use when you need library docs via tavily_skill (search documentation for any library/API/tool)."
 ---
 
 # Web Search & Research with Tavily

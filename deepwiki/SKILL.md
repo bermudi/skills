@@ -1,6 +1,6 @@
 ---
 name: deepwiki
-description: Understand GitHub repositories through AI-powered documentation and Q&A using DeepWiki via mcporter. Use this skill whenever you need to understand how a GitHub repo works, what its architecture looks like, how to use it, or have questions about its codebase. Triggers on: "how does X repo work", "explain this GitHub repo", "what does this library do", "how is X implemented in repo Y", "understand the architecture of", "show me the docs for this repo", "ask about a GitHub repository". Also use when you need a quick overview of an open-source project without reading the entire source.
+description: "Understand GitHub repositories through AI-powered documentation and Q&A using DeepWiki via mcporter. Use this skill whenever you need to understand how a GitHub repo works, what its architecture looks like, how to use it, or have questions about its codebase. Triggers on: \"how does X repo work\", \"explain this GitHub repo\", \"what does this library do\", \"how is X implemented in repo Y\", \"understand the architecture of\", \"show me the docs for this repo\", \"ask about a GitHub repository\". Also use when you need a quick overview of an open-source project without reading the entire source."
 ---
 
 # GitHub Repo Documentation with DeepWiki
