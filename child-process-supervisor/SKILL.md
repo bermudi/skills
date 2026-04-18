@@ -1,6 +1,9 @@
 ---
 name: child-process-supervisor
 description: >
+  ⚠️ WORK IN PROGRESS, DO NOT USE BEFORE FIXING.
+
+
   How to design and implement a child process supervisor for an agent runtime.
   Use this skill whenever you need to:
   - Design a system for spawning and managing child processes
