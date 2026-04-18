@@ -1,0 +1,32 @@
+name: Validate Skills
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install skills-ref
+        run: uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref
+
+      - name: Validate all skills
+        run: |
+          # Find all directories containing SKILL.md and validate them
+          failed=0
+          for dir in */; do
+            if [ -f "${dir}SKILL.md" ]; then
+              echo "::group::Validating ${dir%/}"
+              if ! skills-ref validate "${dir}"; then
+                failed=1
+              fi
+              echo "::endgroup::"
+            fi
+          done
+          exit $failed

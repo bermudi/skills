@@ -1,1 +1,15 @@
 **/__pycache__/
+
+# Installed skill symlinks (local only)
+.agents/
+.claude/
+.continue/
+.factory/
+.kilocode/
+.kiro/
+.pi/
+.trae/
+.vibe/
+.windsurf/
+skills/
+skills-lock.json

@@ -259,10 +259,16 @@ Keep file references one level deep from `SKILL.md`. Avoid deeply nested referen
 
 ## Validation
 
-Use the [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) reference library to validate your skills:
+Use the [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) reference library to validate your skills. This is the official validator — it catches broken YAML frontmatter (unquoted colons, invalid types, missing fields, name/directory mismatches) that would cause the `skills` CLI to silently skip your skill.
 
 ```bash theme={null}
+# Install once
+uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref
+
+# Validate a skill
 skills-ref validate ./my-skill
 ```
 
-This checks that your `SKILL.md` frontmatter is valid and follows all naming conventions.
+<Warning>
+Always validate after editing frontmatter. The `skills` CLI catches YAML parse errors silently and skips invalid skills — you won't get an error, your skill just disappears.
+</Warning>

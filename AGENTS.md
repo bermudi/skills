@@ -40,10 +40,17 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 ## Validation
 
-**NEEDS WORK**
+Uses [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) (the official reference validator). CI runs on every push.
 
 ```bash
-uv run python skill-creator/scripts/quick_validate.py ./skill-name
+# Install once
+uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref
+
+# Validate a single skill
+skills-ref validate ./skill-name
+
+# Validate all skills
+for dir in */; do [ -f "${dir}SKILL.md" ] && skills-ref validate "${dir}"; done
 ```
 
 For trigger accuracy testing (spawns `claude -p` subprocesses):

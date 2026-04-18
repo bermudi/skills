@@ -99,7 +99,7 @@ Read `references/quickstart.md` for a complete end-to-end example (especially us
 
 ### Test Cases
 
-After drafting the skill, create at least three realistic test prompts. Share them with the user for confirmation before running.
+After drafting the skill, run `skills-ref validate ./skill-name` to catch any frontmatter issues. Then create at least three realistic test prompts. Share them with the user for confirmation before running.
 
 Read `references/evaluating-skills.md` when setting up evals (covers test case design, assertions, grading, and workspace structure).
 
@@ -346,6 +346,14 @@ Take the best description and update the skill's SKILL.md frontmatter. Show the 
 ## Checklist: Before sharing a skill
 
 Run through this before declaring a skill complete:
+
+### Validation
+
+- [ ] `skills-ref validate ./skill-name` passes
+
+Install: `uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref`
+
+This catches broken YAML frontmatter (unquoted colons, invalid types, missing fields, name mismatches). Run it after any frontmatter edit — the `skills` CLI silently skips skills with invalid YAML.
 
 ### Core quality
 

@@ -14,7 +14,8 @@ import fnmatch
 import sys
 import zipfile
 from pathlib import Path
-from scripts.quick_validate import validate_skill
+import subprocess
+import json
 
 # Patterns to exclude when packaging skills.
 EXCLUDE_DIRS = {"__pycache__", "node_modules"}
@@ -67,14 +68,21 @@ def package_skill(skill_path, output_dir=None):
         print(f"❌ Error: SKILL.md not found in {skill_path}")
         return None
 
-    # Run validation before packaging
+    # Run validation before packaging (uses skills-ref, the official reference validator)
     print("🔍 Validating skill...")
-    valid, message = validate_skill(skill_path)
-    if not valid:
-        print(f"❌ Validation failed: {message}")
-        print("   Please fix the validation errors before packaging.")
-        return None
-    print(f"✅ {message}\n")
+    try:
+        result = subprocess.run(
+            ["skills-ref", "validate", str(skill_path)],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print(f"❌ Validation failed:\n{result.stdout}")
+            print("   Fix validation errors before packaging. Install: uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref")
+            return None
+        print(f"✅ Validation passed\n")
+    except FileNotFoundError:
+        print("⚠️  skills-ref not found. Install: uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref")
+        print("   Skipping validation.\n")
 
     # Determine output location
     skill_name = skill_path.name
