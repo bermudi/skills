@@ -27,6 +27,40 @@ mcporter call tavily.<tool_name> key=value key2=value2
 
 The output is JSON to stdout. Parse it with `jq` or process inline.
 
+## Curl-First Policy
+
+**Always prefer `curl` over `tavily_extract` when the URL serves plain-text content.** If the response body is already the content you want (no JS rendering, no auth wall, no paywall), just curl it — it's faster, cheaper, and gives you the exact bytes.
+
+### When to `curl` instead of `tavily_extract`
+
+Use `curl -sL <url>` directly when:
+
+- **Raw GitHub content**: `raw.githubusercontent.com`, `gist.githubusercontent.com`
+- **Plain-text files**: `.txt`, `.md`, `.json`, `.yaml`, `.toml`, `.csv`, `.xml`
+- **Source code URLs**: `.py`, `.js`, `.ts`, `.rs`, `.go`, `.java`, `.c`, `.h`, etc.
+- **Static file hosting**: gist.github.com (raw), pastebin.com/raw/, dpaste.org/
+- **Any URL where `curl` returns the content directly** (test it — if the response is the content you need, you're done)
+
+```bash
+# Raw GitHub file — just curl it
+curl -sL https://raw.githubusercontent.com/user/repo/main/README.md
+
+# Gist raw content
+curl -sL https://gist.githubusercontent.com/user/hash/raw/file.md
+
+# Pastebin raw
+curl -sL https://pastebin.com/raw/abc123
+```
+
+### When you still need `tavily_extract`
+
+- JS-rendered pages (SPAs, docs sites with client-side routing)
+- Auth-walled or paywalled sites
+- Pages with heavy HTML that needs cleaning/extracting
+- When you need structured markdown from a complex webpage
+
+Quick test: `curl -sL -o /dev/null -w '%{content_type}' <url>` — if it's `text/plain` or `application/json` or similar raw content, just curl. If it's `text/html` and needs parsing, use `tavily_extract`.
+
 ---
 
 ## tavily_search — Web Search
@@ -295,8 +329,9 @@ mcporter call tavily.tavily_skill query="setting up WebSocket connections" libra
 
 ```
 Need info from the web?
+├── URL to a raw/plain-text file? → curl -sL <url> (skip Tavily entirely)
 ├── Quick fact or current event → tavily_search
-├── Content from specific URLs → tavily_extract
+├── Content from specific HTML URLs → tavily_extract
 ├── Multi-page content from a site → tavily_crawl
 ├── Just see what URLs exist on a site → tavily_map
 ├── Comprehensive research on a topic → tavily_research

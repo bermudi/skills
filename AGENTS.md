@@ -38,6 +38,16 @@ Skill instructions in Markdown...
 
 Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`.
 
+## Deploying Skills
+
+This repo is the **source of truth** for skills. After editing any skill here, reinstall globally:
+
+```bash
+skills update -g
+```
+
+This copies skills from this repo into `~/.agents/skills/`. Always edit here, then reinstall — never edit the installed copies directly.
+
 ## Validation
 
 Uses [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) (the official reference validator). CI runs on every push.
