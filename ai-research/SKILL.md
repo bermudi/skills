@@ -41,7 +41,7 @@ mcporter call poe-research.research query="your research question"
 |-----------|----------|---------|-------------|
 | `query` | ✅ | — | The research question or topic |
 | `model` | ❌ | GPT-5.4 | Poe model to use (e.g. `GPT-5.4`, `Claude-Sonnet-4.6`) |
-| `reasoning` | ❌ | — | Reasoning effort: `low`, `medium`, `high` (only for reasoning-capable models) |
+| `reasoning` | ❌ | — | Reasoning effort: `low`, `medium`, `high`. Works on all models — maps to each model's native mechanism automatically |
 
 ### Examples
 
@@ -110,14 +110,44 @@ Need AI-powered research?
 - `research` is faster (single pass). Good for focused questions where you need a synthesized answer.
 - `deep_research` is slower (multi-pass). It follows up on gaps from the initial research. Good for complex topics where coverage matters more than speed.
 
+### Recommended Models
+
+| Model | Role | Notes |
+|-------|------|-------|
+| **GPT-5.4** | Default (best overall) | Strong reasoning + web search, default if `model` is omitted |
+| **GPT-5.4-Mini** | Cheaper alternative | Good balance of cost and quality |
+| **GPT-5.4-Nano** | Fast exploration | Cheapest, good for quick probes |
+| **Claude-Sonnet-4.6** | GPT-5.4 second opinion | Different reasoning style, good for cross-checking |
+| **Claude-Haiku-4.5** | Cheaper Claude option | Fast, still solid with web search |
+| **Gemini-3.1-Pro** | Alternative perspective | Good source citations |
+| **Gemini-3-Flash** | Fast/cheap Gemini | Good source citations, light option for quick lookups |
+
+### Reasoning Support
+
+The `reasoning` parameter maps to each model family's native mechanism. Not all models support it — if the underlying API rejects it, you'll get an error back. Works reliably on: GPT-5.4, GPT-5.4-Mini, Claude-Sonnet-4.6, Claude-Haiku-4.5.
+
 ## When to Use AI Research vs Other Tools
 
-| Need | Tool | Why |
-|------|------|-----|
-| Synthesized analysis of a topic | **ai-research** (this) | AI reasoning + web search combined |
-| Quick web search for facts | **tavily_search** | Faster, raw search results |
-| Deep multi-source research with full control | **tavily_research** | Structured research pipeline |
-| Code examples from real repos | **code-search** | Actual code, not analysis |
-| Library documentation | **context7** or **tavily_skill** | Reference docs, not research |
+| Need | Tool | AI reasoning? | Why |
+|------|------|:---:|-----|
+| Synthesized analysis of a topic | **ai-research** (this) | ✅ | Poe models reason + web search combined |
+| Quick web search for facts | **tavily_search** | ❌ | Faster, raw search results |
+| Deep multi-source research (Tavily pipeline) | **tavily_research** | ✅ | Tavily's own multi-step pipeline — more control over sources, structured research flow |
+| Code examples from real repos | **code-search** | ❌ | Actual code, not analysis |
+| Library documentation | **context7** or **tavily_skill** | ✅/❌ | Reference docs, not research |
+
+### ai-research vs tavily_research — which to pick?
+
+Both do AI-powered multi-source research. The difference is the engine:
+
+| | `poe-research.research` | `tavily_research` |
+|---|---|---|
+| **Engine** | Poe models (GPT-5.4, Claude, etc.) with built-in web search | Tavily's own research pipeline |
+| **Speed** | Fast (single-pass) or slow (deep_research) | Medium |
+| **Configurability** | Choose model + reasoning effort | Choose depth model (mini/pro/auto) |
+| **Models** | Any Poe model — Claude uses Anthropic Messages API, GPT/Gemini use OpenAI Responses API | Tavily-managed models |
+| **Best for** | Quick synthesized answers with strong reasoning, model choice matters | Structured research where Tavily's pipeline control matters |
+
+**Rule of thumb**: Use `poe-research.research` for quick AI-synthesized answers. Use `tavily_research` for structured multi-source pipelines. Use `poe-research.deep_research` for the most thorough analysis of a complex topic.
 
 AI research is the best choice when you need the AI to **think** about the answer — compare options, analyze tradeoffs, synthesize from multiple sources — not just retrieve information.
