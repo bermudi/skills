@@ -25,7 +25,8 @@ Tavily is an AI-native search and extraction API. You access it through mcporter
 ### When Tavily IS the right choice:
 
 - **Search** the web for information you don't have a URL for
-- **Extract** a web page's content as markdown (JS-rendered, HTML-heavy)
+- **Extract** JS-rendered SPAs, auth-walled pages, or complex layouts that Jina AI Reader failed to capture
+- **Batch extract** multiple URLs in one call
 - **Crawl** a multi-page documentation site
 - **Research** a topic comprehensively across many sources
 - **Look up** library/framework documentation
@@ -50,11 +51,13 @@ mcporter call tavily.<tool_name> key=value key2=value2
 
 The output is JSON to stdout. Parse it with `jq` or process inline.
 
-## Curl-First Policy
+## Extraction Hierarchy: Get the Content, Not the Chrome
 
-**Always prefer `curl` over `tavily_extract` when the URL serves plain-text content.** If the response body is already the content you want (no JS rendering, no auth wall, no paywall), just curl it — it's faster, cheaper, and gives you the exact bytes.
+For extracting content from a single URL, prefer the cheapest tool that actually returns the *article body*, not the footer, ads, cookie banners, or bot-challenge pages.
 
-### When to `curl` instead of `tavily_extract`
+### Tier 1: `curl -sL` for raw files
+
+If the URL serves the content directly (no HTML wrapper), just curl it. You get exact bytes, zero cost, zero transformation.
 
 Use `curl -sL <url>` directly when:
 
@@ -62,27 +65,73 @@ Use `curl -sL <url>` directly when:
 - **Plain-text files**: `.txt`, `.md`, `.json`, `.yaml`, `.toml`, `.csv`, `.xml`
 - **Source code URLs**: `.py`, `.js`, `.ts`, `.rs`, `.go`, `.java`, `.c`, `.h`, etc.
 - **Static file hosting**: gist.github.com (raw), pastebin.com/raw/, dpaste.org/
-- **Any URL where `curl` returns the content directly** (test it — if the response is the content you need, you're done)
 
 ```bash
 # Raw GitHub file — just curl it
 curl -sL https://raw.githubusercontent.com/user/repo/main/README.md
 
-# Gist raw content
-curl -sL https://gist.githubusercontent.com/user/hash/raw/file.md
-
 # Pastebin raw
 curl -sL https://pastebin.com/raw/abc123
 ```
 
-### When you still need `tavily_extract`
+Quick test: `curl -sL -o /dev/null -w '%{content_type}' <url>` — if it's `text/plain`, `application/json`, etc., you're done.
 
-- JS-rendered pages (SPAs, docs sites with client-side routing)
-- Auth-walled or paywalled sites
-- Pages with heavy HTML that needs cleaning/extracting
-- When you need structured markdown from a complex webpage
+### Tier 2: Jina AI Reader for HTML pages
 
-Quick test: `curl -sL -o /dev/null -w '%{content_type}' <url>` — if it's `text/plain` or `application/json` or similar raw content, just curl. If it's `text/html` and needs parsing, use `tavily_extract`.
+[Jina AI Reader](https://r.jina.ai/) (`r.jina.ai/http://<url>`) is a free service that extracts clean markdown from HTML pages. It handles many Cloudflare-gated and soft-paywall sites that `curl` and Tavily both fail on.
+
+**Why it's the default for HTML extraction:**
+- Free, no API key, no mcporter cost
+- Often bypasses bot challenges and cookie walls
+- Returns clean markdown with article body intact
+- Faster than Tavily for single-page extraction
+
+```bash
+# Default extraction for any HTML URL
+curl -sL "https://r.jina.ai/http://example.com/some-article/"
+```
+
+**Validate the response before using it:**
+- Body should be non-trivial (>1KB for most articles)
+- Should not contain "Just a moment...", "Performing security verification", or similar challenge text
+- Should contain actual content, not just navigation/footer chrome
+
+```bash
+# Quick validation pipeline
+curl -sL "https://r.jina.ai/http://example.com/page/" -o /tmp/jina.md
+wc -c /tmp/jina.md              # Should be > 1KB
+grep -c "^#" /tmp/jina.md       # Should have markdown headings
+```
+
+### Tier 3: Markdown negotiation (Cloudflare docs)
+
+Some Cloudflare-proxied sites (especially docs and blogs) support `Accept: text/markdown`. It's a 1-second pre-check worth trying on suspected Cloudflare zones before falling back to Tavily.
+
+```bash
+curl -sL -H "Accept: text/markdown" \
+  -o /tmp/page.md -w "%{content_type}\n" \
+  "https://example.com/some-page/"
+```
+
+Use directly if `Content-Type` is `text/markdown` and body is substantial. Skip if it returns `text/html` or a challenge page.
+
+### Tier 4: `tavily_extract` as fallback
+
+Use Tavily when Jina and markdown negotiation both fail, or when you need features only Tavily provides:
+
+- **JS-rendered SPAs** (client-side routing, heavy React/Vue apps)
+- **Auth-walled sites** (LinkedIn, etc.) — use `extract_depth=advanced`
+- **Multiple URLs at once** — Tavily can batch extract
+- **Relevance filtering** — Tavily's `query` parameter reranks content chunks
+- **Tables, embedded content, complex layouts** that simple extractors miss
+
+```bash
+# JS-heavy SPA or auth-walled site
+mcporter call tavily.tavily_extract urls='["https://www.linkedin.com/pulse/some-article"]' extract_depth=advanced
+
+# Batch extraction with relevance filtering
+mcporter call tavily.tavily_extract urls='["https://long-article-url.com","https://another-article.com"]' query="authentication JWT implementation"
+```
 
 ---
 
@@ -360,9 +409,11 @@ Use `tavily_skill` when you want a quick, synthesized answer. Use `context7` whe
 
 ```
 Need info from the web?
-├── URL to a raw/plain-text file? → curl -sL <url> (skip Tavily entirely)
+├── URL to a raw/plain-text file? → curl -sL <url> (exact bytes, zero cost)
+├── HTML page (article, docs, blog)? → r.jina.ai/http://<url> (free, clean markdown)
+├── Jina failed / JS-heavy SPA / auth wall? → tavily_extract
+├── Cloudflare docs zone? → curl -H "Accept: text/markdown" (1-sec pre-check)
 ├── Quick fact or current event → tavily_search
-├── Content from specific HTML URLs → tavily_extract
 ├── Multi-page content from a site → tavily_crawl
 ├── Just see what URLs exist on a site → tavily_map
 ├── Library docs, quick synthesized answer → tavily_skill (AI-synthesized, one-step)
