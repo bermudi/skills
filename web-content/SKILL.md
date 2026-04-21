@@ -15,10 +15,12 @@ This skill covers everything from fetching a single raw file to synthesizing dee
 What do you need?
 │
 ├── Content from a known URL
-│   ├── Raw/plain-text file? → curl -sL <url>
-│   ├── HTML page (article, docs, blog)? → r.jina.ai/http://<url>
-│   ├── Cloudflare docs where Jina failed? → curl -H "Accept: text/markdown"
-│   └── JS SPA / auth wall / batch URLs / all else failed? → tavily_extract
+│   ├── Raw/plain-text file? → curl -sL <url>                          (Tier 1)
+│   ├── HTML page? → try in order:
+│   │   ├── curl -H "Accept: text/markdown" <url>                     (Tier 2)
+│   │   ├── r.jina.ai/http://<url>                                    (Tier 3)
+│   │   └── tavily_extract                                            (Tier 4)
+│   └── Still failed? → see Extraction Strategies reference
 │
 ├── Information, but no URL yet
 │   ├── Quick fact or current event → tavily_search
@@ -37,38 +39,65 @@ What do you need?
 └── Real code examples in production repos → code-search skill (grep.app)
 ```
 
-## Tools Overview
+## Extraction Hierarchy — Content from a Known URL
 
-### curl — Raw Files
+When you have a URL and need its content, escalate through these tiers. Always start at the lowest tier that could work — each step up costs more (latency, API calls, or both).
 
-Free, instant, no transformation. For any URL that serves content directly (no HTML wrapper).
+### Tier 1: `curl -sL` — Raw Files
+
+If the URL serves content directly (no HTML wrapper), just curl it. Exact bytes, zero cost, zero transformation.
 
 ```bash
 curl -sL https://raw.githubusercontent.com/user/repo/main/README.md
 ```
 
-Works for: raw GitHub content, `.txt`, `.md`, `.json`, `.yaml`, source code files, pastebin raw, static hosting.
+Works for: raw GitHub content, `.txt`, `.md`, `.json`, `.yaml`, source code files, pastebin raw, any static file. Avoid for html content.
 
-Quick test: `curl -sL -o /dev/null -w '%{content_type}' <url>` — if it's `text/plain` or `application/json`, you're done.
+Quick test: `curl -sL -o /dev/null -w '%{content_type}' <url>` — if it's `text/plain`, `application/json`, etc., you're done.
 
-### Jina AI Reader — HTML to Markdown
+### Tier 2: `curl -H "Accept: text/markdown"` — Markdown Negotiation
 
-Free, no auth needed. Extracts clean markdown from HTML pages, often bypassing bot challenges that other tools hit.
+Many docs sites (especially Cloudflare-proxied ones) can return markdown directly if you ask for it. No external service, no API, just a different `Accept` header.
+
+```bash
+curl -sL -H "Accept: text/markdown" "https://example.com/docs/page"
+```
+
+If the response is clean markdown, you're done. If it returns HTML or a challenge page, move to Tier 3.
+
+**Why try this before Jina?** No external dependency, no rate limits, instant.
+
+### Tier 3: Jina AI Reader — HTML to Markdown
+
+Free, no auth needed. Extracts clean markdown from HTML, often bypassing bot challenges and cookie walls.
 
 ```bash
 curl -sL "https://r.jina.ai/http://example.com/some-article/"
 ```
 
-**Validate the response** — body should be >1KB for most articles, contain actual headings, and not show "Just a moment..." or similar challenge text.
+If the output is garbage or a challenge page, move to Tier 4.
 
-### Tavily — Search, Extract, Crawl, Map, Research
+### Tier 4: `tavily_extract` — The Heavy Lifters
 
-AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=value`. Use when you need something curl and Jina can't provide.
+When the free options above fail or don't apply — JS-rendered SPAs, auth-walled pages, batch extraction of multiple URLs, or complex layouts with tables/embedded content.
+
+```bash
+mcporter call tavily.tavily_extract urls='["https://example.com/page"]'
+```
+
+For JS-heavy or auth-walled sites, add `extract_depth=advanced`. For batch extraction, pass multiple URLs. For relevance filtering, add a `query` parameter.
+
+→ Full details in [Extraction Strategies](references/extraction-strategies.md) and [Extract](references/extract.md).
+
+## Other Web Tools
+
+### Tavily — Search, Crawl, Map, Research
+
+AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=value`.
 
 | Tool | Job | When to use |
 |------|-----|-------------|
 | `tavily_search` | Web search | No URL known, need current info |
-| `tavily_extract` | Extract page content | Jina failed, JS SPAs, auth walls, batch URLs |
 | `tavily_crawl` | Multi-page extraction | Crawl a docs site or multi-page resource |
 | `tavily_map` | Discover URLs | See what pages exist on a site |
 | `tavily_research` | Deep multi-source research | Synthesize a topic across many sources |
@@ -78,24 +107,12 @@ AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=va
 
 | Tool | Job |
 |------|-----|
-| `curl -H "Accept: text/markdown"` | Cloudflare docs that support markdown negotiation |
 | `context7` (via mcporter) | Library docs with version pinning, returns raw doc chunks |
 | `poe-research.deep_research` | Most thorough research available |
 | `deepwiki` skill | Understand a GitHub repo's architecture |
 | `code-search` skill | Find real code examples across GitHub |
 
-## Extraction Hierarchy
 
-For getting content from a single URL, escalate through these tiers — use the cheapest tool that returns the actual content:
-
-| Tier | Tool | Best for |
-|------|------|----------|
-| 1 | `curl -sL` | Raw files, plain text, code |
-| 2 | `r.jina.ai/http://<url>` | HTML pages (default, free) |
-| 3 | `curl -H "Accept: text/markdown"` | Cloudflare docs when Jina fails |
-| 4 | `tavily_extract` | Everything else: JS SPAs, auth walls, batch, complex layouts |
-
-Always validate what you got back — check size, look for challenge text, confirm it's the article body and not nav chrome.
 
 ## References
 
