@@ -2,6 +2,8 @@
 
 Comprehensive multi-source research on a topic. Rate limit: 20 requests/minute.
 
+**⚠️ Timeout note:** `model=pro` runs many subtopic queries and can exceed mcporter's 60s default. Use `--timeout 120000` or higher for broad topics.
+
 ## Basic Usage
 
 ```bash
@@ -24,7 +26,7 @@ mcporter call tavily.tavily_research input="What are the main differences betwee
 
 **Broad deep research:**
 ```bash
-mcporter call tavily.tavily_research input="State of the art in LLM reasoning: chain-of-thought, tree-of-thought, and other approaches. Include recent papers from 2025, key benchmarks, and practical recommendations." model=pro
+mcporter call tavily.tavily_research input="State of the art in LLM reasoning: chain-of-thought, tree-of-thought, and other approaches. Include recent papers from 2025, key benchmarks, and practical recommendations." model=pro --timeout 120000
 ```
 
 ## When to Use Research vs Search

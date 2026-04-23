@@ -2,6 +2,8 @@
 
 Crawl a website starting from a URL. Extracts content from multiple pages with configurable depth and breadth.
 
+**⚠️ Timeout note:** Large crawls (`limit > 30`, `max_depth > 2`, or `extract_depth=advanced`) can exceed mcporter's 60s default. Add `--timeout <ms>` as needed.
+
 ## Basic Usage
 
 ```bash
