@@ -7,7 +7,7 @@ description: "Perform AI-powered research on any topic using Poe models with bui
 
 The poe-research MCP server provides AI-powered research through Poe models with built-in web search. Unlike regular search which returns links and snippets, this returns synthesized, reasoned answers.
 
-Access it through mcporter: `mcporter call poe-research.<tool> key=value`.
+Access it through mcporter: `mcporter call poe-research.<tool> key=value`. Use `--timeout <ms>` for long-running calls (e.g. `--timeout 180000` for 180s).
 
 ## Available Tools
 
@@ -66,9 +66,11 @@ mcporter call poe-research.research query="What's new in Python 3.14?" model="Cl
 
 Perform multi-step deep research on a topic. Runs an initial search, then follows up to synthesize and fill gaps. Slower but much more thorough.
 
+**⚠️ Timeout warning:** `deep_research` often takes 90–150s+. mcporter's default timeout is 60s, so you **must** override it with `--timeout <milliseconds>`.
+
 ### Basic Usage
 ```bash
-mcporter call poe-research.deep_research topic="your topic"
+mcporter call poe-research.deep_research topic="your topic" --timeout 180000
 ```
 
 ### Parameters
@@ -82,17 +84,17 @@ mcporter call poe-research.deep_research topic="your topic"
 
 **Comprehensive topic analysis:**
 ```bash
-mcporter call poe-research.deep_research topic="State of WebAssembly in 2025: adoption trends, performance benchmarks, and practical use cases beyond the browser"
+mcporter call poe-research.deep_research topic="State of WebAssembly in 2025: adoption trends, performance benchmarks, and practical use cases beyond the browser" --timeout 180000
 ```
 
 **Technical comparison:**
 ```bash
-mcporter call poe-research.deep_research topic="Comparing Bun, Deno, and Node.js runtime performance, ecosystem maturity, and production readiness in 2025"
+mcporter call poe-research.deep_research topic="Comparing Bun, Deno, and Node.js runtime performance, ecosystem maturity, and production readiness in 2025" --timeout 180000
 ```
 
 **Investigation:**
 ```bash
-mcporter call poe-research.deep_research topic="How are major tech companies implementing RAG (Retrieval-Augmented Generation) in production? Architecture patterns, challenges, and lessons learned."
+mcporter call poe-research.deep_research topic="How are major tech companies implementing RAG (Retrieval-Augmented Generation) in production? Architecture patterns, challenges, and lessons learned." --timeout 180000
 ```
 
 ---
