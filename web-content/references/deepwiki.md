@@ -1,11 +1,7 @@
----
-name: deepwiki
-description: "Understand GitHub repositories through AI-powered documentation and Q&A using DeepWiki via mcporter. Use this skill whenever you need to understand how a GitHub repo works, what its architecture looks like, how to use it, or have questions about its codebase. Triggers on: \"how does X repo work\", \"explain this GitHub repo\", \"what does this library do\", \"how is X implemented in repo Y\", \"understand the architecture of\", \"show me the docs for this repo\", \"ask about a GitHub repository\". Also use when you need a quick overview of an open-source project without reading the entire source."
----
-
 # GitHub Repo Documentation with DeepWiki
 
-DeepWiki provides AI-generated documentation and Q&A for GitHub repositories. It's like having a knowledgeable maintainer explain the codebase to you.
+DeepWiki provides AI-generated documentation and Q&A for GitHub repositories.
+It's like having a knowledgeable maintainer explain the codebase to you.
 
 Access it through mcporter: `mcporter call deepwiki.<tool> key=value`.
 
@@ -29,7 +25,8 @@ All tools take a `repoName` in `owner/repo` format (e.g. `facebook/react`).
 
 ## read_wiki_structure — List Documentation Topics
 
-See what documentation topics are available for a repo. Good as a first step to understand the breadth of what's documented.
+See what documentation topics are available for a repo. Good as a first step to
+understand the breadth of what's documented.
 
 ```bash
 mcporter call deepwiki.read_wiki_structure repoName="vercel/next.js"
@@ -44,7 +41,8 @@ Use this when you want to:
 
 ## read_wiki_contents — Read Full Wiki
 
-Get the complete AI-generated documentation for a repo. This is comprehensive but can be large.
+Get the complete AI-generated documentation for a repo. This is comprehensive
+but can be large.
 
 ```bash
 mcporter call deepwiki.read_wiki_contents repoName="denoland/deno"
@@ -55,13 +53,16 @@ Use this when you want to:
 - Read comprehensive documentation before diving into source code
 - Understand architecture, design decisions, and patterns
 
-**Tip**: For large repos, `read_wiki_structure` first, then `ask_question` for specific topics is more efficient than reading the full wiki.
+**Tip**: For large repos, `read_wiki_structure` first, then `ask_question` for
+specific topics is more efficient than reading the full wiki.
 
 ---
 
 ## ask_question — Ask Specific Questions
 
-Ask any question about a repository and get an AI-powered, context-grounded response. This is the most useful tool — it combines understanding of the codebase with your specific question.
+Ask any question about a repository and get an AI-powered, context-grounded
+response. This is the most useful tool — it combines understanding of the
+codebase with your specific question.
 
 ### Single Repo
 ```bash
@@ -102,9 +103,12 @@ mcporter call deepwiki.ask_question repoName="redis/redis" question="What are th
 
 ### `ask_question` may report "repo not indexed" for repos that are indexed
 
-The `ask_question` endpoint sometimes returns an error claiming a repo isn't indexed, even though `read_wiki_structure` and `read_wiki_contents` return results for the same repo. 
+The `ask_question` endpoint sometimes returns an error claiming a repo isn't
+indexed, even though `read_wiki_structure` and `read_wiki_contents` return
+results for the same repo.
 
-**Fallback pattern:** If `ask_question` fails with "not indexed", fall back to `read_wiki_contents` and reason over the wiki text yourself:
+**Fallback pattern:** If `ask_question` fails with "not indexed", fall back to
+`read_wiki_contents` and reason over the wiki text yourself:
 
 ```bash
 # If ask_question fails...
@@ -116,7 +120,10 @@ mcporter call deepwiki.read_wiki_contents repoName="some/repo"
 
 ### Only `ask_question` does AI reasoning
 
-`read_wiki_structure` and `read_wiki_contents` return pre-generated text with no AI processing. `ask_question` is the only endpoint that uses AI to generate a context-grounded answer to your specific question. If you need synthesis, comparison, or explanation — use `ask_question`.
+`read_wiki_structure` and `read_wiki_contents` return pre-generated text with no
+AI processing. `ask_question` is the only endpoint that uses AI to generate a
+context-grounded answer to your specific question. If you need synthesis,
+comparison, or explanation — use `ask_question`.
 
 ---
 
@@ -138,6 +145,6 @@ Use `ask_question` with an array of repos and a comparative question.
 | Need | Tool |
 |------|------|
 | Understand a GitHub repo's architecture | **deepwiki** |
-| Find real code examples of an API | **code-search** (grep.app) |
+| Find real code examples of an API | **grep.app** |
 | Look up library documentation | **context7** or **tavily_skill** |
 | Search the web for information | **tavily_search** |

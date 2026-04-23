@@ -1,17 +1,15 @@
----
-name: code-search
-description: "Find real-world code examples from millions of public GitHub repositories using grep.app via mcporter. Use this skill whenever you need to see how other developers actually use an API, library, or pattern in production code — not documentation, but real working code. Triggers on: \"how do people use\", \"show me examples of\", \"find code that uses\", \"real-world usage of\", \"how is X implemented in the wild\", \"show me production code for\", \"grep for\", \"search GitHub for code\". This is a literal code search engine (like grep across GitHub), not a keyword search — you search for actual code patterns, not natural language queries."
----
-
 # Code Search with grep.app
 
-grep.app lets you search for literal code patterns across millions of public GitHub repositories. It's like running `grep` across the entire open-source world.
+grep.app lets you search for literal code patterns across millions of public
+GitHub repositories. It's like running `grep` across the entire open-source
+world.
 
 Access it through mcporter: `mcporter call grep.searchGitHub key=value`.
 
 ## The Key Insight
 
-This tool searches for **literal code patterns** — actual code that would appear in source files — not natural language queries or keywords.
+This tool searches for **literal code patterns** — actual code that would appear
+in source files — not natural language queries or keywords.
 
 - ✅ Good: `useState(`, `import React from`, `async function`, `(?s)try {.*await`
 - ❌ Bad: `react tutorial`, `best practices`, `how to use hooks`
@@ -96,7 +94,7 @@ Use code-search when you need to:
 ## When NOT to Use This
 
 - **Looking for documentation** → Use `tavily_skill` or `context7` instead
-- **Searching by concept/keyword** → Use `tavily_search` instead — grep.app needs literal code
+- **Searching by concept/keyword** → Use `tavily_search` instead
 - **Understanding a specific repo's architecture** → Use `deepwiki` instead
 - **Web search for information** → Use `tavily_search`
 
@@ -107,4 +105,4 @@ Use code-search when you need to:
 3. **Use regex for multi-line patterns** — prefix with `(?s)` and use `.*` between parts
 4. **Filter by language** — dramatically improves signal-to-noise
 5. **Filter by repo or org** — `repo="vercel/"` searches all Vercel repos
-6. **Use path filters** — `path="test/"` to find test examples, `path="src/"` for implementation
+6. **Use path filters** — `path="test/"` for test examples, `path="src/"` for implementation
