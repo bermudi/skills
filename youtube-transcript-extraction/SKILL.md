@@ -1,3 +1,13 @@
+---
+name: youtube-transcript-extraction
+description: >
+  Extract YouTube video transcripts in browser extensions. Covers the full pipeline
+  from discovery through formatting, including InnerTube API access, caption track
+  selection, XML parsing, and DOM-based fallbacks. Triggers on: "YouTube transcript",
+  "extract captions", "YouTube captions", "video transcript extraction",
+  "timedtext API", "InnerTube transcript", "scrape YouTube subtitles".
+---
+
 # YouTube Transcript Extraction
 
 Skill for extracting YouTube video transcripts in browser extensions. Covers the full pipeline from discovery through formatting, with emphasis on the failure modes that matter in practice.
