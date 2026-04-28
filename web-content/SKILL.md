@@ -2,18 +2,14 @@
 name: web-content
 description: >
   Fetch, extract, search, crawl, and research online content using the best
-  available tool for each job. Covers raw file downloads (curl),
-  HTML-to-markdown extraction (Jina AI Reader), web search (Tavily), site
-  crawling and mapping (Tavily), deep multi-source research (Tavily, Poe),
-  library documentation lookup (Tavily, Context7), GitHub repo understanding
-  (DeepWiki), and code search across public repositories (grep.app). Triggers
-  on: "search the web", "look this up", "what's the latest on", "scrape this
-  page", "extract content from", "crawl this site", "map this website",
-  "research this topic", "deep dive into", "find information about", "what does
-  the web say about", "fetch this URL", "get the content of", "pull down this
-  page", "how do people use", "show me examples of", "find code that uses",
-  "how does X repo work", "explain this GitHub repo", "what's the API for",
-  "how to use X library".
+  tool for each job. Covers raw file downloads (curl), HTML-to-markdown
+  extraction (Jina AI Reader), web search (Tavily), site crawling and mapping
+  (Tavily), deep multi-source research (Tavily, Poe), library documentation
+  lookup (Tavily, Context7), GitHub repo understanding (DeepWiki), and code
+  search across public repositories (grep.app). Triggers on: "fetch this URL",
+  "search the web", "look this up", "extract content from", "crawl this site",
+  "research this topic", "what's the API for", "how to use X library",
+  "explain this GitHub repo", "find code that uses".
 ---
 
 # Web Content
