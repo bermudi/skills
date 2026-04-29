@@ -1,39 +1,7 @@
 # tavily_research — Deep Research
 
-Comprehensive multi-source research on a topic. Rate limit: 20 requests/minute.
-
-**⚠️ Timeout note:** `model=pro` runs many subtopic queries and can exceed mcporter's 60s default. Use `--timeout 120000` or higher for broad topics.
-
-## Basic Usage
-
-```bash
-mcporter call tavily.tavily_research input="Comprehensive description of what you want to research"
-```
-
-## Key Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `input` | (required) | Detailed description of the research task |
-| `model` | `auto` | `mini` (narrow, few subtopics), `pro` (broad, many subtopics), `auto` |
-
-## Examples
-
-**Quick focused research:**
-```bash
-mcporter call tavily.tavily_research input="What are the main differences between Python's asyncio and trio libraries for async programming?" model=mini
-```
-
-**Broad deep research:**
-```bash
-mcporter call tavily.tavily_research input="State of the art in LLM reasoning: chain-of-thought, tree-of-thought, and other approaches. Include recent papers from 2025, key benchmarks, and practical recommendations." model=pro --timeout 120000
-```
-
-## When to Use Research vs Search
-
-- Use **search** when you need quick answers, facts, or a few sources.
-- Use **research** when you need a comprehensive, synthesized answer from multiple sources with analysis.
-- Research is slower but much more thorough — it runs multiple searches and synthesizes the results.
+**Plan-limited and unavailable.** Use `poe-research.research` for quick answers
+or `poe-research.deep_research` for thorough multi-pass research.
 
 ---
 

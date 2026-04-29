@@ -2,14 +2,18 @@
 name: web-content
 description: >
   Fetch, extract, search, crawl, and research online content using the best
-  tool for each job. Covers raw file downloads (curl), HTML-to-markdown
-  extraction (Jina AI Reader), web search (Tavily), site crawling and mapping
-  (Tavily), deep multi-source research (Tavily, Poe), library documentation
-  lookup (Tavily, Context7), GitHub repo understanding (DeepWiki), and code
-  search across public repositories (grep.app). Triggers on: "fetch this URL",
-  "search the web", "look this up", "extract content from", "crawl this site",
-  "research this topic", "what's the API for", "how to use X library",
-  "explain this GitHub repo", "find code that uses".
+  available tool for each job. Covers raw file downloads (curl),
+  HTML-to-markdown extraction (Jina AI Reader), web search (Tavily), site
+  crawling and mapping (Tavily), deep multi-source research (Tavily, Poe),
+  library documentation lookup (Tavily, Context7), GitHub repo understanding
+  (DeepWiki), and code search across public repositories (grep.app). Triggers
+  on: "search the web", "look this up", "what's the latest on", "scrape this
+  page", "extract content from", "crawl this site", "map this website",
+  "research this topic", "deep dive into", "find information about", "what does
+  the web say about", "fetch this URL", "get the content of", "pull down this
+  page", "how do people use", "show me examples of", "find code that uses",
+  "how does X repo work", "explain this GitHub repo", "what's the API for",
+  "how to use X library".
 ---
 
 # Web Content
@@ -38,8 +42,7 @@ What do you need?
 │   ├── Quick fact or current event → tavily_search
 │   ├── Synthesized analysis / research on a topic
 │   │   ├── Quick answer → poe-research.research
-│   │   ├── Thorough multi-pass → poe-research.deep_research
-│   │   └── Structured pipeline → tavily_research
+│   │   └── Thorough multi-pass → poe-research.deep_research
 │   ├── Library docs, synthesized answer → tavily_skill
 │   ├── Library docs, specific version or raw text → context7
 │   ├── Understand a GitHub repo's architecture → deepwiki
@@ -61,7 +64,6 @@ What do you need?
 | `r.jina.ai/http://...` | — | Clean markdown | HTML extraction, bypasses challenges | Inline below |
 | `tavily_extract` | `tavily` | Extracted content | JS SPAs, auth walls, batch extraction | references/extract.md |
 | `tavily_search` | `tavily` | Snippets + URLs | Quick facts, current events | references/search.md |
-| `tavily_research` | `tavily` | Synthesized report | Structured multi-source research | references/research-and-skill.md |
 | `tavily_skill` | `tavily` | AI-synthesized docs | Quick "how do I..." lookups | references/research-and-skill.md |
 | `poe-research.research` | `poe-research` | Synthesized answer | Focused AI research | references/poe-research.md |
 | `poe-research.deep_research` | `poe-research` | Thorough report | Complex multi-pass analysis | references/poe-research.md |
@@ -79,12 +81,14 @@ What do you need?
 # Quick synthesized answer
 mcporter call poe-research.research query="your question"
 
-# Thorough multi-step (override timeout!)
-mcporter call poe-research.deep_research topic="your topic" --timeout 180000
+# Thorough multi-step (set BOTH timeouts when calling from pi!)
+# mcporter --timeout 600000 (milliseconds)
+# pi bash timeout: 660      (seconds, must be > 600)
+mcporter call poe-research.deep_research topic="your topic" --timeout 600000
 ```
 
-See `references/poe-research.md` for model selection, reasoning params, and the
-full research-vs-research comparison.
+See `references/poe-research.md` for model selection, reasoning params, timeout
+coordination details, and the full research-vs-deep_research comparison.
 
 ### Code Search (grep.app)
 
@@ -192,7 +196,6 @@ AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=va
 | `tavily_search` | Web search | No URL known, need current info | references/search.md |
 | `tavily_crawl` | Multi-page extraction | Crawl a docs site or multi-page resource | references/crawl-and-map.md |
 | `tavily_map` | Discover URLs | See what pages exist on a site | references/crawl-and-map.md |
-| `tavily_research` | Deep multi-source research | Synthesize a topic across many sources | references/research-and-skill.md |
 | `tavily_skill` | Library docs lookup | AI-synthesized answer about a library/API | references/research-and-skill.md |
 
 ## When to Use What
@@ -201,7 +204,7 @@ AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=va
 |------|------|-----|
 | Synthesized analysis of a topic | **poe-research** | AI reasons + web search combined |
 | Quick web search for facts | **tavily_search** | Fast, raw search results |
-| Deep structured multi-source research | **tavily_research** | Tavily pipeline control |
+| Deep structured multi-source research | **poe-research.deep_research** | Thorough multi-pass analysis |
 | Real code examples from repos | **grep.app** | Actual production code |
 | Quick "how do I use X" | **tavily_skill** | One call, synthesized answer |
 | Exact doc text, specific version | **context7** | Raw chunks, version pinning |
@@ -210,8 +213,12 @@ AI-native search API, accessed via mcporter: `mcporter call tavily.<tool> key=va
 
 ## Gotchas
 
-- **`deep_research` timeouts:** Always override with `--timeout 180000`. It can
-take 90–150s+.
+- **`tavily_research` is plan-limited** and will error. Use `poe-research.research`
+  or `poe-research.deep_research` instead.
+- **Research timeouts:** When calling `deep_research` from pi, you must
+  coordinate two timeouts — mcporter's inner `--timeout` (ms) and pi's outer
+  bash `timeout` (seconds). Bash timeout must be > mcporter timeout in seconds.
+  See `references/poe-research.md` → Timeout Coordination.
 - **context7 rate limit:** Don't call resolve + query more than 3 times per
 question. Supplement with other tools if needed.
 - **grep.app is literal:** If you wouldn't `grep` for it in your own codebase,
