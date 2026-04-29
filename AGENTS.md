@@ -18,6 +18,8 @@ skill-name/
 └── research/         # Optional: gitignored research artifacts (probes, raw data, etc.)
 ```
 
+**DO NOT touch the skills inside .agents/skills/ or .pi/skills/**
+
 ## SKILL.md Format
 
 YAML frontmatter followed by Markdown content:
@@ -40,13 +42,7 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 ## Deploying Skills
 
-This repo is the **source of truth** for skills. After editing any skill here, reinstall globally:
-
-```bash
-skills update -g
-```
-
-This copies skills from this repo into `~/.agents/skills/`. Always edit here, then reinstall — never edit the installed copies directly.
+This repo is the **source of truth** for skills. 
 
 **`skills` detects changes via git state, not filesystem mtime.** You must `git add && git commit` before `skills update -g` will pick up your edits. Pushing ensures remote mirrors stay in sync too.
 
