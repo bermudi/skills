@@ -31,7 +31,7 @@ Poe API error codes and troubleshooting. Standard HTTP status codes and error ha
 | Status | Type | Cause | Fix |
 |--------|------|-------|-----|
 | 400 | `invalid_request_error` | Malformed JSON, missing required fields | Validate request body |
-| 401 | `authentication_error` | Invalid API key | Check `POE_API_KEY`, regenerate at poe.com/api |
+| 401 | `authentication_error` | Invalid API key | Check `POE_API_KEY`, regenerate at poe.com/api/keys |
 | 402 | `insufficient_credits` | Point balance zero or negative | Add compute points |
 | 403 | `permission_error` | Subscription doesn't cover this model | Upgrade or use eligible model |
 | 404 | `not_found_error` | Model/endpoint not found | Verify model name with `poe-code models` |

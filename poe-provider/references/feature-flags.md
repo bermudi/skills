@@ -11,11 +11,10 @@ Poe is moving `/v1/chat/completions` from a permissive compatibility layer to **
 That change is meant to reduce Poe-specific request transformations and make the endpoint behave more like the first-party API. In practice, older requests that relied on compatibility behavior may now fail.
 
 Common risk areas:
-- `extra_body`
+- Fields the model does not declare in its parameter schema (check `GET /v1/models`)
 - Older Poe-side renamed or translated parameters
-- Any field outside the OpenAI Chat Completions schema
 
-If the user needs provider-native parameters such as reasoning controls, do **not** keep stuffing them into Chat Completions. Move the integration to `/v1/responses` or the provider's first-party API instead.
+`extra_body` works for parameters the model *does* declare (e.g., `enable_thinking` on Kimi, Qwen, DeepSeek models). The real rule: Poe rejects fields the model doesn't declare in its schema, not `extra_body` wholesale.
 
 ---
 
@@ -35,7 +34,7 @@ Poe announced this rollout in three phases:
    - Strict mode only
    - Legacy header ignored
 
-Poe said the legacy fallback is scheduled to end on **2026-04-24**.
+Poe said the legacy fallback ended on **2026-04-24**.
 
 ---
 
@@ -78,9 +77,11 @@ Use this to confirm whether the request actually ran in strict or legacy mode.
    - Call `GET https://api.poe.com/v1/models`
    - Look for `/v1/chat/completions` in `supported_endpoints`
 
-2. **Remove non-standard request fields**
-   - Especially `extra_body`
-   - Also remove older Poe-only aliases or translated parameters
+2. **Check the model's parameter schema first**
+   - Call `GET https://api.poe.com/v1/models` and inspect the model's parameter schema (enums, types, maximums)
+   - Only fields the model declares in its schema will pass strict validation
+   - `extra_body` with declared parameters works fine under strict mode
+   - Remove older Poe-only aliases or translated parameters the model doesn't declare
 
 3. **Test in strict mode now**
    - Send `poe-feature: chat-completions-strict`
@@ -92,11 +93,10 @@ Use this to confirm whether the request actually ran in strict or legacy mode.
    - `poe-feature: chat-completions-legacy`
    - Do not build long-term logic around it
 
-6. **Prefer `/v1/responses` when you need advanced features**
-   - Reasoning controls
-   - Structured outputs
-   - Built-in tools like web search
-   - Other provider-native configuration that does not cleanly fit the Chat Completions schema
+6. **When parameters aren't in the model schema, use `/v1/responses` or provider API**
+   - For reasoning controls the model doesn't declare for Chat Completions, use `/v1/responses` (where reasoning is native)
+   - For structured outputs and web search, Responses API is the only option
+   - For models without Responses API support (Kimi, Qwen, DeepSeek, etc.), use `extra_body` with declared parameters or the first-party API
 
 ---
 
@@ -119,8 +119,10 @@ curl "https://api.poe.com/v1/chat/completions" \
 
 When a user says an older Poe Chat Completions integration "used to work" but now fails:
 
-1. Look for `extra_body` or other non-standard fields first
-2. Add the strict header in testing so behavior is explicit
-3. Check `x-poe-feature-active` in the response
-4. If the request depends on provider-specific knobs, migrate it to `/v1/responses`
-5. Explain that Poe is intentionally removing old request transformations to match first-party API behavior more closely
+1. Check `GET /v1/models` for the model's parameter schema — which fields does it declare?
+2. Look for fields the model doesn't declare — those will fail strict validation
+3. Add the strict header in testing so behavior is explicit
+4. Check `x-poe-feature-active` in the response
+5. If a needed parameter isn't in the model's Chat Completions schema:
+   - Check if the model supports `/v1/responses` (native reasoning, etc.)
+   - For models without Responses API support, use the first-party API for that parameter

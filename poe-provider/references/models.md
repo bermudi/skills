@@ -91,8 +91,8 @@ Pricing is per-token in USD. Multiply by 1,000,000 for per-1M-token pricing. Whe
 
 | Model | Input | Price In/Out (per 1M) | Cache Read | Features |
 |-------|-------|-----------------------|------------|----------|
-| **GPT-5.4** | | | | |
-| `gpt-5.4` | text, image | $2.20 / $14.00 | $0.22 | web_search, tools |
+| **GPT-5.5** | | | | |
+| `gpt-5.5` | text, image | $2.20 / $14.00 | $0.22 | web_search, tools |
 | `gpt-5.4-mini` | text, image | $0.68 / $4.00 | $0.068 | web_search, tools |
 | `gpt-5.4-nano` | text, image | $0.18 / $1.10 | $0.018 | web_search, tools |
 | **GPT-5.3** | | | | |
@@ -293,9 +293,9 @@ Treat this as a live-behavior note, not a guarantee. Re-check the API before rel
 
 | Task | Recommended Models |
 |------|-------------------|
-| **Coding** | claude-sonnet-4.6, glm-5.1-fw, gpt-5.4 |
+| **Coding** | claude-sonnet-4.6, glm-5.1-fw, gpt-5.5 |
 | **Fast coding** | minimax-m2.7, kimi-k2.5, grok-code-fast-1 |
-| **Complex reasoning** | claude-opus-4.6, o3, gpt-5.4-pro |
+| **Complex reasoning** | claude-opus-4.6, o3, gpt-5.5-pro |
 | **Long documents** | gemini-3.1-pro, gemini-2.5-pro |
 | **Multimodal (vision)** | gemini-3.1-pro, kimi-k2.5, claude-sonnet-4.6 |
 | **Cheap/fast** | gpt-5.4-nano, gemini-2.0-flash-lite, glm-4.7-flash |

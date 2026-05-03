@@ -17,20 +17,41 @@ If you're already using the Anthropic SDK, you can switch to using Poe by simply
 POST https://api.poe.com/v1/messages
 ```
 
-Only official Anthropic bots are supported through this API. You cannot call custom bots or bots from other providers. For other bots, use the Responses API or Chat Completions API.
+Only official Anthropic bots are supported through this API. You cannot call custom bots or bots from other providers. For other bots, use the OpenAI-compatible API or the Poe Python Library (`fastapi-poe`).
 
 ---
 
 ## Authentication
 
+The Poe Anthropic-compatible API supports two authentication methods:
+
+### x-api-key header (recommended)
+
+This is Anthropic's standard authentication method:
+
 ```bash
 curl "https://api.poe.com/v1/messages" \
     -H "x-api-key: $POE_API_KEY" \
     -H "anthropic-version: 2023-06-01" \
-    -H "Content-Type: application/json"
+    ...
 ```
 
+### Authorization: Bearer header
+
+For compatibility with tools that use Bearer token authentication:
+
+```bash
+curl "https://api.poe.com/v1/messages" \
+    -H "Authorization: Bearer $POE_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    ...
+```
+
+If both headers are provided, `x-api-key` takes precedence.
+
 The `anthropic-version` header is required.
+
+Get your API key at [poe.com/api/keys](https://poe.com/api/keys).
 
 ---
 
@@ -317,6 +338,67 @@ for i in range(max_iterations):
 }
 ```
 
+**Python:**
+```python
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key=os.getenv("POE_API_KEY"),
+    base_url="https://api.poe.com",
+)
+
+with client.messages.stream(
+    model="claude-sonnet-4.6",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Tell me about San Francisco"}],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+```
+
+**Node.js:**
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+    apiKey: process.env.POE_API_KEY,
+    baseURL: "https://api.poe.com",
+});
+
+const stream = await client.messages.stream({
+    model: "claude-sonnet-4.6",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: "Tell me about San Francisco" }],
+});
+
+for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        process.stdout.write(event.delta.text);
+    }
+}
+```
+
+**curl:**
+```bash
+curl "https://api.poe.com/v1/messages" \
+    -H "Content-Type: application/json" \
+    -H "x-api-key: $POE_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -d '{
+        "model": "claude-sonnet-4.6",
+        "max_tokens": 1024,
+        "stream": true,
+        "messages": [
+            {
+                "role": "user",
+                "content": "Tell me about San Francisco"
+            }
+        ]
+    }' \
+    --no-buffer
+```
+
 ### Streaming Response Format
 
 Server-Sent Events:
@@ -363,7 +445,7 @@ async function* streamMessages(messages: any[], model: string) {
   const response = await fetch('https://api.poe.com/v1/messages', {
     method: 'POST',
     headers: {
-      'x-api-key': process.env.POE_API_KEY!,
+      'Authorization': `Bearer ${process.env.POE_API_KEY!}`,
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json'
     },
@@ -472,15 +554,15 @@ for await (const delta of streamMessages(
 
 ## Supported Models
 
-Use either the Poe bot name or the Anthropic API model name:
+You can use any Claude model available on Poe. You can use the bot name from poe or the Anthropic API model name.
 
-| Model | Poe Bot Name | Anthropic API Name |
-|-------|-------------|-------------------|
-| Claude Sonnet 4.6 | `claude-sonnet-4.6` | `claude-sonnet-4.6` |
-| Claude Opus 4.6 | `claude-opus-4.6` | `claude-opus-4-6` |
-| Claude Haiku 4.5 | `claude-haiku-4.5` | `claude-haiku-4-5` |
+| Model | Example name |
+| --- | --- |
+| Claude Sonnet 4.6 | `claude-sonnet-4.6` |
+| Claude Opus 4.7 | `claude-opus-4.7` |
+| Claude Haiku 4.5 | `claude-haiku-4.5` |
 
-Only official Anthropic models are available on this endpoint. For custom bots or other providers, use the Responses API or Chat Completions API.
+Only official Anthropic models are available on this endpoint. For custom bots or other providers, use the OpenAI-compatible API or the Poe Python Library (`fastapi-poe`).
 
 ---
 
@@ -505,11 +587,37 @@ Errors follow the [Anthropic error format](https://docs.anthropic.com/en/api/err
 | `not_found_error` | 404 | Model not found - Only Claude models are supported |
 | `rate_limit_error` | 429 | Rate limit exceeded (500 requests per minute) |
 
+### Streaming Errors
+
+If an error occurs during streaming, an SSE error event is sent before the stream closes:
+
+```
+event: error
+data: {"type": "error", "error": {"type": "api_error", "message": "An error occurred"}}
+```
+
 ---
 
 ## Rate Limits
 
-**500 requests per minute (rpm)**
+Our rate limit is **500 requests per minute** (rpm).
+
+### Rate Limit Headers
+
+The following headers are included in responses:
+
+| Header | Description |
+| --- | --- |
+| `x-ratelimit-limit-requests` | Maximum requests allowed per time window (500) |
+| `x-ratelimit-remaining-requests` | Remaining requests in current time window |
+| `x-ratelimit-reset-requests` | Seconds until the rate limit resets |
+
+When rate limited, you'll receive an HTTP 429 response with an error of type `rate_limit_error`.
+
+**Retry tips:**
+
+- Use exponential back-off (starting at 250ms) with jitter
+- Check the rate limit headers to avoid hitting limits
 
 ---
 
@@ -520,6 +628,7 @@ Since this is a pass-through to the Anthropic API, official Anthropic SDKs work 
 ### Python
 
 ```python
+import os
 import anthropic
 
 client = anthropic.Anthropic(
@@ -534,6 +643,7 @@ message = client.messages.create(
         {"role": "user", "content": "Hello, Claude!"}
     ]
 )
+print(message.content[0].text)
 ```
 
 ### Node.js
@@ -553,6 +663,7 @@ const message = await client.messages.create({
     { role: 'user', content: 'Hello, Claude!' }
   ]
 });
+console.log(message.content[0].text);
 ```
 
 ---
@@ -564,3 +675,13 @@ const message = await client.messages.create({
 3. **Run your code** — Everything else stays the same
 
 Request/response formats, streaming events, tool use, and error handling are identical to the Anthropic API.
+
+---
+
+## Pricing & Availability
+
+All Poe subscribers can use their existing subscription points with the API at no additional cost.
+
+This means you can seamlessly transition between the web interface and API without worrying about separate billing structures or additional fees. Your regular monthly point allocation works exactly the same way whether you're chatting directly on Poe or accessing Claude programmatically through the API.
+
+If your Poe subscription is not enough, you can [purchase add-on points](https://poe.com/api/keys) to get as much access as your application requires. Any add-on points you purchase can be used with any model or bot on Poe.

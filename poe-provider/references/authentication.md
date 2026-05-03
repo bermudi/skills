@@ -7,7 +7,7 @@
 ### Getting Your API Key
 
 1. Log into [poe.com](https://poe.com)
-2. Navigate to [poe.com/api](https://poe.com/api)
+2. Navigate to [poe.com/api/keys](https://poe.com/api/keys)
 3. Click "Create API Key"
 4. Copy the key (starts with `poe-`)
 

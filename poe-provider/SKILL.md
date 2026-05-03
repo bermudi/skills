@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — prefer the Responses API first, then the Anthropic-compatible Messages API for Claude models, then Chat Completions for OpenAI SDK compatibility, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
+description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — Chat Completions for simple text (most reliable), Responses API for reasoning/web search/structured outputs, Messages API for Anthropic SDK/Claude Code, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
 ---
 
 # Poe Provider Integration
@@ -18,11 +18,11 @@ Poe provides unified access to hundreds of AI models from multiple providers thr
 | **Env var name** | `OPENAI_API_KEY` | `POE_API_KEY` |
 | **API key prefix** | `sk-...` or `your-key` | `poe-xxxxx-...` |
 | **Base URL** | `api.openai.com` | `api.poe.com/v1` |
-| **Anthropic base URL** | `api.anthropic.com` | `api.poe.com` |
-| **Model names** | `gpt-4`, `claude-3` | `claude-3-5-sonnet`, `gpt-4o` |
+| **Anthropic base URL** | `api.anthropic.com` | `https://api.poe.com` |
+| **Model names** | `gpt-4`, `claude-3` | `Claude-Sonnet-4.6`, `GPT-5.5`, `Gemini-3.1-Pro` |
 | **Billing** | Tokens | Compute points |
 | **Auth header** | Varies by endpoint | See below |
-| **Chat Completions mode** | Assume permissive validation forever | Test with `poe-feature: chat-completions-strict`; use spec-only fields and treat legacy mode as temporary |
+| **Chat Completions strict mode** | Strip all `extra_body` and non-standard fields | Use `extra_body` to pass custom bot parameters through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2). The API rejects fields the model does not declare in its schema. |
 
 ---
 
@@ -31,7 +31,7 @@ Poe provides unified access to hundreds of AI models from multiple providers thr
 ### 1. Get Your API Key
 
 ```bash
-# Visit https://poe.com/api while logged in
+# Visit https://poe.com/api/keys while logged in
 # Click "Create API Key"
 # Copy the key (it starts with poe-)
 ```
@@ -47,6 +47,60 @@ export POE_API_KEY=poe-xxxxx-your-key-here
 ```bash
 poe-code auth status
 ```
+
+---
+
+## Poe Python Library (Recommended)
+
+For new Python projects, use the official Poe Python library (`fastapi-poe`). It provides the most feature-complete way to interact with Poe bots and models, including custom parameters and native file upload that are not available through the OpenAI-compatible API.
+
+### Installation
+
+```bash
+pip install fastapi-poe
+```
+
+### Basic Usage
+
+```python
+import fastapi_poe as fp
+
+api_key = "your_api_key"  # Get from https://poe.com/api/keys
+message = fp.ProtocolMessage(role="user", content="Hello world")
+
+for partial in fp.get_bot_response_sync(
+    messages=[message],
+    bot_name="GPT-5.5",
+    api_key=api_key
+):
+    print(partial)
+```
+
+```python
+import asyncio
+import fastapi_poe as fp
+
+async def get_response():
+    api_key = "your_api_key"
+    message = fp.ProtocolMessage(role="user", content="Hello world")
+
+    async for partial in fp.get_bot_response(
+        messages=[message],
+        bot_name="GPT-5.5",
+        api_key=api_key
+    ):
+        print(partial)
+
+asyncio.run(get_response())
+```
+
+**Key features:**
+- ✅ **All bots** — access any public bot on Poe
+- ✅ **Custom parameters** — pass model-specific parameters (e.g., `thinking_budget`, `aspect_ratio`) via the `parameters` field on `ProtocolMessage`
+- ✅ **File upload** — upload files natively with `fp.upload_file()` / `fp.upload_file_sync()`
+- ✅ **Streaming** — both sync and async streaming supported
+
+For advanced usage, see the [External Application Guide](https://creator.poe.com/docs/external-applications/external-application-guide).
 
 ---
 
@@ -81,10 +135,10 @@ client = OpenAI(
 
 | OpenAI | Poe Equivalent |
 |--------|---------------|
-| `gpt-4o` | `claude-3-5-sonnet` or `gpt-4o` |
-| `gpt-4-turbo` | `claude-3-5-sonnet` |
-| `gpt-3.5-turbo` | `claude-3-haiku` |
-| `o1-preview` | `o1-preview` |
+| `gpt-4o` | `Claude-Sonnet-4.6` or `GPT-5.5` |
+| `gpt-4-turbo` | `Claude-Sonnet-4.6` |
+| `gpt-3.5-turbo` | `Claude-Sonnet-4.6` or `Gemini-3.1-Pro` |
+| `o1-preview` | `Claude-Opus-4.7` or `o3` |
 
 ---
 
@@ -135,25 +189,27 @@ npx poe-code@latest mcp configure claude-code
 
 ## API Selection Guide
 
-Poe exposes three APIs. **Always use the highest-priority API that fits your use case.**
+Poe exposes four primary integration methods. Choose based on your needs, not a rigid priority order.
 
-| Priority | API | Use When | Why |
-|----------|-----|----------|-----|
-| **1st** | **Responses API** | Any model, any task — but see caveats below | Most feature-rich endpoint (reasoning, structured outputs, web search). **Caveat:** `instructions` and `previous_response_id` are currently broken on Poe (tested 2026-04-13) — may be temporary |
-| **2nd** | **Messages API** (Anthropic-compatible) | Claude/Anthropic models, or when integrating with the Anthropic SDK | Drop-in replacement for `api.anthropic.com`, native Claude tool use format |
-| **3rd** | **Chat Completions API** (OpenAI-compatible) | OpenAI SDK users, or when you need `role: "system"` / reliable multi-turn | Fully working through Poe — system messages, tool calling (including parallel), agentic loops, streaming, multi-turn, and image input all confirmed. Use this when Responses API gaps matter for your integration. |
+| API / Library | Best For | Watch Out |
+|-----|----------|-----------|
+| **Poe Python Library** (`fastapi-poe`) | New Python projects, custom parameters, native file upload, all bots | Python only |
+| **Chat Completions API** (OpenAI-compatible) | Simple text generation, OpenAI SDK users, `role: "system"`, reliable multi-turn | No built-in reasoning, web search, or structured outputs. Private bots are not currently supported; App-Creator and Script-Bot-Creator bots are also not available. Image/video/audio bots should use `stream: false` for best results. Custom bot parameters can be passed via `extra_body` through the OpenAI SDK — check the model schema at `GET /v1/models` first. |
+| **Responses API** | Reasoning/thinking, web search, structured outputs | `instructions` silently ignored, `previous_response_id` broken on tested models, `output_text` missing on many models. For plain text, Chat Completions is more reliable. |
+| **Messages API** (Anthropic-compatible) | Claude models, Anthropic SDK, Claude Code | Claude-only. Authentication uses `x-api-key` header (recommended) or `Authorization: Bearer`. |
 
-### ⚠️ Responses API Platform Gaps (tested 2026-04-13, may be temporary)
+### ⚠️ Responses API Platform Gaps (confirmed May 2026)
 
-The Responses API is the most feature-rich endpoint but currently has two significant gaps through Poe:
+The Responses API has persistent gaps through Poe (official docs may show these features but they don't work in practice):
 - **`instructions` is silently ignored** — accepted but has no effect on any provider
 - **`previous_response_id` returns errors** — 500 for Claude, data-retention rejection for GPT
+- **`output_text` shortcut missing** on many models — parse `output[].content[]` instead
 
 Workaround: inject system context in the `input` array; use `input` array for multi-turn history. See `references/responses-api.md` for details.
 
-### Chat Completions — More Reliable Than You'd Expect
+### Chat Completions — Most Reliable for Text Generation
 
-Despite being listed as 3rd priority, Chat Completions actually has **fewer platform gaps** than the Responses API right now. Tested against both `Claude-Haiku-4.5` and `gpt-5.4-mini` on 2026-04-13:
+Chat Completions has **fewer platform gaps** than the Responses API. Tested against multiple models (May 2026):
 
 | Feature | Status |
 |---------|--------|
@@ -172,13 +228,12 @@ Use Chat Completions when you need `role: "system"` or reliable multi-turn and d
 
 ### Chat Completions Strict Validation Rollout
 
-Poe is rolling `/v1/chat/completions` toward **strict OpenAI-compatible request validation**. Non-standard fields like `extra_body` that previously worked may now fail.
+Poe's `/v1/chat/completions` enforces **strict OpenAI-compatible request validation** (legacy fallback ended 2026-04-24). Fields the model doesn't declare in its schema are rejected. Custom bot parameters can be passed via `extra_body` through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2).
 
-1. Check `GET https://api.poe.com/v1/models` — confirm the model lists `/v1/chat/completions` in `supported_endpoints`
+1. Check `GET https://api.poe.com/v1/models` — confirm the model lists `/v1/chat/completions` in `supported_endpoints`, and **inspect the model's parameter schema** (enums, types, maximums) to see which parameters are declared
 2. Test with `poe-feature: chat-completions-strict`
 3. Inspect `x-poe-feature-active` on the response to confirm which mode handled the request
-4. Use `chat-completions-legacy` only as a temporary migration fallback
-5. If the user needs provider-specific parameters, move to `/v1/responses` or the first-party provider API
+4. If a parameter isn't in the model's schema, move to `/v1/responses` or the first-party provider API
 
 ---
 
@@ -194,10 +249,10 @@ curl -X POST "https://api.poe.com/v1/responses" \
 ### Messages API (Anthropic-Compatible — Secondary Choice for Claude Models)
 
 ```bash
-curl -X POST "https://api.poe.com/v1/messages" \
+curl "https://api.poe.com/v1/messages" \
+  -H "Content-Type: application/json" \
   -H "x-api-key: $POE_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
-  -H "Content-Type: application/json" \
   -d '{
     "model": "claude-sonnet-4.6",
     "max_tokens": 1024,
@@ -214,21 +269,21 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
   -H "Authorization: Bearer $POE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-3-5-sonnet",
+    "model": "Claude-Sonnet-4.6",
     "messages": [{"role": "user", "content": "Hello"}]
   }'
 ```
 
-**Use when**: you need the OpenAI SDK shape, or when `instructions`/`previous_response_id` gaps on the Responses API matter for your integration. System messages, multi-turn, tools, streaming, and image input all work reliably.
+**Use when**: you need the OpenAI SDK shape, or when `instructions`/`previous_response_id` gaps on the Responses API matter for your integration. System messages, multi-turn, tools, streaming, and image input all work reliably. Private bots are not currently supported.
 
-**Strict validation note**: Poe announced a strict-validation migration window for `/v1/chat/completions`, with legacy fallback scheduled to end on **2026-04-24**. Read `references/feature-flags.md` before advising on migrations, validation errors, or `extra_body` / custom-parameter issues.
+**Strict validation note**: Poe's strict validation for `/v1/chat/completions` is now the default (legacy fallback ended 2026-04-24). Fields the model doesn't declare in its schema are rejected. Custom bot parameters can be passed via `extra_body` through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2) — check `GET /v1/models` for each model's parameter schema. See `references/feature-flags.md` for full details.
 
 ### Auth Header by Endpoint
 
 | Endpoint | Header |
 |----------|--------|
 | `/v1/responses` | `Authorization: Bearer $POE_API_KEY` |
-| `/v1/messages` | `x-api-key: $POE_API_KEY` _or_ `Authorization: Bearer $POE_API_KEY` |
+| `/v1/messages` | `x-api-key: $POE_API_KEY` (recommended) or `Authorization: Bearer $POE_API_KEY` |
 | `/v1/chat/completions` | `Authorization: Bearer $POE_API_KEY` |
 | `/bot/*` | `Poe-API-Key: $POE_API_KEY` (legacy, for content generation) |
 
@@ -295,9 +350,14 @@ poe-code usage list --filter claude
 | Status | Meaning | Fix |
 |--------|---------|-----|
 | **401** | Invalid API key | Check `POE_API_KEY`, regenerate key |
-| **403** | No permission | Upgrade subscription |
+| **402** | Insufficient credits | Balance is zero or negative; check `poe-code usage` |
+| **403** | Moderation / permission denied | Check subscription or authorization |
 | **404** | Model not found | Use `poe-code models` to verify name |
-| **429** | Rate limited | Wait, implement backoff |
+| **408** | Timeout | Model didn't start in a reasonable time; retry later |
+| **413** | Request too large | Input exceeds context window; reduce prompt size |
+| **429** | Rate limited | Wait, implement backoff (500 requests/minute) |
+| **502** | Upstream error | Model backend not working; retry later |
+| **529** | Overloaded | Transient traffic spike; retry with backoff |
 
 ### 401 vs 403
 
@@ -361,6 +421,10 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 - **Rate limits vary by tier**: Check `poe-code usage` for your limits
 - **Streaming errors**: Wrap in try/catch, handle incomplete streams
 - **Model availability**: Not all models available via API (some web-only)
+- **App-Creator and Script-Bot-Creator bots** are not available via the OpenAI-compatible API
+- **Audio input** is ignored and stripped from Chat Completions requests
+- **Structured outputs (`response_format: {type: "json_schema"}`)** are not supported in Chat Completions — use the Responses API instead
+- **File inputs** (PDF, audio, video) can be passed via `type: "file"` with base64 data URLs in Chat Completions
 
 ---
 
@@ -368,12 +432,12 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 
 | File | Priority | When to Read |
 |------|----------|--------------|
-| `references/responses-api.md` | **1st** | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use) |
+| `references/responses-api.md` | — | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use) |
 | `references/anthropic-api.md` | **2nd** | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use) |
-| `references/chat-completions-api.md` | **3rd** | Chat Completions API — fully working (system messages, tools, multi-turn, streaming, images). Prefer when Responses API gaps matter. |
+| `references/chat-completions-api.md` | — | Chat Completions API — most reliable for text generation (system messages, tools, multi-turn, streaming, images). Use when Responses API gaps matter. |
 | `references/feature-flags.md` | — | `/v1/chat/completions` rollout guidance: strict vs legacy headers, response confirmation, and migration steps |
 | `references/authentication.md` | — | OAuth flow, Poe-specific auth gotchas |
-| `references/models.md` | — | Full model catalog |
+| `references/bermudi-models.md` | — | bermudi's tracked models — families, thinking params, probe results, re-run instructions |
 | `references/costs_and_usage.md` | — | Compute point balance, usage history API, pagination patterns |
 | `references/cache.md` | — | Prompt caching: what works, what doesn't, point savings, per-endpoint guide |
 | `references/errors.md` | — | Error codes and debugging |

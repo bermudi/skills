@@ -2,9 +2,9 @@
 
 OpenAI-compatible Chat Completions endpoint for drop-in replacement with existing code.
 
-## ✅ Tested & Confirmed (2026-04-13)
+## ✅ Tested & Confirmed (May 2026)
 
-All core features were tested against both `Claude-Haiku-4.5` and `gpt-5.4-mini`. This endpoint has **fewer platform gaps than the Responses API** through Poe right now:
+All core features were tested against multiple models. This endpoint has **fewer platform gaps than the Responses API** through Poe:
 
 | Feature | Claude-Haiku-4.5 | gpt-5.4-mini |
 |---------|:---:|:---:|
@@ -20,7 +20,7 @@ All core features were tested against both `Claude-Haiku-4.5` and `gpt-5.4-mini`
 | `temperature=0` deterministic | ✅ | ✅ |
 | `max_tokens` enforcement | ✅ | ⚠️ returned empty content in test |
 
-**Contrast with Responses API:** the Responses API's `instructions` and `previous_response_id` fields are both broken through Poe (as of 2026-04-13). Chat Completions has no equivalent gaps — `role: "system"` and multi-turn via message history both work. See `responses-api.md` for details on those gaps.
+**Contrast with Responses API:** the Responses API's `instructions` field is silently ignored through Poe. Chat Completions has no equivalent gaps — `role: "system"` and multi-turn via message history both work. See `responses-api.md` for details.
 
 ---
 
@@ -32,15 +32,25 @@ POST https://api.poe.com/v1/chat/completions
 
 **Note**: This is similar to OpenAI's Chat Completions API but routes through Poe's infrastructure.
 
-## Breaking Change: Strict Validation Rollout
+## Available APIs (OpenAI-Compatible Surface)
 
-Poe is moving `/v1/chat/completions` from a permissive compatibility layer to **strict OpenAI-compatible request validation**.
+The OpenAI-compatible API supports more than just chat completions:
+
+- ✅ **Chat Completions** — `POST /v1/chat/completions` (streaming and non-streaming)
+- ✅ **List Models** — `GET /v1/models` (see `references/models.md`)
+- ✅ **Current Balance** — `GET /usage/current_balance` (see `references/costs_and_usage.md`)
+- ✅ **Usage History** — `GET /usage/points_history` (see `references/costs_and_usage.md`)
+- ❌ **Custom Parameters** — Not supported on this API surface; use the Poe Python Library (`fastapi-poe`) instead
+
+## Breaking Change: Strict Validation (Active)
+
+Poe's `/v1/chat/completions` now enforces strict validation (legacy fallback ended 2026-04-24).
 
 What this means in practice:
-- Non-standard fields that previously slipped through, such as `extra_body`, may fail in strict mode
-- Older Poe-side parameter transformations and renamed compatibility params are being removed to make the endpoint behave more like the first-party service
-- If you need provider-native knobs such as reasoning controls, prefer `/v1/responses` or the provider's first-party API instead of forcing them through Chat Completions
-- Poe announced the temporary legacy fallback is scheduled to end on **2026-04-24**
+- Fields the model doesn't declare in its parameter schema are rejected
+- `extra_body` **works** for parameters the model *does* declare (e.g., `enable_thinking` on Kimi, Qwen, DeepSeek models)
+- Check `GET /v1/models` for each model's parameter schema (enums, types, maximums) to see what's allowed
+- Older Poe-side parameter transformations and renamed compatibility params have been removed
 
 ### Feature Flag Headers
 
@@ -84,7 +94,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 
 ```json
 {
-  "model": "claude-3-5-sonnet",
+  "model": "Claude-Sonnet-4.6",
   "messages": [
     {"role": "user", "content": "Hello"}
   ]
@@ -95,7 +105,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 
 ```json
 {
-  "model": "claude-3-5-sonnet",
+  "model": "Claude-Sonnet-4.6",
   "messages": [
     {"role": "system", "content": "You are a helpful assistant"},
     {"role": "user", "content": "Explain quantum computing"}
@@ -108,7 +118,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 }
 ```
 
-> **Strict-mode rule:** Only send fields defined by the OpenAI Chat Completions schema. Do not rely on `extra_body` or other Poe compatibility transforms on this endpoint.
+> **Strict-mode rule:** Fields the model doesn't declare in its parameter schema are rejected. Custom bot parameters can be passed via `extra_body` through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2). Check `GET /v1/models` for each model's parameter schema.
 
 ---
 
@@ -118,17 +128,32 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 |-----------|------|---------|-------------|
 | `model` | string | Required | Model identifier |
 | `messages` | array | Required | Conversation messages |
-| `temperature` | float | 1.0 | Sampling temperature |
+| `temperature` | float | 1.0 | Sampling temperature (0–2) |
 | `max_tokens` | int | Model default | Max response tokens |
 | `max_completion_tokens` | int | null | Maximum number of completion tokens to generate |
 | `top_p` | float | 1.0 | Nucleus sampling |
 | `stream` | boolean | false | Enable streaming |
 | `stream_options` | object | null | Options for streaming |
-| `stop` | string \| string[] | null | Up to 4 sequences where the API will stop generating |
+| `stop` | string \| string[] | null | Stop sequences where the API will stop generating (all non-whitespace sequences work) |
 | `tools` | array | null | Available functions |
-| `tool_choice` | string | auto | Controls which function is called |
+| `tool_choice` | string \| object | auto | Controls which function is called |
 | `parallel_tool_calls` | boolean | null | Enable parallel function calling |
 | `n` | int | 1 | Number of completion choices (must be 1) |
+| `logprobs` | boolean | null | Whether to return logprobs |
+| `top_logprobs` | int | null | Number of most likely tokens to return logprobs for |
+| `reasoning_effort` | string | null | Ignored — use `extra_body` instead |
+| `response_format` | object | null | Ignored (`json_schema` not supported in Chat Completions) |
+| `store` | boolean | null | Ignored |
+| `metadata` | object | null | Ignored |
+| `prediction` | object | null | Ignored |
+| `presence_penalty` | float | null | Ignored |
+| `frequency_penalty` | float | null | Ignored |
+| `seed` | int | null | Ignored |
+| `service_tier` | string | null | Ignored |
+| `audio` | object | null | Ignored (audio input is stripped) |
+| `logit_bias` | object | null | Ignored |
+| `user` | string | null | Ignored |
+| `modalities` | array | null | Ignored |
 
 ### Temperature vs Top-P
 
@@ -156,10 +181,10 @@ Use **either** `temperature` **or** `top_p`, not both. Using both can lead to un
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `role` | string | Message author role |
-| `content` | string \| array | Message content |
+| `role` | "system" \| "user" \| "assistant" \| "tool" | Message author role |
+| `content` | string \| object[] | Message content |
 | `name` | string | Name of the message author |
-| `tool_calls` | array | Tool calls generated by the model |
+| `tool_calls` | object[] | Tool calls generated by the model |
 | `tool_call_id` | string | Tool call this message responds to |
 
 ### Roles Reference
@@ -194,6 +219,51 @@ Use **either** `temperature` **or** `top_p`, not both. Using both can lead to un
 - `low`: Lower resolution (faster, cheaper)
 - `high`: High resolution (slower, more expensive)
 
+### File Inputs
+
+You can pass PDF, audio, and video files using base64-encoded data URLs with `type: "file"`:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "Summarize this document."},
+    {
+      "type": "file",
+      "file": {
+        "filename": "report.pdf",
+        "file_data": "data:application/pdf;base64,..."
+      }
+    },
+    {
+      "type": "file",
+      "file": {
+        "filename": "audio.mp3",
+        "file_data": "data:audio/mp3;base64,..."
+      }
+    },
+    {
+      "type": "file",
+      "file": {
+        "filename": "video.mp4",
+        "file_data": "data:video/mp4;base64,..."
+      }
+    }
+  ]
+}
+```
+
+Poe also accepts publicly accessible URLs for images:
+
+```json
+{
+  "type": "image_url",
+  "image_url": {
+    "url": "https://example.com/photo.jpg"
+  }
+}
+```
+
 ---
 
 ## Response Format
@@ -205,7 +275,7 @@ Use **either** `temperature` **or** `top_p`, not both. Using both can lead to un
   "id": "chatcmpl-123",
   "object": "chat.completion",
   "created": 1677652288,
-  "model": "claude-3-5-sonnet",
+  "model": "Claude-Sonnet-4.6",
   "choices": [
     {
       "index": 0,
@@ -244,7 +314,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
   -H "Authorization: Bearer $POE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-3-5-sonnet",
+    "model": "Claude-Sonnet-4.6",
     "messages": [{"role": "user", "content": "Count to 5"}],
     "stream": true
   }'
@@ -255,9 +325,9 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 Server-Sent Events format:
 
 ```
-data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":123,"model":"claude-3-5-sonnet","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":123,"model":"Claude-Sonnet-4.6","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
 
-data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":123,"model":"claude-3-5-sonnet","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":123,"model":"Claude-Sonnet-4.6","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}
 
 data: [DONE]
 ```
@@ -305,6 +375,8 @@ async function* streamChat(messages: any[], model: string) {
 Tool calling enables LLMs to interact with external functions. The model suggests tool calls with specific arguments, your client executes them, and returns results to continue the conversation.
 
 > **Tool calling works** — tested with both Claude and GPT models through Poe. The model returns `function` tool calls with correct arguments, supports parallel calls, and correctly incorporates tool results when you send them back. Note that tool support still varies across *all* Poe models (not every model supports tools); the major ones (Claude, GPT) do.
+
+> **Note:** The `strict` parameter for function calling is ignored. Tool use JSON is not guaranteed to follow the supplied schema.
 
 ---
 
@@ -486,7 +558,7 @@ messages = [
 max_iterations = 10
 for i in range(max_iterations):
     response = client.chat.completions.create(
-        model="GPT-5.4",
+        model="GPT-5.5",
         messages=messages,
         tools=TOOLS
     )
@@ -564,9 +636,10 @@ Final response: The sum is 94,041. Current weather in ZIP 94041: 72°F and sunny
 1. **Check model endpoint support first**
    - Call `GET https://api.poe.com/v1/models`
    - Confirm your model includes `/v1/chat/completions` in `supported_endpoints`
-2. **Remove non-standard request fields**
-   - Especially `extra_body`
-   - Also remove any older Poe-specific aliases or renamed provider params
+2. **Check the model's parameter schema**
+   - Call `GET https://api.poe.com/v1/models` and inspect your model's parameter schema
+   - Custom bot parameters can be passed via `extra_body` through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2)
+   - Remove fields the model doesn't declare
 3. **Test with strict mode during rollout**
    - Send `poe-feature: chat-completions-strict`
 4. **Confirm the active mode**
@@ -574,8 +647,9 @@ Final response: The sum is 94,041. Current weather in ZIP 94041: 72°F and sunny
 5. **Use legacy mode only as a short-lived fallback**
    - `poe-feature: chat-completions-legacy`
    - Do not treat this as a permanent fix
-6. **Prefer `/v1/responses` when you need provider-native features**
-   - Reasoning controls, structured outputs, built-in web search, and similar features fit better there
+6. **When parameters aren't in the schema, use `/v1/responses` or provider API**
+   - For reasoning controls the model doesn't declare for Chat Completions, check if the model supports `/v1/responses`
+   - For models without Responses API support, use the first-party API
 
 ---
 
@@ -593,7 +667,7 @@ const client = new OpenAI({
 
 // Use exactly like OpenAI
 const chat = await client.chat.completions.create({
-  model: 'claude-3-5-sonnet',
+  model: 'Claude-Sonnet-4.6',
   messages: [{ role: 'user', content: 'Hello' }]
 });
 ```
@@ -609,7 +683,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="claude-3-5-sonnet",
+    model="Claude-Sonnet-4.6",
     messages=[{"role": "user", "content": "Hello"}]
 )
 ```
@@ -620,7 +694,7 @@ response = client.chat.completions.create(
 import { ChatOpenAI } from '@langchain/openai';
 
 const llm = new ChatOpenAI({
-  model: 'claude-3-5-sonnet',
+  model: 'Claude-Sonnet-4.6',
   openAIApiKey: process.env.POE_API_KEY,
   configuration: {
     basePath: 'https://api.poe.com/v1'
@@ -634,10 +708,10 @@ const llm = new ChatOpenAI({
 
 | OpenAI Model | Poe Equivalent |
 |--------------|---------------|
-| `gpt-4` | `claude-3-5-sonnet` or `claude-3-opus` |
-| `gpt-3.5-turbo` | `claude-3-haiku` or `claude-3-sonnet` |
-| `gpt-4-turbo` | `claude-3-5-sonnet` |
-| `gpt-4o` | `claude-3-5-sonnet` |
+| `gpt-4` | `Claude-Sonnet-4.6` or `Claude-Opus-4.7` |
+| `gpt-3.5-turbo` | `Claude-Sonnet-4.6` or `Gemini-3.1-Pro` |
+| `gpt-4-turbo` | `Claude-Sonnet-4.6` |
+| `gpt-4o` | `Claude-Sonnet-4.6` or `GPT-5.5` |
 
 **Note**: Model names on Poe may differ. Use `poe-code models` to find exact identifiers.
 
@@ -652,15 +726,22 @@ const llm = new ChatOpenAI({
 | 400 | Bad request | Check JSON format or missing required fields |
 | 401 | Invalid key | Verify `POE_API_KEY` |
 | 402 | Insufficient credits | Point balance is zero or negative |
-| 403 | Forbidden | Check subscription tier |
+| 403 | Moderation / permission denied | Check subscription or authorization |
 | 404 | Model not found | Use correct model name |
+| 408 | Timeout | Model didn't start in a reasonable time; retry later |
+| 413 | Request too large | Input exceeds context window; reduce prompt size |
 | 429 | Rate limited | Implement backoff (500 requests/minute) |
 | 500 | Server error | Retry later |
+| 502 | Upstream error | Model backend not working; retry later |
+| 529 | Overloaded | Transient traffic spike; retry with backoff |
 
 **Important notes:**
-- Private bots are not currently supported
+- Private bots are not currently supported; App-Creator and Script-Bot-Creator bots are also not available
 - Image/video/audio bots should use `stream: false` for best results
-- Custom parameters require the Poe Python SDK
+- Audio input is ignored and stripped from requests
+- Structured outputs (`response_format: {type: "json_schema"}`) are not supported in Chat Completions
+- The `strict` parameter for function calling is ignored
+- Custom bot parameters can be passed via `extra_body` through the OpenAI SDK
 
 ### Retry Implementation
 

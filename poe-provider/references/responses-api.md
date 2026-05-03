@@ -6,12 +6,13 @@ The Responses API is Poe's primary OpenAI-compatible interface for AI text gener
 
 ---
 
-## ⚠️ Known Platform Gaps (tested 2026-04-13)
+## ⚠️ Known Platform Gaps (confirmed May 2026)
 
-These are features that are part of the OpenAI Responses API spec but currently **do not work through Poe**, even though Poe accepts the fields without error. They may be temporary — Poe is actively evolving the Responses API endpoint. Check back if you hit issues.
+These are features that are part of the OpenAI Responses API spec but currently **do not work through Poe**, even though Poe accepts the fields without error.
 
 | Feature | Status | Workaround |
 |---------|--------|------------|
+| `output_text` shortcut | **Missing on many models** — the response omits the `output_text` convenience field | Parse `output[0].content[0].text` from the full `output` array instead |
 | `instructions` (system prompt) | **Silently ignored** — the field is accepted but has no effect on model behavior for any provider (tested Claude-Haiku-4.5, gpt-5.4-mini) | Inject system context in the `input` array, e.g. `{"role": "user", "content": "<system instructions>"}` before the real user message, or try `{"role": "developer", "content": "..."}` |
 | `previous_response_id` | **Broken** — returns `500 Internal Server Error` for Claude models, and `"Previous response cannot be used for this organization due to Zero Data Retention"` for OpenAI models | Send the full conversation history as an `input` array with `role`-tagged messages |
 
@@ -45,21 +46,23 @@ POST https://api.poe.com/v1/responses
 ```bash
 curl "https://api.poe.com/v1/responses" \
   -H "Authorization: Bearer $POE_API_KEY" \
+  -H "Accept: application/json" \
   -H "Content-Type: application/json"
 ```
 
 ---
 
-## Why Responses Over Chat Completions?
+## When to Use Responses vs Chat Completions
 
 | Feature | Responses API | Chat Completions |
 |---------|--------------|------------------|
-| Reasoning / extended thinking | ✅ `reasoning` param | ❌ |
+| Reasoning / extended thinking | ✅ `reasoning` param | ⚠️ via `extra_body` (model-dependent) |
 | Web search built-in | ✅ `web_search_preview` tool | ❌ |
 | Structured outputs (JSON schema) | ✅ `text.format` | ❌ |
-| Multi-modal inputs (text, images) | ✅ `input` array | ❌ |
-| Multi-turn without resending history | ✅ `previous_response_id` | ❌ |
-| Tool support | ✅ | ✅ (but limited) |
+| Multi-modal inputs (text, images) | ✅ `input` array | ✅ `image_url` content blocks |
+| Multi-turn without resending history | ❌ `previous_response_id` broken | ✅ message history array |
+| System prompt / instructions | ❌ `instructions` silently ignored | ✅ `role: "system"` |
+| Tool support | ✅ | ✅ |
 
 ---
 
@@ -93,7 +96,7 @@ curl "https://api.poe.com/v1/responses" \
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | string | **Required** | Poe bot name (e.g., `Claude-Sonnet-4.6`, `GPT-5.4`). Poe UI-specific system prompts are skipped. |
+| `model` | string | **Required** | Poe bot name (e.g., `Claude-Sonnet-4.6`, `GPT-5.5`). Poe UI-specific system prompts are skipped. |
 | `input` | string \| object[] | **Required** | User message. Can be a simple string or an array of input items including text, images, and previous assistant messages. |
 | `instructions` | string \| null | null | System (or developer) message inserted at the beginning of the model's context |
 | `temperature` | float | null | Sampling temperature (0–2) |
@@ -145,7 +148,7 @@ Use the built-in `web_search_preview` tool for up-to-date information:
 
 ```json
 {
-  "model": "GPT-5.4",
+  "model": "GPT-5.5",
   "input": "What are the latest AI news today?",
   "tools": [{"type": "web_search_preview"}]
 }
@@ -159,7 +162,7 @@ Get responses conforming to a specific JSON schema:
 
 ```json
 {
-  "model": "GPT-5.4",
+  "model": "GPT-5.5",
   "input": "List the top 3 programming languages in 2025",
   "text": {
     "format": {
@@ -211,7 +214,7 @@ print(response.output_text)  # "Berlin"
 
 ### Via `previous_response_id` (currently broken)
 
-> **⚠️ Platform gap (as of 2026-04-13):** `previous_response_id` returns `500` for Claude models and a data-retention error for OpenAI models. This may be temporary. Use the `input` array approach above instead.
+> **⚠️ Platform gap (confirmed May 2026):** `previous_response_id` returns `500` for Claude models and a data-retention error for OpenAI models. Use the `input` array approach above instead.
 
 ```python
 # This does NOT currently work through Poe
@@ -246,29 +249,18 @@ followup = client.responses.create(
 Server-Sent Events:
 
 ```
-data: {"type":"response_started","response":{"id":"resp_abc123","model":"Claude-Sonnet-4.6"}}
+data: {"type":"response.output_text.delta","delta":"Here"}
 
-data: {"type":"content_block_started","index":0,"content_block":{"type":"text"}}
+data: {"type":"response.output_text.delta","delta":" are"}
 
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Once"}}
+data: {"type":"response.output_text.delta","delta":" the top"}
 
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" upon"}}
+data: {"type":"response.completed","response":{"id":"resp_abc123","object":"response","status":"completed","usage":{"input_tokens":15,"output_tokens":45,"total_tokens":60}}}
 
-data: {"type":"content_block_stopped"}
-
-data: {"type":"response_done","response":{"id":"resp_abc123","usage":{"output_tokens":150}}}
+data: [DONE]
 ```
 
-### SSE Event Types
-
-| Event | Description |
-|-------|-------------|
-| `response_started` | Response begins |
-| `content_block_started` | New content block |
-| `content_block_delta` | Incremental text/tool input |
-| `content_block_stopped` | Block complete |
-| `response_done` | Response complete with usage |
-| `error` | Error occurred |
+The stream emits events following the OpenAI Responses API format. Partial text is delivered via `response.output_text.delta` events, and the stream ends with a `response.completed` event followed by a `[DONE]` sentinel.
 
 ### Client Implementation
 
@@ -278,6 +270,7 @@ async function* streamResponse(model: string, input: string) {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.POE_API_KEY}`,
+      'Accept': 'application/json',
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ model, input, stream: true })
@@ -309,8 +302,8 @@ async function* streamResponse(model: string, input: string) {
 
 // Usage
 for await (const event of streamResponse('Claude-Sonnet-4.6', 'Write a haiku')) {
-  if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-    process.stdout.write(event.delta.text);
+  if (event.type === 'response.output_text.delta') {
+    process.stdout.write(event.delta);
   }
 }
 ```
@@ -434,7 +427,7 @@ followup = client.responses.create(
 print(followup.output_text)
 ```
 
-> **Why `input` array and not `previous_response_id`?** As of 2026-04-13, `previous_response_id` does not work through Poe (500 for Claude, data-retention error for GPT). Sending the full conversation via the `input` array is the reliable approach. This may be temporary. For how to do that without blowing prompt cache hits, see `cache.md`.
+> **Why `input` array and not `previous_response_id`?** As of May 2026, `previous_response_id` does not work through Poe (500 for Claude, data-retention error for GPT). Sending the full conversation via the `input` array is the reliable approach. For how to do that without blowing prompt cache hits, see `cache.md`.
 
 ---
 
@@ -445,6 +438,7 @@ print(followup.output_text)
 | `"auto"` | Model decides (default) |
 | `"required"` | Model must call at least one tool |
 | `"none"` | Model must not call tools |
+| specific tool object | Force the model to use that tool |
 
 ### Agentic Loop
 
@@ -461,7 +455,7 @@ def execute_tool(name, arguments):
     return "Unknown tool"
 
 response = client.responses.create(
-    model="GPT-5.4",
+    model="GPT-5.5",
     input="What is 30000 + 30000 + 30000 + 4000 + 41? Treat that as a ZIP code and tell me the weather.",
     tools=TOOLS
 )
@@ -487,7 +481,7 @@ for i in range(max_iterations):
         input_items.append({"type": "function_call_output", "call_id": call["id"], "output": execute_tool(call["name"], json.loads(call["arguments"]))})
 
     response = client.responses.create(
-        model="GPT-5.4",
+        model="GPT-5.5",
         input=input_items,
         tools=TOOLS
     )
@@ -509,7 +503,6 @@ for i in range(max_iterations):
   "output": [
     {
       "type": "message",
-      "id": "msg_xyz789",
       "role": "assistant",
       "content": [
         {
@@ -519,7 +512,6 @@ for i in range(max_iterations):
       ]
     }
   ],
-  "output_text": "The top 3 things to do in NYC are...",
   "usage": {
     "input_tokens": 25,
     "output_tokens": 150,
@@ -597,9 +589,9 @@ console.log(response.output_text);
 | `POST /v1/chat/completions` | `POST /v1/responses` |
 | `messages: [{"role": "user", "content": "..."}]` | `input: "..."` |
 | `response.choices[0].message.content` | `response.output_text` |
-| `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` (note: `extra_body` is being removed from Chat Completions — see `feature-flags.md`) |
+| `extra_body={"reasoning_effort": "high"}` | `reasoning={"effort": "high"}` (note: `extra_body` still works for model-declared Chat Completions params — check `GET /v1/models` first) |
 | N/A | `tools=[{"type": "web_search_preview"}]` |
-| N/A | `previous_response_id=response.id` (⚠️ broken on Poe as of 2026-04-13, use input array instead) |
+| N/A | `previous_response_id=response.id` (⚠️ broken on Poe as of May 2026, use input array instead) |
 | N/A | Multi-modal inputs (images) |
 
 ---
