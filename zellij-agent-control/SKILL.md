@@ -181,9 +181,9 @@ zellij action write --pane-id "$AGENT_PANE" 121 101 115 10   # "yes\n" as ASCII 
 
 ---
 
-## Step 4 — The watch loop
+## Step 4 — Automated prompt response (wait-and-respond)
 
-A simple polling loop in bash:
+A simple polling loop for **automated** responses to predictable prompts (yes/no, press-enter). For human-in-the-loop supervision of long sessions, use the [Supervision Workflow](#supervision-workflow) instead.
 
 ```bash
 #!/usr/bin/env bash
@@ -227,6 +227,86 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
   ELAPSED=$((ELAPSED + POLL_INTERVAL))
 done
 ```
+
+---
+
+## Supervision Workflow
+
+When you need to monitor a long-running agent session (e.g., a wiki ingest, a multi-phase task) and intervene at decision points, don't poll with blind sleeps. Use this diff-based watch loop — it prints output **only when it changes**, eliminating the "sleep 30 and hope" guessing game.
+
+### Basic supervision loop
+
+```bash
+supervise() {
+  local pane="$1"
+  local prev=""
+  local idle=0
+  local IDLE_THRESHOLD=6  # consecutive unchanged polls before flagging idle
+
+  echo "👁️  Watching pane $pane (Ctrl+C to break out and send a command)..."
+  echo ""
+
+  while true; do
+    curr=$(ZELLIJ_SESSION_NAME="${ZELLIJ_SESSION_NAME:-AgenticWiki}" zellij action dump-screen --pane-id "$pane" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+
+    if [ "$curr" != "$prev" ]; then
+      # Only print the delta — new content since last check
+      if [ -n "$prev" ]; then
+        # Show last ~20 lines of what changed
+        echo "$curr" | tail -20
+        echo "────────────────────────────────────────────────────────────"
+      else
+        # First dump: show current state
+        echo "$curr" | tail -20
+        echo "────────────────────────────────────────────────────────────"
+      fi
+      prev="$curr"
+      idle=0
+    else
+      idle=$((idle + 1))
+      if [ $idle -eq $IDLE_THRESHOLD ]; then
+        echo "⏸️  Agent appears idle (no output for $((IDLE_THRESHOLD * 2))s)"
+        echo "   Screen is stable. Ready for a command."
+        break
+      fi
+    fi
+
+    sleep 2
+  done
+}
+```
+
+### Usage pattern
+
+The loop is: **watch → decide → send → repeat.**
+
+```bash
+# 1. Discover the pane
+ZELLIJ_SESSION_NAME="AgenticWiki" zellij action list-panes --state --command --tab
+
+# 2. Start watching (blocks until agent is idle)
+supervise terminal_0
+
+# 3. Agent hit a decision point — send a command
+zellij action write-chars --pane-id terminal_0 "go ahead with Phase 2"
+zellij action send-keys --pane-id terminal_0 "Enter"
+
+# 4. Resume watching
+supervise terminal_0
+```
+
+### When to use `supervise` vs `wait_and_respond`
+
+| | `supervise` | `wait_and_respond` |
+|---|---|---|
+| Use case | Human-in-the-loop supervision of long sessions | Automated response to predictable prompts |
+| Decision maker | You read output, decide what to send | Script auto-responds |
+| Idle detection | Diff-based: prints when screen changes | Timeout-based: gives up after MAX_WAIT |
+| Interaction | You break out (Ctrl+C) and manually send commands | Script sends pre-programmed responses |
+
+### Watching delegate subagents
+
+When the supervised agent spawns subagents via `delegate`, the screen shows live progress (status dots, token counts, tool uses). The `supervise` loop will stream this as it updates. No special handling needed — just watch and wait for the agent to become idle again.
 
 ---
 
@@ -331,6 +411,7 @@ zellij action save-session
 - `write-chars` sends literal characters, like typing. Use it for the text content only.
 - `send-keys` sends named keys (`Enter`, `Ctrl c`, `F1`, etc.). Use it for the actual Enter key — never rely on `\n` inside `write-chars` to submit input. Agents in raw terminal mode need the real key event.
 - For multi-line input, prefer `paste` to avoid readline interpreting embedded newlines.
+- **Do not use `\n` inside `write-chars` to submit.** The agent runs in raw terminal mode and needs the actual Enter key event. Always send Enter separately via `send-keys`.
 
 **Pane IDs change between sessions.** Don't hardcode `terminal_3` — always discover pane IDs dynamically with `list-panes`.
 
