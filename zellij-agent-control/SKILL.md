@@ -124,10 +124,10 @@ echo "$SCREEN"
 
 | What you see | Agent is… | What to send |
 |---|---|---|
-| `> ` or `? ` at end of last line | Waiting for text input | `write-chars` your response + Enter |
-| `[y/n]` or `(Y/n)` | Asking a yes/no question | `write-chars "y"` + Enter |
+| `> ` or `? ` at end of last line | Waiting for text input | `write-chars` your response, then `send-keys Enter` |
+| `[y/n]` or `(Y/n)` | Asking a yes/no question | `write-chars "y"`, then `send-keys Enter` |
 | `Press any key` | Paused | `send-keys "Enter"` |
-| `(1) … (2) …` numbered menu | Asking you to pick | `write-chars "1"` + Enter |
+| `(1) … (2) …` numbered menu | Asking you to pick | `write-chars "1"`, then `send-keys Enter` |
 | Cursor blinking on empty line | Waiting for input | `write-chars` your message |
 | No new output for 10+ seconds | Still thinking | Wait, then re-dump |
 | `Error:` or stack trace | Crashed | Decide: fix, retry, or escalate |
@@ -143,10 +143,9 @@ zellij action write-chars --pane-id "$AGENT_PANE" "yes, continue with that appro
 
 # To submit the text, send Enter separately
 zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
-
-# Or do it in one shot with write-chars + newline
-zellij action write-chars --pane-id "$AGENT_PANE" $'yes, continue\n'
 ```
+
+> **⚠️ A newline (`\n`) in `write-chars` is NOT the same as pressing Enter.** A bare newline (ASCII 10) may just move the cursor down without submitting the line. Agents running in raw terminal mode (pi, claude, aider, etc.) wait for the actual Enter key event. Always use `send-keys Enter` to submit input — never rely on `\n` inside `write-chars`.
 
 ### Send special keys
 ```bash
@@ -208,7 +207,8 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
   # Detect common prompts and respond
   if echo "$LAST_LINE" | grep -qiE '\[y/n\]|\(Y/n\)'; then
     echo "→ Yes/No prompt detected, answering y"
-    zellij action write-chars --pane-id "$AGENT_PANE" $'y\n'
+    zellij action write-chars --pane-id "$AGENT_PANE" "y"
+    zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
 
   elif echo "$LAST_LINE" | grep -qiE 'press (enter|any key)'; then
     echo "→ 'Press key' prompt, sending Enter"
@@ -272,7 +272,8 @@ wait_for_idle() {
 }
 
 wait_for_idle "$AGENT_PANE"
-zellij action write-chars --pane-id "$AGENT_PANE" $'now write the tests\n'
+zellij action write-chars --pane-id "$AGENT_PANE" "now write the tests"
+zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
 ```
 
 ### Scrape and store the agent's final output
@@ -327,8 +328,8 @@ zellij action save-session
 **Timing matters.** Agents think for a while before responding. Don't poll too aggressively (2–5 second intervals work well). The "stable screen" heuristic (check that the screen hasn't changed across N polls) is more reliable than fixed waits.
 
 **write-chars vs send-keys:**
-- `write-chars` sends literal characters, like typing. Good for text + `\n`.
-- `send-keys` sends named keys (`Enter`, `Ctrl c`, `F1`, etc.). Use for control sequences and special keys.
+- `write-chars` sends literal characters, like typing. Use it for the text content only.
+- `send-keys` sends named keys (`Enter`, `Ctrl c`, `F1`, etc.). Use it for the actual Enter key — never rely on `\n` inside `write-chars` to submit input. Agents in raw terminal mode need the real key event.
 - For multi-line input, prefer `paste` to avoid readline interpreting embedded newlines.
 
 **Pane IDs change between sessions.** Don't hardcode `terminal_3` — always discover pane IDs dynamically with `list-panes`.
