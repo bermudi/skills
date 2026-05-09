@@ -49,6 +49,9 @@ Once a skill activates, its full `SKILL.md` body loads into the agent's context 
 
 Focus on what the agent *wouldn't* know without your skill: project-specific conventions, domain-specific procedures, non-obvious edge cases, and the particular tools or APIs to use. You don't need to explain what a PDF is, how HTTP works, or what a database migration does.
 
+> [!warning] A skill can make things worse
+> If the model already handles a task well, a skill that's too prescriptive can **degrade performance**. WorkOS engineer Nick Nisi discovered through rough evals that his Next.js installer skill was making Claude ~30% less accurate — the model was already competent with Next.js, and his dogmatic instructions were overriding its native knowledge. (Nisi is upfront that these are directional numbers — "I made up" — not rigorous benchmarks. The lesson stands regardless.) Always eval a skill with vs. without to confirm it's adding value, not subtracting it.
+
 ````markdown theme={null}
 <!-- Too verbose — the agent already knows what PDFs are -->
 ## Extract PDF text
@@ -239,6 +242,26 @@ Instruct the agent to validate its own work before moving on. The pattern is: do
 ```
 
 A reference document can also serve as the "validator" — instruct the agent to check its work against the reference before finalizing.
+
+### Confidence scoring
+
+For tasks where the agent needs to fully understand the user's intent before executing, include a **confidence rubric** — dimensions the agent must score itself on before it can proceed. The rubric forces a clarifying dialogue rather than guesswork. This is a *pre-execution* check, distinct from post-execution validation.
+
+Nisi's ideation skill (WorkOS) defines five dimensions scored 0–100:
+
+| Dimension | What it measures |
+|---|---|
+| Problem clarity | How well the agent understands what's being asked |
+| Goal definition | How precisely the desired outcome is specified |
+| Success criteria | How measurable and verifiable the result will be |
+| Scope boundaries | What's explicitly in and out of scope |
+| Consistency | Whether the constraints and requirements are coherent |
+
+The agent cannot begin work until the total exceeds a threshold (e.g., 95%). Below threshold, it asks targeted clarifying questions — "What format should the output be in?" "Should this include production data or only staging?" — rather than guessing.
+
+> The math isn't airtight. The value is in the iterative loop of clarifying your own thinking by responding to the agent's questions.
+
+The same technique applies to skill execution steps: "After analyzing the repo, score your confidence that you identified all stale TODOs — if below 80%, re-scan with broader criteria."
 
 ### Plan-validate-execute
 

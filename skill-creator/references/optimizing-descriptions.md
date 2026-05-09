@@ -152,6 +152,7 @@ If you're using a script like the one [above](#running-multiple-times), you can 
    * If should-not-trigger queries are false-triggering, the description may be too broad. Add specificity about what the skill does *not* do, or clarify the boundary between this skill and adjacent capabilities.
    * Avoid adding specific keywords from failed queries — that's overfitting. Instead, find the general category or concept those queries represent and address that.
    * If you're stuck after several iterations, try a structurally different approach to the description rather than incremental tweaks. A different framing or sentence structure may break through where refinement can't.
+   * As a debugging technique, ask Claude directly: "Given this description, when would you load this skill? Give me example prompts that would and wouldn't trigger it." The model's own reasoning about its triggering behavior often reveals gaps you wouldn't find through trial and error alone.
    * Check that the description stays under the 1024-character limit — descriptions tend to grow during optimization.
 4. **Repeat** steps 1-3 until all *train set* queries pass or you stop seeing meaningful improvement.
 5. **Select the best iteration** by its validation pass rate — the fraction of queries in the *validation set* that passed. Note that the best description may not be the last one you produced; an earlier iteration might have a higher validation pass rate than later ones that overfit to the train set.

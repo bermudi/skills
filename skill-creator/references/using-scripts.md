@@ -89,6 +89,28 @@ When an existing package already does what you need, you can reference it direct
 * **State prerequisites** in your `SKILL.md` (e.g., "Requires Node.js 18+") rather than assuming the agent's environment has them. For runtime-level requirements, use the [`compatibility` frontmatter field](/specification#compatibility-field).
 * **Move complex commands into scripts.** A one-off command works well when you're invoking a tool with a few flags. When a command grows complex enough that it's hard to get right on the first try, a tested script in `scripts/` is more reliable.
 
+### Injecting script output into skill content
+
+Claude Code supports a `!` backtick pattern that executes a command and interpolates its output directly into the skill's markdown body. This gives the agent a deterministic starting point instead of asking it to run the command itself — which can spin on git docs, get the flags wrong, or produce inconsistent results.
+
+```markdown
+## Repo analysis
+
+Here are the latest 10 commits:
+!`git log --oneline -10`
+
+Analyze them for commit message quality, conventional commit adherence,
+and whether any appear to be WIP or merge commits.
+```
+
+When the skill loads, the agent sees the actual commit list rather than instructions to fetch it. Key benefits:
+
+* **Saves tokens** — no tool calls to discover git flags or iterate through incorrect commands
+* **Eliminates guesswork** — the agent starts from the exact data you intend
+* **Deterministic base** — the same data every time regardless of model nondeterminism
+
+Use this for commands whose output is known to be useful context: git status, file listings, API health checks, environment info. The pattern is most valuable when the agent would otherwise spend multiple turns gathering the same data.
+
 ## Referencing scripts from `SKILL.md`
 
 Use **relative paths from the skill directory root** to reference bundled files. The agent resolves these paths automatically — no absolute paths needed.
