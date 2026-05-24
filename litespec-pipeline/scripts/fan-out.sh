@@ -2,7 +2,10 @@
 # Fan out litespec change reviews to multiple AI coding agents in parallel.
 #
 # Usage:
-#   fan-out.sh --change <name> --output <dir> --reviewer <tool:model> [--reviewer ...]
+#   fan-out.sh --change <name> --output <dir> --reviewer <spec> [--reviewer ...]
+#
+#   <spec> format: tool:model or tool:model:provider
+#   Examples: pi:glm-5.1:opencode-go  devin:kimi-k2.6  agent:auto
 #
 # Tools: pi, devin, agent
 # Each reviewer runs in the CWD (must be a litespec project root for skill discovery).
@@ -22,20 +25,21 @@ while [[ $# -gt 0 ]]; do
         --timeout)  TIMEOUT="$2"; shift 2 ;;
         -h|--help)
             cat <<'EOF'
-Usage: fan-out.sh --change <name> --output <dir> --reviewer <tool:model> [--reviewer ...]
+Usage: fan-out.sh --change <name> --output <dir> --reviewer <spec> [--reviewer ...]
 
 Options:
   --change <name>      Litespec change name to review
   --output <dir>       Directory for review output files
-  --reviewer <t:m>     Reviewer spec (tool:model). Repeat for multiple.
+  --reviewer <spec>    Reviewer spec: tool:model[:provider]. Repeat for multiple.
                        Tools: pi, devin, agent
+                       :provider is optional, used by pi for disambiguation
   --timeout <seconds>  Per-reviewer timeout (default: 600, env: REVIEW_PANEL_TIMEOUT)
   -h, --help           Show this help
 
 Example:
   fan-out.sh --change my-feature --output /tmp/reviews \
-    --reviewer pi:glm-5.1 \
-    --reviewer pi:deepseek-v4-pro \
+    --reviewer pi:glm-5.1:opencode-go \
+    --reviewer pi:deepseek-v4-pro:deepseek \
     --reviewer devin:kimi-k2.6
 EOF
             exit 0 ;;
@@ -68,11 +72,20 @@ done
 echo "[fan-out] $(date +%H:%M:%S) Starting ${#REVIEWERS[@]} reviewers for change '${CHANGE}'"
 
 for reviewer in "${REVIEWERS[@]}"; do
+    # Parse tool:model[:provider]
     TOOL="${reviewer%%:*}"
-    MODEL="${reviewer#*:}"
-    if [[ "$TOOL" == "$MODEL" ]]; then
+    REST="${reviewer#*:}"
+    if [[ "$TOOL" == "$REST" ]]; then
         echo "Error: --reviewer requires <tool:model> format (e.g., pi:sonnet-4)" >&2
         exit 1
+    fi
+    # Check for optional :provider suffix
+    if [[ "$REST" == *:* ]]; then
+        MODEL="${REST%%:*}"
+        PROVIDER="${REST#*:}"
+    else
+        MODEL="$REST"
+        PROVIDER=""
     fi
     SAFE_NAME="${TOOL}-${MODEL//\//--}"
     OUTPUT_FILE="${OUTPUT_DIR}/${SAFE_NAME}.md"
@@ -80,11 +93,15 @@ for reviewer in "${REVIEWERS[@]}"; do
 
     case "$TOOL" in
         pi)
-            timeout "$TIMEOUT" pi -p --model "$MODEL" --no-session "$PROMPT" \
+            PROVIDER_FLAG=""
+            if [[ -n "$PROVIDER" ]]; then
+                PROVIDER_FLAG="--provider $PROVIDER"
+            fi
+            timeout "$TIMEOUT" pi -p $PROVIDER_FLAG --model "$MODEL" --no-session "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" &
             ;;
         devin)
-            timeout "$TIMEOUT" devin -p --model "$MODEL" "$PROMPT" \
+            timeout "$TIMEOUT" devin -p --model "$MODEL" -- "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" &
             ;;
         agent)

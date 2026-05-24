@@ -63,8 +63,6 @@ bash SKILL_DIR/scripts/apply-phases.sh \
 
 Examples: `--tool agent:auto`, `--tool pi:sonnet-4`.
 
-Replace `SKILL_DIR` with the directory containing this SKILL.md.
-
 The script loops: checks for unchecked tasks, runs the apply tool, repeats. It stops when:
 - All tasks are checked ✅
 - Progress stalls (unchecked count doesn't decrease) — agent hit a pause condition
@@ -86,12 +84,12 @@ Run `scripts/fan-out.sh` from the project root:
 bash SKILL_DIR/scripts/fan-out.sh \
   --change <name> \
   --output /tmp/litespec-pipeline-<name>/reviews \
-  --reviewer <tool:model> \
-  --reviewer <tool:model> \
-  ...
+  --reviewer pi:glm-5.1:opencode-go \
+  --reviewer pi:deepseek-v4-pro:deepseek \
+  --reviewer devin:kimi-k2.6
 ```
 
-**Use a generous timeout** (600s+) — each reviewer loads skills and produces a structured report.
+The reviewer spec format is `tool:model[:provider]`. The `:provider` suffix is for `pi` when model name resolution is ambiguous. Read `assets/default-panel.yaml` for the correct specs.
 
 **Before fanning out**, verify each tool works by running a trivial test command. If a tool fails auth or isn't installed, report it immediately and **do not attempt workarounds** — tell the user which tools failed and wait for them to fix it.
 
