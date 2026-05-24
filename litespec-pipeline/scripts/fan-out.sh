@@ -61,21 +61,32 @@ echo "[fan-out] $(date +%H:%M:%S) Starting ${#REVIEWERS[@]} reviewers for change
 for reviewer in "${REVIEWERS[@]}"; do
     TOOL="${reviewer%%:*}"
     MODEL="${reviewer#*:}"
-    SAFE_NAME="${TOOL}-${MODEL//\//--}"
+    # If no colon or same before/after, no model specified
+    if [[ "$TOOL" == "$MODEL" ]]; then
+        MODEL=""
+        SAFE_NAME="${TOOL}-auto"
+    else
+        SAFE_NAME="${TOOL}-${MODEL//\//--}"
+    fi
     OUTPUT_FILE="${OUTPUT_DIR}/${SAFE_NAME}.md"
     LOG_FILE="${OUTPUT_DIR}/${SAFE_NAME}.log"
 
+    MODEL_FLAG=""
+    if [[ -n "$MODEL" ]]; then
+        MODEL_FLAG="--model $MODEL"
+    fi
+
     case "$TOOL" in
         pi)
-            timeout "$TIMEOUT" pi -p --model "$MODEL" --no-session "$PROMPT" \
+            timeout "$TIMEOUT" pi -p $MODEL_FLAG --no-session "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" &
             ;;
         devin)
-            timeout "$TIMEOUT" devin -p --model "$MODEL" "$PROMPT" \
+            timeout "$TIMEOUT" devin -p $MODEL_FLAG "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" &
             ;;
         agent)
-            timeout "$TIMEOUT" agent -p --model "$MODEL" --trust "$PROMPT" \
+            timeout "$TIMEOUT" agent -p $MODEL_FLAG --trust "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" &
             ;;
         *)

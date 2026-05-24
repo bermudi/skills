@@ -54,6 +54,10 @@ fi
 
 TOOL="${TOOL_SPEC%%:*}"
 MODEL="${TOOL_SPEC#*:}"
+# If no colon or same before/after, there's no model specified (e.g. bare "agent")
+if [[ "$TOOL" == "$MODEL" ]]; then
+    MODEL=""
+fi
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -100,15 +104,20 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
     echo "[apply] $(date +%H:%M:%S) Iteration ${ITERATION}/${MAX_ITERATIONS}: ${UNCHECKED} tasks remaining"
 
+    MODEL_FLAG=""
+    if [[ -n "$MODEL" ]]; then
+        MODEL_FLAG="--model $MODEL"
+    fi
+
     case "$TOOL" in
         pi)
-            timeout "$TIMEOUT" pi -p --model "$MODEL" --no-session "$PROMPT" \
+            timeout "$TIMEOUT" pi -p $MODEL_FLAG --no-session "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" ;;
         devin)
-            timeout "$TIMEOUT" devin -p --model "$MODEL" "$PROMPT" \
+            timeout "$TIMEOUT" devin -p $MODEL_FLAG "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" ;;
         agent)
-            timeout "$TIMEOUT" agent -p --model "$MODEL" --trust "$PROMPT" \
+            timeout "$TIMEOUT" agent -p $MODEL_FLAG --trust "$PROMPT" \
                 > "$OUTPUT_FILE" 2>"$LOG_FILE" ;;
         *)
             echo "Error: Unknown tool '${TOOL}' (supported: pi, devin, agent)" >&2

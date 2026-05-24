@@ -3,7 +3,6 @@
 
 apply:
   tool: agent
-  model: sonnet-4
 
 reviewers:
   - tool: pi
@@ -18,4 +17,3 @@ reviewers:
 
 fix:
   tool: agent
-  model: sonnet-4
