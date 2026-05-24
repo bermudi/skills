@@ -90,45 +90,47 @@ export ZELLIJ_SESSION_NAME="$SESSION"
 
 ### Spawning Reviewers
 
-Each reviewer gets its own named pane. Output is redirected to files for collection after completion.
+Each reviewer gets its own named pane and its own `--session-dir` so `-c` continuation is unambiguous. `-c` operates at directory level, so giving each reviewer its own session directory prevents cross-contamination.
 
 ```bash
-mkdir -p /tmp/litespec-pipeline-<name>/reviews
+OUTDIR="/tmp/litespec-pipeline-<name>"
+CHANGE="<name>"
+CWD="$(pwd)"
 
-# Spawn all three in parallel — each in its own pane
-ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "glm-5.1" --cwd "$(pwd)" -- \
-  bash -c 'pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log; echo "DONE"' &
-PID1=$!
+mkdir -p "$OUTDIR/reviews" "$OUTDIR/sessions"/{glm,deepseek,kimi}
 
-ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "deepseek" --cwd "$(pwd)" -- \
-  bash -c 'pi -p --provider deepseek --model deepseek-v4-pro --no-session "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log; echo "DONE"' &
-PID2=$!
+# GLM-5.1
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "glm-5.1" --cwd "$CWD" -- \
+  bash -c "pi -p --provider zai --model glm-5.1 --session-dir $OUTDIR/sessions/glm 'Review litespec change $CHANGE' > $OUTDIR/reviews/pi-glm-5.1.md 2>$OUTDIR/reviews/pi-glm-5.1.log; echo DONE" &
 
-ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "kimi" --cwd "$(pwd)" -- \
-  bash -c 'devin -p --model kimi-k2.6 -- "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log; echo "DONE"' &
-PID3=$!
+# DeepSeek-V4-Pro
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "deepseek" --cwd "$CWD" -- \
+  bash -c "pi -p --provider deepseek --model deepseek-v4-pro --session-dir $OUTDIR/sessions/deepseek 'Review litespec change $CHANGE' > $OUTDIR/reviews/pi-deepseek-v4-pro.md 2>$OUTDIR/reviews/pi-deepseek-v4-pro.log; echo DONE" &
 
-echo "Spawned: GLM=$PID1 DeepSeek=$PID2 Kimi=$PID3"
+# Kimi-K2.6
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "kimi" --cwd "$CWD" -- \
+  bash -c "devin -p --model kimi-k2.6 -- 'Review litespec change $CHANGE' > $OUTDIR/reviews/devin-kimi-k2.6.md 2>$OUTDIR/reviews/devin-kimi-k2.6.log; echo DONE" &
+
 echo "Watch live: zellij attach $SESSION"
 ```
-
-**The quoting is tricky.** The inner `bash -c '...'` needs the change name passed through. Use the `'"'"'` pattern for single quotes inside single quotes, or use double quotes for the outer layer. Test the command before running if unsure.
 
 **Exact command reference (inside bash -c):**
 
 | Reviewer | Command |
 |---|---|
-| GLM-5.1 | `pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'"` |
-| DeepSeek-V4-Pro | `pi -p --provider deepseek --model deepseek-v4-pro --no-session "Review litespec change '<name>'"` |
-| Kimi-K2.6 | `devin -p --model kimi-k2.6 -- "Review litespec change '<name>'"` |
+| GLM-5.1 | `pi -p --provider zai --model glm-5.1 --session-dir <outdir>/sessions/glm 'Review litespec change <name>'` |
+| DeepSeek-V4-Pro | `pi -p --provider deepseek --model deepseek-v4-pro --session-dir <outdir>/sessions/deepseek 'Review litespec change <name>'` |
+| Kimi-K2.6 | `devin -p --model kimi-k2.6 -- 'Review litespec change <name>'` |
 
-**devin requires `--` before the prompt.**
+**devin requires `--` before the prompt.** Do not forget this.
 
-**pi requires `--provider` for zai models.**
+**pi requires `--provider` for zai models.** Without it, pi resolves `glm-5.1` to the wrong provider.
+
+**pi requires `--session-dir` per reviewer.** Without it, `-c` could resume the wrong session since it operates at the directory level.
 
 ### Waiting for Completion
 
-`wait` does not work for zellij PIDs across bash invocations. Instead, poll pane status until all show `EXITED: true`:
+`wait` does not work for zellij PIDs across bash invocations. Poll pane status instead:
 
 ```bash
 # Poll until all reviewer panes have exited
@@ -187,29 +189,33 @@ Kill the old pane and re-run in the same session:
 
 ```bash
 ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "<name>" --cwd "$(pwd)" -- \
-  bash -c '<command>; echo "DONE"' &
+  bash -c "<command>; echo DONE" &
 ```
 
 ### Continuing a Timed-Out Reviewer
 
-Each pane IS its session. To continue a reviewer, send `-c` to its pane:
+Each reviewer has its own `--session-dir`, so `-c` is unambiguous:
 
 ```bash
-# pi — continues the session in that pane
-ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> "pi -p --provider zai --model glm-5.1 -c --no-session"
+# Continue glm — only finds glm's session in its dedicated dir
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> \
+  "pi -p --provider zai --model glm-5.1 --session-dir $OUTDIR/sessions/glm -c"
 ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
 
-# devin
-ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> "devin -p --model kimi-k2.6 -c"
+# Continue deepseek
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> \
+  "pi -p --provider deepseek --model deepseek-v4-pro --session-dir $OUTDIR/sessions/deepseek -c"
+ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
+
+# Continue devin
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> \
+  "devin -p --model kimi-k2.6 -c"
 ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
 ```
-
-No session ambiguity — each pane only has one session.
 
 ### Cleaning Up
 
 ```bash
-# Kill the review session when done
 ZELLIJ_SESSION_NAME="$SESSION" zellij action kill-session
 ```
 
@@ -297,6 +303,10 @@ All pipeline outputs go under `/tmp/litespec-pipeline-<change-name>/`:
 │   ├── phase-1.md          # Agent output from phase 1 apply
 │   ├── phase-2.md          # Agent output from phase 2 apply
 │   └── ...
+├── sessions/
+│   ├── glm/                # pi session for GLM reviewer
+│   ├── deepseek/           # pi session for DeepSeek reviewer
+│   └── kimi/               # devin session for Kimi reviewer
 └── reviews/
     ├── pi-glm-5.1.md       # Individual review report
     ├── pi-deepseek-v4-pro.md
