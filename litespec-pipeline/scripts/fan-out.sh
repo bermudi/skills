@@ -56,6 +56,15 @@ PROMPT="Review litespec change '${CHANGE}'"
 PIDS=()
 NAMES=()
 
+# Pre-flight: verify each tool exists
+for reviewer in "${REVIEWERS[@]}"; do
+    TOOL="${reviewer%%:*}"
+    if ! command -v "$TOOL" &>/dev/null; then
+        echo "Error: '${TOOL}' not found in PATH" >&2
+        exit 1
+    fi
+done
+
 echo "[fan-out] $(date +%H:%M:%S) Starting ${#REVIEWERS[@]} reviewers for change '${CHANGE}'"
 
 for reviewer in "${REVIEWERS[@]}"; do

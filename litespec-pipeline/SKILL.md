@@ -93,7 +93,11 @@ bash SKILL_DIR/scripts/fan-out.sh \
 
 **Use a generous timeout** (600s+) — each reviewer loads skills and produces a structured report.
 
-If some reviewers fail, note which ones but proceed with available reviews.
+**Before fanning out**, verify each tool works by running a trivial test command. If a tool fails auth or isn't installed, report it immediately and **do not attempt workarounds** — tell the user which tools failed and wait for them to fix it.
+
+If some reviewers fail at runtime, note which ones but proceed with available reviews.
+
+If all reviewers fail, **stop immediately**. Do not investigate, do not try alternative models, do not explore. Report what failed and wait for the user.
 
 ### Consolidation
 
@@ -162,7 +166,7 @@ When the user says "pipeline <name>" or "ship <name>" without specifying steps, 
 |---|---|
 | Apply stalls | Read last output, present blocker to user |
 | A reviewer fails | Note it, proceed with available reviews |
-| All reviewers fail | Stop, report the issue, suggest running a single reviewer manually |
+| All reviewers fail | **Stop immediately.** Do not investigate, do not try alternative models, do not explore. Report what failed and wait for the user. |
 | Fix fails to compile | Report the failure, don't loop — let user decide |
 | User interrupts | Summarize progress so far, note what remains |
 
