@@ -20,6 +20,7 @@ Each step can run independently or as part of the full pipeline. The user contro
 - A litespec-initialized project (has `specs/` and `.agents/skills/`)
 - At least one active change with artifacts
 - The CLIs you want to use installed and authenticated (`pi`, `devin`, `agent`)
+- Running inside zellij (the pipeline spawns panes for reviewers)
 - Resolve all script/reference/asset paths against this SKILL.md's directory
 
 ---
@@ -78,11 +79,102 @@ The script loops: checks for unchecked tasks, runs the apply tool, repeats. It s
 
 **When to run:** User says "review", "review panel", "fan out". Or apply completed and user wants pre-archive review.
 
-### How to Run Reviewers
+### Spawning Reviewers in Zellij
 
-You can run reviewers **via the fan-out script** (fires all in parallel) or **directly** (one at a time, more control). The user may ask you to do either.
+Each reviewer gets its own zellij pane. No timeouts — they run until they finish. The user can see live output in the terminal.
 
-**Fan-out script (all at once):**
+```bash
+# Create a tab for the review panel
+zellij action new-tab --name "review-<change-name>"
+
+# Spawn each reviewer as a named pane
+zellij run -n "glm-5.1" -d down --cwd "$(pwd)" -- \
+  pi -p --provider zai --model glm-5.1 --no-session \
+  "Review litespec change '<name>'" \
+  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log
+
+zellij run -n "deepseek" -d right --cwd "$(pwd)" -- \
+  pi -p --provider deepseek --model deepseek-v4-pro --no-session \
+  "Review litespec change '<name>'" \
+  > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log
+
+zellij run -n "kimi" -d right --cwd "$(pwd)" -- \
+  devin -p --model kimi-k2.6 -- \
+  "Review litespec change '<name>'" \
+  > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log
+```
+
+**Exact command reference:**
+
+| Reviewer | Command |
+|---|---|
+| GLM-5.1 | `pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'"` |
+| DeepSeek-V4-Pro | `pi -p --provider deepseek --model deepseek-v4-pro --no-session "Review litespec change '<name>'"` |
+| Kimi-K2.6 | `devin -p --model kimi-k2.6 -- "Review litespec change '<name>'"` |
+
+**devin requires `--` before the prompt.** Do not forget this.
+
+**pi requires `--provider` for zai models.** Without it, pi resolves `glm-5.1` to the wrong provider.
+
+### Checking on Reviewers
+
+Use `zellij action` to monitor progress without waiting for completion:
+
+```bash
+# List all panes and their status
+zellij action list-panes --state --command --tab
+
+# Check a specific reviewer's screen
+zellij action dump-screen --pane-id <pane-id>
+
+# Wait for a pane to finish (screen stops changing)
+```
+
+When a pane's command exits, it shows the shell prompt. Detect completion by checking if the process is still running:
+
+```bash
+zellij action list-panes --json | jq '.[] | select(.title | test("glm|deepseek|kimi")) | {id, title, running_command}'
+```
+
+A pane with no `running_command` (or running_command = shell) has finished.
+
+### Collecting Results
+
+Once all reviewers have finished:
+
+```bash
+# Check file sizes
+ls -la /tmp/litespec-pipeline-<name>/reviews/*.md
+```
+
+If a file is empty or very short (<100 bytes), check the `.log` file for the error. Report failures to the user — **do not investigate, do not try alternative models**.
+
+### Re-Running a Failed Reviewer
+
+If a reviewer failed, re-run just that one:
+
+```bash
+zellij run -n "<name>" -d down --cwd "$(pwd)" -- \
+  <same command as before>
+```
+
+If a reviewer timed out or produced partial output, continue with `-c`:
+
+```bash
+# pi
+pi -p --provider zai --model glm-5.1 -c --no-session
+
+# devin
+devin -p --model kimi-k2.6 -c
+```
+
+**pi `-c` gotcha:** `pi -c` continues the most recent pi session regardless of model. If you ran glm-5.1 and deepseek-v4-pro, `-c` resumes whichever ran last. Use `--session <id>` for specific sessions.
+
+**Only use `-c` if the previous session produced partial output.** If it produced 0 bytes (died immediately), start fresh.
+
+### Fallback: Fan-Out Script
+
+If zellij is not available, use `scripts/fan-out.sh` with a generous timeout:
 
 ```bash
 bash SKILL_DIR/scripts/fan-out.sh \
@@ -94,50 +186,9 @@ bash SKILL_DIR/scripts/fan-out.sh \
   --timeout 1200
 ```
 
-Reviewer spec format: `tool:model[:provider]`. The `:provider` suffix is for `pi` when model resolution is ambiguous. Read `assets/default-panel.yaml` for the correct specs.
-
-**Direct invocation (individual control):**
-
-```bash
-# pi (note: --provider is needed for zai models)
-pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'"
-
-# devin (note: -- before the prompt)
-devin -p --model kimi-k2.6 -- "Review litespec change '<name>'"
-
-# agent
-agent -p --model auto --trust "Review litespec change '<name>'"
-```
-
-### Timeouts
-
-Reviews are slow. 15+ minutes per reviewer is normal. **Never use timeouts under 1200s (20 min)** for review commands. If a review times out, the session still exists — continue it rather than starting fresh.
-
-### Continuing Timed-Out Reviews
-
-All three CLIs support `-c` to continue the most recent session:
-
-```bash
-pi -p --provider zai --model glm-5.1 -c --no-session > /tmp/.../reviews/pi-glm-5.1.md
-devin -p --model kimi-k2.6 -c -- > /tmp/.../reviews/devin-kimi-k2.6.md
-agent -p --model auto --trust -c > /tmp/.../reviews/agent-auto.md
-```
-
-**Critical:** Only use `-c` if the previous session produced partial output. If it produced zero bytes (died immediately), `-c` will resume a dead session — start fresh instead.
-
-**pi session ambiguity:** `pi -c` continues the most recent pi session regardless of model. If you ran glm-5.1 and deepseek-v4-pro, `-c` will continue whichever finished last. If you need a specific session, use `pi --session <id> -p` instead.
-
-### Before Fanning Out
-
-Verify each tool is available (`command -v pi`). If a tool fails auth, report it and **stop** — do not investigate, do not try alternative models, do not explore. Tell the user which tools failed and wait.
-
-If some reviewers fail at runtime, note which ones but proceed with available reviews.
-
-If all reviewers fail, **stop immediately**. Report what failed and wait for the user.
-
 ### Consolidation
 
-Read every `.md` file in the reviews output directory. Then read `references/consolidation.md` and follow its instructions to produce a consolidated meta-review.
+Once all reviews are collected, read every `.md` file in the reviews directory. Then read `references/consolidation.md` and follow its instructions to produce a consolidated meta-review.
 
 Write the consolidated report as `consolidated.md` in the reviews directory.
 
@@ -201,8 +252,7 @@ When the user says "pipeline <name>" or "ship <name>" without specifying steps, 
 | Failure | Action |
 |---|---|
 | Apply stalls | Read last output, present blocker to user |
-| A reviewer times out | Continue with `-c` — do NOT start fresh if partial output exists |
-| A reviewer fails (auth/error) | Note it, proceed with available reviews |
+| A reviewer fails (auth/error) | Report it, let user re-run or skip |
 | All reviewers fail | **Stop immediately.** Report what failed and wait for the user. |
 | Fix fails to compile | Report the failure, don't loop — let user decide |
 | User interrupts | Summarize progress so far, note what remains |
