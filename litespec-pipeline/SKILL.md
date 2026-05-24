@@ -53,11 +53,11 @@ Run `scripts/apply-phases.sh` from the project root:
 ```bash
 bash SKILL_DIR/scripts/apply-phases.sh \
   --change <name> \
-  --tool <tool[:model]> \
+  --tool <tool:model> \
   --output /tmp/litespec-pipeline-<name>/apply
 ```
 
-Model is optional — `agent` auto-selects if omitted: `--tool agent` vs `--tool pi:sonnet-4`.
+Examples: `--tool agent:auto`, `--tool pi:sonnet-4`.
 
 Replace `SKILL_DIR` with the directory containing this SKILL.md.
 
@@ -122,8 +122,8 @@ pi -p --no-session --model <model> "litespec-fix: Resolve the following consolid
 # For devin:
 devin -p --model <model> "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
 
-# For agent (auto-selects model):
-agent -p --trust "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
+# For agent (auto model):
+agent -p --model auto --trust "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
 ```
 
 The fix agent auto-discovers the `litespec-fix` skill from the project's `.agents/skills/`.

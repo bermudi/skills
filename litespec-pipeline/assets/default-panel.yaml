@@ -3,6 +3,7 @@
 
 apply:
   tool: agent
+  model: auto
 
 reviewers:
   - tool: pi
@@ -17,3 +18,4 @@ reviewers:
 
 fix:
   tool: agent
+  model: auto
