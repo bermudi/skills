@@ -26,11 +26,13 @@ Each step can run independently or as part of the full pipeline. The user contro
 
 ## Configuration
 
-Read `assets/default-panel.yaml` for the default configuration: which tool+model to use for apply, which reviewers to fan out, and which tool to use for fixing.
+Read `assets/default-panel.yaml` for the default configuration.
+
+**Only the review step fans out to multiple models.** Apply and fix both use `agent --model auto` — a single model, no fan-out.
 
 **Do not change models unless the user explicitly asks.** The default lineup is fixed — no swapping, no "similar model" substitutions, no guessing. If the user doesn't specify models, use the defaults.
 
-Override by creating `.litespec-pipeline.yaml` in the project root (takes precedence), or by specifying in the prompt: "use agent for apply, pi with sonnet and devin with kimi for review". Only then may you use different models.
+Override by creating `.litespec-pipeline.yaml` in the project root (takes precedence), or by specifying in the prompt. Only then may you use different models.
 
 ---
 
