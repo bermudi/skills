@@ -20,7 +20,6 @@ Each step can run independently or as part of the full pipeline. The user contro
 - A litespec-initialized project (has `specs/` and `.agents/skills/`)
 - At least one active change with artifacts
 - The CLIs you want to use installed and authenticated (`pi`, `devin`, `agent`)
-- Running inside zellij (the pipeline spawns panes for reviewers)
 - Resolve all script/reference/asset paths against this SKILL.md's directory
 
 ---
@@ -79,30 +78,38 @@ The script loops: checks for unchecked tasks, runs the apply tool, repeats. It s
 
 **When to run:** User says "review", "review panel", "fan out". Or apply completed and user wants pre-archive review.
 
-### Spawning Reviewers in Zellij
+### Spawning Reviewers
 
-Each reviewer gets its own zellij pane. No timeouts — they run until they finish. The user can see live output in the terminal.
+Spawn each reviewer as a background process, collect PIDs, then `wait` for all of them. No timeouts.
 
 ```bash
-# Create a tab for the review panel
-zellij action new-tab --name "review-<change-name>"
+mkdir -p /tmp/litespec-pipeline-<name>/reviews
 
-# Spawn each reviewer as a named pane
-zellij run -n "glm-5.1" -d down --cwd "$(pwd)" -- \
-  pi -p --provider zai --model glm-5.1 --no-session \
+# Spawn all three in parallel
+pi -p --provider zai --model glm-5.1 --no-session \
   "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log
+  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log &
+PID1=$!
 
-zellij run -n "deepseek" -d right --cwd "$(pwd)" -- \
-  pi -p --provider deepseek --model deepseek-v4-pro --no-session \
+pi -p --provider deepseek --model deepseek-v4-pro --no-session \
   "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log
+  > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log &
+PID2=$!
 
-zellij run -n "kimi" -d right --cwd "$(pwd)" -- \
-  devin -p --model kimi-k2.6 -- \
+devin -p --model kimi-k2.6 -- \
   "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log
+  > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log &
+PID3=$!
+
+echo "Spawned: GLM=$PID1, DeepSeek=$PID2, Kimi=$PID3"
+
+# Wait for all to finish
+wait $PID1; echo "GLM done ($?)"
+wait $PID2; echo "DeepSeek done ($?)"
+wait $PID3; echo "Kimi done ($?)"
 ```
+
+**This will block until all reviewers finish.** Reviews take 15+ minutes. Use a generous bash timeout (1200s+).
 
 **Exact command reference:**
 
@@ -116,75 +123,33 @@ zellij run -n "kimi" -d right --cwd "$(pwd)" -- \
 
 **pi requires `--provider` for zai models.** Without it, pi resolves `glm-5.1` to the wrong provider.
 
-### Checking on Reviewers
-
-Use `zellij action` to monitor progress without waiting for completion:
+### Checking Results
 
 ```bash
-# List all panes and their status
-zellij action list-panes --state --command --tab
-
-# Check a specific reviewer's screen
-zellij action dump-screen --pane-id <pane-id>
-
-# Wait for a pane to finish (screen stops changing)
-```
-
-When a pane's command exits, it shows the shell prompt. Detect completion by checking if the process is still running:
-
-```bash
-zellij action list-panes --json | jq '.[] | select(.title | test("glm|deepseek|kimi")) | {id, title, running_command}'
-```
-
-A pane with no `running_command` (or running_command = shell) has finished.
-
-### Collecting Results
-
-Once all reviewers have finished:
-
-```bash
-# Check file sizes
 ls -la /tmp/litespec-pipeline-<name>/reviews/*.md
 ```
 
-If a file is empty or very short (<100 bytes), check the `.log` file for the error. Report failures to the user — **do not investigate, do not try alternative models**.
+If a file is empty or very short (<100 bytes), check the `.log` file. Report failures to the user — **do not investigate, do not try alternative models**.
 
 ### Re-Running a Failed Reviewer
 
 If a reviewer failed, re-run just that one:
 
 ```bash
-zellij run -n "<name>" -d down --cwd "$(pwd)" -- \
-  <same command as before>
+pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'" \
+  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log
 ```
 
-If a reviewer timed out or produced partial output, continue with `-c`:
+If a reviewer produced partial output before dying, continue with `-c`:
 
 ```bash
-# pi
 pi -p --provider zai --model glm-5.1 -c --no-session
-
-# devin
 devin -p --model kimi-k2.6 -c
 ```
 
 **pi `-c` gotcha:** `pi -c` continues the most recent pi session regardless of model. If you ran glm-5.1 and deepseek-v4-pro, `-c` resumes whichever ran last. Use `--session <id>` for specific sessions.
 
 **Only use `-c` if the previous session produced partial output.** If it produced 0 bytes (died immediately), start fresh.
-
-### Fallback: Fan-Out Script
-
-If zellij is not available, use `scripts/fan-out.sh` with a generous timeout:
-
-```bash
-bash SKILL_DIR/scripts/fan-out.sh \
-  --change <name> \
-  --output /tmp/litespec-pipeline-<name>/reviews \
-  --reviewer pi:glm-5.1:zai \
-  --reviewer pi:deepseek-v4-pro:deepseek \
-  --reviewer devin:kimi-k2.6 \
-  --timeout 1200
-```
 
 ### Consolidation
 
