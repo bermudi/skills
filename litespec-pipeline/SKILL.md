@@ -78,7 +78,11 @@ The script loops: checks for unchecked tasks, runs the apply tool, repeats. It s
 
 **When to run:** User says "review", "review panel", "fan out". Or apply completed and user wants pre-archive review.
 
-Run `scripts/fan-out.sh` from the project root:
+### How to Run Reviewers
+
+You can run reviewers **via the fan-out script** (fires all in parallel) or **directly** (one at a time, more control). The user may ask you to do either.
+
+**Fan-out script (all at once):**
 
 ```bash
 bash SKILL_DIR/scripts/fan-out.sh \
@@ -86,16 +90,50 @@ bash SKILL_DIR/scripts/fan-out.sh \
   --output /tmp/litespec-pipeline-<name>/reviews \
   --reviewer pi:glm-5.1:zai \
   --reviewer pi:deepseek-v4-pro:deepseek \
-  --reviewer devin:kimi-k2.6
+  --reviewer devin:kimi-k2.6 \
+  --timeout 1200
 ```
 
-The reviewer spec format is `tool:model[:provider]`. The `:provider` suffix is for `pi` when model name resolution is ambiguous. Read `assets/default-panel.yaml` for the correct specs.
+Reviewer spec format: `tool:model[:provider]`. The `:provider` suffix is for `pi` when model resolution is ambiguous. Read `assets/default-panel.yaml` for the correct specs.
 
-**Before fanning out**, verify each tool works by running a trivial test command. If a tool fails auth or isn't installed, report it immediately and **do not attempt workarounds** — tell the user which tools failed and wait for them to fix it.
+**Direct invocation (individual control):**
+
+```bash
+# pi (note: --provider is needed for zai models)
+pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'"
+
+# devin (note: -- before the prompt)
+devin -p --model kimi-k2.6 -- "Review litespec change '<name>'"
+
+# agent
+agent -p --model auto --trust "Review litespec change '<name>'"
+```
+
+### Timeouts
+
+Reviews are slow. 15+ minutes per reviewer is normal. **Never use timeouts under 1200s (20 min)** for review commands. If a review times out, the session still exists — continue it rather than starting fresh.
+
+### Continuing Timed-Out Reviews
+
+All three CLIs support `-c` to continue the most recent session:
+
+```bash
+pi -p --provider zai --model glm-5.1 -c --no-session > /tmp/.../reviews/pi-glm-5.1.md
+devin -p --model kimi-k2.6 -c -- > /tmp/.../reviews/devin-kimi-k2.6.md
+agent -p --model auto --trust -c > /tmp/.../reviews/agent-auto.md
+```
+
+**Critical:** Only use `-c` if the previous session produced partial output. If it produced zero bytes (died immediately), `-c` will resume a dead session — start fresh instead.
+
+**pi session ambiguity:** `pi -c` continues the most recent pi session regardless of model. If you ran glm-5.1 and deepseek-v4-pro, `-c` will continue whichever finished last. If you need a specific session, use `pi --session <id> -p` instead.
+
+### Before Fanning Out
+
+Verify each tool is available (`command -v pi`). If a tool fails auth, report it and **stop** — do not investigate, do not try alternative models, do not explore. Tell the user which tools failed and wait.
 
 If some reviewers fail at runtime, note which ones but proceed with available reviews.
 
-If all reviewers fail, **stop immediately**. Do not investigate, do not try alternative models, do not explore. Report what failed and wait for the user.
+If all reviewers fail, **stop immediately**. Report what failed and wait for the user.
 
 ### Consolidation
 
@@ -163,8 +201,9 @@ When the user says "pipeline <name>" or "ship <name>" without specifying steps, 
 | Failure | Action |
 |---|---|
 | Apply stalls | Read last output, present blocker to user |
-| A reviewer fails | Note it, proceed with available reviews |
-| All reviewers fail | **Stop immediately.** Do not investigate, do not try alternative models, do not explore. Report what failed and wait for the user. |
+| A reviewer times out | Continue with `-c` — do NOT start fresh if partial output exists |
+| A reviewer fails (auth/error) | Note it, proceed with available reviews |
+| All reviewers fail | **Stop immediately.** Report what failed and wait for the user. |
 | Fix fails to compile | Report the failure, don't loop — let user decide |
 | User interrupts | Summarize progress so far, note what remains |
 

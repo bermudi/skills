@@ -15,7 +15,7 @@ set -euo pipefail
 CHANGE=""
 OUTPUT_DIR=""
 REVIEWERS=()
-TIMEOUT="${REVIEW_PANEL_TIMEOUT:-600}"
+TIMEOUT="${REVIEW_PANEL_TIMEOUT:-1200}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
