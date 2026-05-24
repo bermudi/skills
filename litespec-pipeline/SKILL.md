@@ -78,40 +78,43 @@ The script loops: checks for unchecked tasks, runs the apply tool, repeats. It s
 
 **When to run:** User says "review", "review panel", "fan out". Or apply completed and user wants pre-archive review.
 
+### Creating the Zellij Session
+
+Create a background zellij session for the review panes. The user can attach to watch live.
+
+```bash
+SESSION="review-<change-name>"
+zellij attach "$SESSION" --create-background 2>/dev/null
+export ZELLIJ_SESSION_NAME="$SESSION"
+```
+
 ### Spawning Reviewers
 
-Spawn each reviewer as a background process, collect PIDs, then `wait` for all of them. No timeouts.
+Each reviewer gets its own named pane. Output is redirected to files for collection after completion.
 
 ```bash
 mkdir -p /tmp/litespec-pipeline-<name>/reviews
 
-# Spawn all three in parallel
-pi -p --provider zai --model glm-5.1 --no-session \
-  "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log &
+# Spawn all three in parallel — each in its own pane
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "glm-5.1" --cwd "$(pwd)" -- \
+  bash -c 'pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log; echo "DONE"' &
 PID1=$!
 
-pi -p --provider deepseek --model deepseek-v4-pro --no-session \
-  "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log &
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "deepseek" --cwd "$(pwd)" -- \
+  bash -c 'pi -p --provider deepseek --model deepseek-v4-pro --no-session "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-deepseek-v4-pro.log; echo "DONE"' &
 PID2=$!
 
-devin -p --model kimi-k2.6 -- \
-  "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log &
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "kimi" --cwd "$(pwd)" -- \
+  bash -c 'devin -p --model kimi-k2.6 -- "Review litespec change '"'"'<name>'"'"'" > /tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.md 2>/tmp/litespec-pipeline-<name>/reviews/devin-kimi-k2.6.log; echo "DONE"' &
 PID3=$!
 
-echo "Spawned: GLM=$PID1, DeepSeek=$PID2, Kimi=$PID3"
-
-# Wait for all to finish
-wait $PID1; echo "GLM done ($?)"
-wait $PID2; echo "DeepSeek done ($?)"
-wait $PID3; echo "Kimi done ($?)"
+echo "Spawned: GLM=$PID1 DeepSeek=$PID2 Kimi=$PID3"
+echo "Watch live: zellij attach $SESSION"
 ```
 
-**This will block until all reviewers finish.** Reviews take 15+ minutes. Use a generous bash timeout (1200s+).
+**The quoting is tricky.** The inner `bash -c '...'` needs the change name passed through. Use the `'"'"'` pattern for single quotes inside single quotes, or use double quotes for the outer layer. Test the command before running if unsure.
 
-**Exact command reference:**
+**Exact command reference (inside bash -c):**
 
 | Reviewer | Command |
 |---|---|
@@ -119,11 +122,58 @@ wait $PID3; echo "Kimi done ($?)"
 | DeepSeek-V4-Pro | `pi -p --provider deepseek --model deepseek-v4-pro --no-session "Review litespec change '<name>'"` |
 | Kimi-K2.6 | `devin -p --model kimi-k2.6 -- "Review litespec change '<name>'"` |
 
-**devin requires `--` before the prompt.** Do not forget this.
+**devin requires `--` before the prompt.**
 
-**pi requires `--provider` for zai models.** Without it, pi resolves `glm-5.1` to the wrong provider.
+**pi requires `--provider` for zai models.**
 
-### Checking Results
+### Waiting for Completion
+
+`wait` does not work for zellij PIDs across bash invocations. Instead, poll pane status until all show `EXITED: true`:
+
+```bash
+# Poll until all reviewer panes have exited
+while true; do
+  RUNNING=$(ZELLIJ_SESSION_NAME="$SESSION" zellij action list-panes --json \
+    | jq '[.[] | select(.title | test("glm|deepseek|kimi"))] | map(.exited) | sort | unique')
+  if echo "$RUNNING" | grep -q 'true'; then
+    # At least one pane is still running
+    sleep 10
+  else
+    echo "All reviewers finished"
+    break
+  fi
+done
+```
+
+Use a generous bash timeout (1200s+). Reviews take 15+ minutes.
+
+### Checking Progress
+
+While reviews are running, the user can attach: `zellij attach <session-name>`
+
+The orchestrator can check status:
+
+```bash
+# See which panes are still running
+ZELLIJ_SESSION_NAME="$SESSION" zellij action list-panes --state --command --tab
+
+# Read a specific reviewer's screen
+ZELLIJ_SESSION_NAME="$SESSION" zellij action dump-screen --pane-id <pane-id> | sed 's/\x1b\[[0-9;]*m//g'
+```
+
+A pane with `EXITED: true` has finished. A pane with a `running_command` is still going.
+
+### Intervening on a Stuck Reviewer
+
+If a reviewer is stuck (asking a question, hitting a prompt), send input via zellij:
+
+```bash
+# Send text to the pane
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> "continue"
+ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
+```
+
+### Collecting Results
 
 ```bash
 ls -la /tmp/litespec-pipeline-<name>/reviews/*.md
@@ -133,23 +183,35 @@ If a file is empty or very short (<100 bytes), check the `.log` file. Report fai
 
 ### Re-Running a Failed Reviewer
 
-If a reviewer failed, re-run just that one:
+Kill the old pane and re-run in the same session:
 
 ```bash
-pi -p --provider zai --model glm-5.1 --no-session "Review litespec change '<name>'" \
-  > /tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.md 2>/tmp/litespec-pipeline-<name>/reviews/pi-glm-5.1.log
+ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "<name>" --cwd "$(pwd)" -- \
+  bash -c '<command>; echo "DONE"' &
 ```
 
-If a reviewer produced partial output before dying, continue with `-c`:
+### Continuing a Timed-Out Reviewer
+
+Each pane IS its session. To continue a reviewer, send `-c` to its pane:
 
 ```bash
-pi -p --provider zai --model glm-5.1 -c --no-session
-devin -p --model kimi-k2.6 -c
+# pi — continues the session in that pane
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> "pi -p --provider zai --model glm-5.1 -c --no-session"
+ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
+
+# devin
+ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars --pane-id <pane-id> "devin -p --model kimi-k2.6 -c"
+ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys --pane-id <pane-id> "Enter"
 ```
 
-**pi `-c` gotcha:** `pi -c` continues the most recent pi session regardless of model. If you ran glm-5.1 and deepseek-v4-pro, `-c` resumes whichever ran last. Use `--session <id>` for specific sessions.
+No session ambiguity — each pane only has one session.
 
-**Only use `-c` if the previous session produced partial output.** If it produced 0 bytes (died immediately), start fresh.
+### Cleaning Up
+
+```bash
+# Kill the review session when done
+ZELLIJ_SESSION_NAME="$SESSION" zellij action kill-session
+```
 
 ### Consolidation
 
@@ -219,6 +281,7 @@ When the user says "pipeline <name>" or "ship <name>" without specifying steps, 
 | Apply stalls | Read last output, present blocker to user |
 | A reviewer fails (auth/error) | Report it, let user re-run or skip |
 | All reviewers fail | **Stop immediately.** Report what failed and wait for the user. |
+| Reviewer gets stuck (prompt/question) | Use `write-chars` + `send-keys` to respond, or report to user |
 | Fix fails to compile | Report the failure, don't loop — let user decide |
 | User interrupts | Summarize progress so far, note what remains |
 
