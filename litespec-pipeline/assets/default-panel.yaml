@@ -1,0 +1,21 @@
+# Pipeline default configuration.
+# Override by creating .litespec-pipeline.yaml in your project root.
+
+apply:
+  tool: agent
+  model: sonnet-4
+
+reviewers:
+  - tool: pi
+    model: glm-5.1
+    label: GLM-5.1
+  - tool: pi
+    model: deepseek-v4-pro
+    label: DeepSeek-V4-Pro
+  - tool: devin
+    model: kimi-k2.6
+    label: Kimi-K2.6
+
+fix:
+  tool: agent
+  model: sonnet-4
