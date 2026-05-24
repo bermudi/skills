@@ -38,7 +38,7 @@ Options:
 
 Example:
   fan-out.sh --change my-feature --output /tmp/reviews \
-    --reviewer pi:glm-5.1:opencode-go \
+    --reviewer pi:glm-5.1:zai \
     --reviewer pi:deepseek-v4-pro:deepseek \
     --reviewer devin:kimi-k2.6
 EOF

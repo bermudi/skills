@@ -84,7 +84,7 @@ Run `scripts/fan-out.sh` from the project root:
 bash SKILL_DIR/scripts/fan-out.sh \
   --change <name> \
   --output /tmp/litespec-pipeline-<name>/reviews \
-  --reviewer pi:glm-5.1:opencode-go \
+  --reviewer pi:glm-5.1:zai \
   --reviewer pi:deepseek-v4-pro:deepseek \
   --reviewer devin:kimi-k2.6
 ```
