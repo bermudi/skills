@@ -117,16 +117,9 @@ If the user already has review reports and just wants consolidation:
 
 **When to run:** User says "fix", "fix the findings", "address the review". After consolidation when findings exist.
 
-Feed the consolidated findings to a fix agent. Use the tool+model from the `fix` config entry:
+Feed the consolidated findings to the fix agent:
 
 ```bash
-# For pi:
-pi -p --no-session --model <model> "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
-
-# For devin:
-devin -p --model <model> "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
-
-# For agent (auto model):
 agent -p --model auto --trust "litespec-fix: Resolve the following consolidated review findings for change '<name>': $(cat /tmp/litespec-pipeline-<name>/reviews/consolidated.md)"
 ```
 
