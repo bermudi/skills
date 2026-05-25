@@ -22,6 +22,10 @@ zellij action resize increase right -p "$PANE"
 
 **`ZELLIJ_SESSION_NAME` env var is required** when not inside zellij. There is no `--session` flag on `action` subcommands — the env var is the only way to target a session from outside.
 
+**Short-lived commands exit before you can read them.** `pi -p "..."` in a pane finishes fast; by the time you `dump-screen`, zellij may have cleaned the pane. Redirect output to a file, or use `dump-screen --full` immediately after launch. Do NOT rely on `--block-until-exit-success` for output capture — it blocks until exit 0 and **hangs forever on non-zero**.
+
+**Don't stomp on active sessions.** Never assume an existing zellij session is disposable. If testing, create a dedicated throwaway session. If the user says "use zellij session X", that's their active workspace — treat it with care.
+
 ---
 
 ## Core Primitives
@@ -38,6 +42,32 @@ zellij action resize increase right -p "$PANE"
 
 ---
 
+## Session Management
+
+There is no `zellij session-list` — it doesn't exist. Use `list-sessions` (alias `ls`).
+
+```bash
+zellij list-sessions                       # list all sessions
+zellij list-sessions --json                # JSON output
+zellij kill-session my-session             # kill one session
+zellij kill-all-sessions                   # kill everything
+```
+
+### Creating a headless session
+
+```bash
+zellij attach my-session --create-background 2>/dev/null
+```
+
+**Always verify it actually started** — `--create-background` can silently fail. Anchor the grep to avoid substring matches (e.g. `dev` matching `dev-nom035`):
+```bash
+zellij attach "$SESSION" --create-background 2>/dev/null
+zellij list-sessions | grep -qx "$SESSION" || { echo "Session creation failed"; exit 1; }
+export ZELLIJ_SESSION_NAME="$SESSION"
+```
+
+---
+
 ## Targeting a Session
 
 **From inside zellij:** Just works — `$ZELLIJ_SESSION_NAME` is set automatically. Each pane also gets `$ZELLIJ_PANE_ID` (e.g. `terminal_3`) for self-referential commands.
@@ -51,11 +81,108 @@ zellij action list-panes   # targets my-session
 ZELLIJ_SESSION_NAME="my-session" zellij action dump-screen -p terminal_1
 ```
 
-**Start a headless session:**
+---
+
+## Driving Coding Agents
+
+This is the most common use of zellij orchestration: launching an agent in a pane, sending it prompts, and monitoring its output — while a human watches.
+
+**Key disambiguation:** When the user says "run X in zellij", they mean launch a separate agent process in a pane and drive it remotely. This is different from using your own tools directly. You are piloting a separate program through a terminal pane.
+
+### Option 1: Reuse an existing shell pane (preferred)
+
+When the user says "use zellij session X", they usually want you to run a command in an existing pane — not split their screen with a new one. Find an idle shell and type into it:
+
 ```bash
-zellij attach my-session --create-background 2>/dev/null
-export ZELLIJ_SESSION_NAME="my-session"
+# Find an idle shell pane (not exited, not held, not a plugin)
+PANE=$(ZELLIJ_SESSION_NAME="$SESSION" zellij action list-panes --json --all \
+  | jq -r '.[] | select(.terminal_command == null and .is_plugin == false and .exited == false) | "terminal_" + (.id|tostring)' \
+  | head -1)
+
+if [ -z "$PANE" ]; then
+  # No idle pane — create a new one
+  PANE=$(ZELLIJ_SESSION_NAME="$SESSION" zellij run -n "agent" -- pi --extension roundtable)
+else
+  # Reuse the idle shell
+  ZELLIJ_SESSION_NAME="$SESSION" zellij action write-chars -p "$PANE" "pi --extension roundtable"
+  ZELLIJ_SESSION_NAME="$SESSION" zellij action send-keys -p "$PANE" "Enter"
+fi
 ```
+
+### Option 2: Launch in a new pane
+
+Use when you need a fresh isolated environment or there's no idle pane to reuse:
+
+```bash
+PANE=$(zellij run -n "pi" -- pi "implement feature X")
+```
+
+### Launching specific agents
+
+```bash
+# pi with extensions
+PANE=$(zellij run -n "pi" -- pi --extension roundtable)
+
+# pi in an existing pane
+zellij action write-chars -p "$PANE" "pi --extension roundtable"
+zellij action send-keys -p "$PANE" "Enter"
+
+# claude
+PANE=$(zellij run -n "claude" -- claude --dangerously-skip-permissions)
+
+# Multiple agents in parallel tabs
+for i in 1 2 3; do
+  zellij action new-tab -n "agent-$i"
+  zellij run -n "worker-$i" -- pi "task $i"
+done
+```
+
+### Sending prompts to a running agent
+
+```bash
+# Wait for agent to be at a prompt (> or ? at end of screen output)
+# Then send your prompt
+zellij action write-chars -p "$PANE" "implement the scoring module using discriminated unions"
+zellij action send-keys -p "$PANE" "Enter"
+```
+
+For long prompts, use `paste` instead of `write-chars`:
+```bash
+zellij action paste -p "$PANE" "Analyze the results pipeline. Consider:
+1. Per-employee vs aggregate data shapes
+2. Shared fetch vs per-guide fetch
+3. Scoring math differences between guides"
+zellij action send-keys -p "$PANE" "Enter"
+```
+
+### Detecting what the agent needs
+
+| Pattern on screen | Agent is… | Send |
+|---|---|---|
+| `> ` or `? ` at end of last line | Waiting for input | `write-chars` + `send-keys Enter` |
+| `[y/n]` or `(Y/n)` | Yes/no prompt | `write-chars "y"` + `send-keys Enter` |
+| `(1) … (2) …` numbered menu | Choice prompt | `write-chars "1"` + `send-keys Enter` |
+| No new output for 10+ seconds | Thinking | Wait and re-dump |
+| `Error:` or stack trace | Failed | Decide: fix, retry, escalate |
+
+### Monitoring a running agent
+
+Poll with `dump-screen` to track progress. Use the `wait_for_idle` or `supervise` helpers from Monitoring Scripts below.
+
+### When to use non-interactive mode instead
+
+Most agents support `-p`/`--print` for one-shot use — simpler than driving a TUI when you just want a result:
+
+```bash
+pi -p "list all .ts files"             # pi
+claude -p "list all .ts files"         # claude
+devin -p "list all .ts files"          # devin
+opencode run "list all .ts files"      # opencode
+```
+
+Use interactive panes when you need to monitor progress, intervene mid-task, handle unexpected prompts, or let a human take over.
+
+Read `references/coding-agents.md` when launching or configuring a specific coding agent (pi, claude, agent, opencode, devin) — it has per-agent CLI flags, output formats, session resume, and a comparison table.
 
 ---
 
@@ -74,6 +201,26 @@ zellij run --block-until-exit-failure -- tail -f err  # only non-zero
 ```
 
 The old `--blocking` flag also exists (waits until pane closes).
+
+### Short-lived commands
+
+For commands that exit quickly (tests, one-shot scripts, `pi -p`), the pane closes before you can read output. Strategies:
+
+```bash
+# Option 1: Redirect to file, read after (most reliable)
+zellij run -n "test" -- bash -c 'pi -p "list files" > /tmp/pi-output.txt 2>&1'
+# then: cat /tmp/pi-output.txt
+
+# Option 2: Block until exit (any status), then dump scrollback
+zellij run --block-until-exit -n "test" -- pi -p "list files"
+zellij action dump-screen -p terminal_N --full  # race: pane may be gone
+
+# Option 3: --close-on-exit off + dump-screen --full
+zellij run -n "test" -- bash -c 'pi -p "list files"; echo "---DONE---"'
+# poll dump-screen until you see ---DONE---
+```
+
+**Warning:** `--block-until-exit-success` hangs forever on non-zero exit codes. Use `--block-until-exit` to block on any exit.
 
 ### Pane options
 
@@ -298,48 +445,3 @@ zellij subscribe -p "$PANE" -f json \
   | grep -m1 "Server running on" \
   && echo "Server is up!"
 ```
-
----
-
-## Driving Coding Agents
-
-Coding agents are interactive terminal programs. Drive them the same way as any interactive process: `new-pane` → `send-keys`/`write-chars` → `dump-screen`.
-
-```bash
-# Launch pi in a pane
-PANE=$(zellij run -n "pi" -- pi "implement feature X")
-
-# Launch claude
-PANE=$(zellij run -n "claude" -- claude --dangerously-skip-permissions)
-
-# Multiple agents in parallel tabs
-for i in 1 2 3; do
-  zellij action new-tab -n "agent-$i"
-  zellij run -n "worker-$i" -- pi "task $i"
-done
-```
-
-### Detecting what the agent needs
-
-| Pattern on screen | Agent is… | Send |
-|---|---|---|
-| `> ` or `? ` at end of last line | Waiting for input | `write-chars` + `send-keys Enter` |
-| `[y/n]` or `(Y/n)` | Yes/no prompt | `write-chars "y"` + `send-keys Enter` |
-| `(1) … (2) …` numbered menu | Choice prompt | `write-chars "1"` + `send-keys Enter` |
-| No new output for 10+ seconds | Thinking | Wait and re-dump |
-| `Error:` or stack trace | Failed | Decide: fix, retry, escalate |
-
-### When to use non-interactive mode instead
-
-Most agents support `-p`/`--print` for one-shot use — simpler than driving a TUI when you just want a result:
-
-```bash
-pi -p "list all .ts files"             # pi
-claude -p "list all .ts files"         # claude
-devin -p "list all .ts files"          # devin
-opencode run "list all .ts files"      # opencode
-```
-
-Use interactive panes when you need to monitor progress, intervene mid-task, handle unexpected prompts, or let a human take over.
-
-Read `references/coding-agents.md` when launching or configuring a specific coding agent (pi, claude, agent, opencode, devin) — it has per-agent CLI flags, output formats, session resume, and a comparison table.
