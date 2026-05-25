@@ -1,5 +1,5 @@
 ---
-name: zellij-agent-control
+name: zellij-orchestration
 description: Use zellij as a process orchestration layer — launch long-running commands, monitor their output, send input, manage panes and tabs, and drive interactive programs including coding agents. Use this skill whenever the task involves zellij panes, terminal orchestration, running agents in zellij, monitoring processes, or automating terminal interaction. Triggers on "zellij", "pane", "terminal orchestration", "run in a pane", "launch agent", "monitor output", "send keys", "dump screen", "block until exit", "subscribe to pane".
 ---
 
