@@ -1,424 +1,345 @@
 ---
 name: zellij-agent-control
-description: Control coding agents running in zellij terminal panes — read their screen output, detect what they're waiting for, and send keystrokes to respond. Use this skill whenever the user wants to automate agent interaction, monitor an agent pane, unblock a running agent, script multi-agent workflows, respond to agent prompts, or do anything involving driving a terminal program through zellij. Triggers on phrases like "agent is waiting", "send a key to", "check the agent pane", "drive the agent", "automate the terminal", "zellij pane", or any request to observe and interact with a running terminal process.
+description: Use zellij as a process orchestration layer — launch long-running commands, monitor their output, send input, manage panes and tabs, and drive interactive programs including coding agents. Use this skill whenever the task involves zellij panes, terminal orchestration, running agents in zellij, monitoring processes, or automating terminal interaction. Triggers on "zellij", "pane", "terminal orchestration", "run in a pane", "launch agent", "monitor output", "send keys", "dump screen", "block until exit", "subscribe to pane".
 ---
 
-# Zellij Agent Control
+# Zellij Orchestration
 
-This skill gives you the ability to **observe and control terminal panes** running inside a zellij session — the key primitive for driving coding agents (Claude, aider, cursor, etc.) from another agent or script.
+## Gotchas
 
-## Core idea
-
-The loop is simple:
-1. **Discover** which pane the agent is in
-2. **Dump** the screen to read what it's displaying
-3. **Decide** what to send based on what you see
-4. **Send** keystrokes or text to the pane
-5. **Repeat** until the task is done
-
-All of this works via `zellij action` subcommands — no extra tooling required.
-
----
-
-## Prerequisite: Targeting a zellij session
-
-`zellij action` commands work in two modes:
-
-### From inside zellij
-When you're already inside a session, commands just work — `$ZELLIJ_SESSION_NAME` is set automatically.
-
-### From outside zellij (the useful pattern for agent control)
-
-**Setting `ZELLIJ_SESSION_NAME` as an env var is the key trick** — you don't need to be inside the session, you just export it and all `action` commands target that session:
-
+**Background sessions start narrow** (typically 25 columns). Content wraps aggressively. Resize after creation:
 ```bash
-export ZELLIJ_SESSION_NAME="my-session"
-zellij action list-panes   # targets my-session from outside
+zellij action resize increase right -p "$PANE"
 ```
 
-Or inline per-command:
-```bash
-ZELLIJ_SESSION_NAME="my-session" zellij action dump-screen --pane-id terminal_1
-```
+**`dump-screen` gives you rendered terminal output** — the same thing a human sees. ANSI codes, cursor position ambiguity, and narrow-width wrapping all apply. Strip ANSI with `sed 's/\x1b\[[0-9;]*m//g'`.
 
-This works for all `zellij action` subcommands. The `--session` flag does **not** exist on action subcommands — the env var is the only way.
+**`write-chars` with `\n` is NOT the same as pressing Enter.** Programs in raw terminal mode (agents, REPLs, debuggers) need the actual Enter key event. Always pair text with `send-keys Enter`.
 
-### Start a background session (headless)
-```bash
-# Start a detached session — no terminal required
-zellij attach my-session --create-background 2>/dev/null
+**`subscribe` is a blocking stream.** Pipe it through `jq`/`grep` and run in the background, or use `timeout` to cap it.
 
-# Verify it's running
-zellij list-sessions
+**Pane IDs change between sessions.** Always discover dynamically with `list-panes`.
 
-# Now target it from anywhere
-export ZELLIJ_SESSION_NAME="my-session"
-zellij action list-panes
-```
+**`ZELLIJ_SESSION_NAME` env var is required** when not inside zellij. There is no `--session` flag on `action` subcommands — the env var is the only way to target a session from outside.
 
 ---
 
-## Step 1 — Discover panes
+## Core Primitives
 
-```bash
-# List all panes with state and running command
-zellij action list-panes --json --state --command --tab
-
-# Compact human-readable view
-zellij action list-panes --state --command --tab
-```
-
-The JSON output looks like:
-```json
-[
-  {
-    "id": "terminal_3",
-    "title": "claude",
-    "tab_name": "agents",
-    "is_focused": false,
-    "is_floating": false,
-    "running_command": "claude",
-    ...
-  }
-]
-```
-
-**Key fields:** `id` (e.g. `terminal_3`), `title`, `running_command`, `is_focused`.
-
-Save the pane ID of the target agent — you'll pass it to every subsequent command.
-
-```bash
-AGENT_PANE=$(ZELLIJ_SESSION_NAME="$SESSION" zellij action list-panes --json \
-  | jq -r '.[] | select(.running_command | test("claude|aider|opencode|pi")) | .id' \
-  | head -1)
-echo "Agent pane: $AGENT_PANE"
-```
-
-**Tip:** The pane `title` updates to reflect what the agent is working on (e.g. `"OC | Create and run hello.py"`) — useful for monitoring multiple agents.
-
----
-
-## Step 2 — Read the screen
-
-```bash
-# Dump current viewport of a specific pane
-zellij action dump-screen --pane-id "$AGENT_PANE"
-
-# Include full scrollback (everything the pane has ever printed)
-zellij action dump-screen --pane-id "$AGENT_PANE" --full
-
-# Save to file (useful for large outputs)
-zellij action dump-screen --pane-id "$AGENT_PANE" --full --path /tmp/agent-screen.txt
-
-# Strip ANSI escape codes for clean text
-zellij action dump-screen --pane-id "$AGENT_PANE" | sed 's/\x1b\[[0-9;]*m//g'
-```
-
-### Reading the dump in bash
-```bash
-SCREEN=$(zellij action dump-screen --pane-id "$AGENT_PANE")
-echo "$SCREEN"
-```
-
-### Common patterns to detect in the dump
-
-| What you see | Agent is… | What to send |
+| Primitive | Command | Returns |
 |---|---|---|
-| `> ` or `? ` at end of last line | Waiting for text input | `write-chars` your response, then `send-keys Enter` |
-| `[y/n]` or `(Y/n)` | Asking a yes/no question | `write-chars "y"`, then `send-keys Enter` |
-| `Press any key` | Paused | `send-keys "Enter"` |
-| `(1) … (2) …` numbered menu | Asking you to pick | `write-chars "1"`, then `send-keys Enter` |
-| Cursor blinking on empty line | Waiting for input | `write-chars` your message |
-| No new output for 10+ seconds | Still thinking | Wait, then re-dump |
-| `Error:` or stack trace | Crashed | Decide: fix, retry, or escalate |
+| **Run command in new pane** | `zellij run -- <cmd>` | `terminal_<id>` |
+| **List all panes** | `zellij action list-panes --json --all` | JSON array |
+| **Read pane output** | `zellij action dump-screen -p <id>` | Text (viewport) |
+| **Send keystrokes** | `zellij action send-keys -p <id> "Enter"` | — |
+| **Send text** | `zellij action write-chars -p <id> "text"` | — |
+| **Block until exit** | `zellij run --block-until-exit-success -- <cmd>` | Exit code |
+| **Stream output live** | `zellij subscribe -p <id> -f json` | JSON events |
 
 ---
 
-## Step 3 — Send input
+## Targeting a Session
 
-### Send text (like typing it)
+**From inside zellij:** Just works — `$ZELLIJ_SESSION_NAME` is set automatically. Each pane also gets `$ZELLIJ_PANE_ID` (e.g. `terminal_3`) for self-referential commands.
+
+**From outside zellij:**
 ```bash
-# Write characters — does NOT send Enter automatically
-zellij action write-chars --pane-id "$AGENT_PANE" "yes, continue with that approach"
+export ZELLIJ_SESSION_NAME="my-session"
+zellij action list-panes   # targets my-session
 
-# To submit the text, send Enter separately
-zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
+# Or inline
+ZELLIJ_SESSION_NAME="my-session" zellij action dump-screen -p terminal_1
 ```
 
-> **⚠️ A newline (`\n`) in `write-chars` is NOT the same as pressing Enter.** A bare newline (ASCII 10) may just move the cursor down without submitting the line. Agents running in raw terminal mode (pi, claude, aider, etc.) wait for the actual Enter key event. Always use `send-keys Enter` to submit input — never rely on `\n` inside `write-chars`.
-
-### Send special keys
+**Start a headless session:**
 ```bash
-# Common keys
-zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
-zellij action send-keys --pane-id "$AGENT_PANE" "Ctrl c"    # interrupt
-zellij action send-keys --pane-id "$AGENT_PANE" "Ctrl d"    # EOF / exit
-zellij action send-keys --pane-id "$AGENT_PANE" "Ctrl z"    # suspend
-zellij action send-keys --pane-id "$AGENT_PANE" "Escape"
-zellij action send-keys --pane-id "$AGENT_PANE" "Tab"
-zellij action send-keys --pane-id "$AGENT_PANE" "Up"
-zellij action send-keys --pane-id "$AGENT_PANE" "Down"
-zellij action send-keys --pane-id "$AGENT_PANE" "F1"
-
-# Multiple keys in one call
-zellij action send-keys --pane-id "$AGENT_PANE" "Ctrl a" "k" "Enter"
+zellij attach my-session --create-background 2>/dev/null
+export ZELLIJ_SESSION_NAME="my-session"
 ```
 
-### Paste multi-line text (bracketed paste)
+---
+
+## Launching Processes
+
 ```bash
-# Use paste for multi-line inputs — it wraps text in bracketed paste mode
-# so the agent's readline doesn't interpret newlines as submits mid-paste
-zellij action paste --pane-id "$AGENT_PANE" "line 1
+PANE=$(zellij run -n "build" -- make)
+```
+
+### Blocking: run and wait for exit code
+
+```bash
+zellij run --block-until-exit -- make test           # any exit status
+zellij run --block-until-exit-success -- make test    # only exit 0
+zellij run --block-until-exit-failure -- tail -f err  # only non-zero
+```
+
+The old `--blocking` flag also exists (waits until pane closes).
+
+### Pane options
+
+| Flag | Effect |
+|---|---|
+| `-c, --close-on-exit` | Close pane when command finishes |
+| `-n <name>` | Name the pane (shows in list-panes) |
+| `-d <right\|down>` | Split direction |
+| `-f, --floating` | Open as floating pane |
+| `-i, --in-place` | Replace current pane (suspends it) |
+| `--cwd <dir>` | Working directory |
+| `-s, --start-suspended` | Wait for ENTER before running |
+| `--near-current-pane` | Open near focused pane |
+
+### Floating pane geometry
+
+```bash
+zellij run -f --x 10% --y 5 --width 80% --height 30% -n "logs" -- tail -f app.log
+```
+
+All geometry args accept bare integers or percent (e.g. `10%`). Pin with `--pinned true`.
+
+---
+
+## Reading Output
+
+### Dump screen (snapshot)
+
+```bash
+zellij action dump-screen -p "$PANE"              # current viewport
+zellij action dump-screen -p "$PANE" --full        # full scrollback
+zellij action dump-screen -p "$PANE" --full --path /tmp/output.txt
+zellij action dump-screen -p "$PANE" | sed 's/\x1b\[[0-9;]*m//g'  # strip ANSI
+```
+
+### Subscribe (real-time stream)
+
+```bash
+zellij subscribe -p "$PANE"                        # raw text
+zellij subscribe -p "$PANE" -f json                # JSON events
+zellij subscribe -p "$PANE" --scrollback           # include all scrollback
+zellij subscribe -p "$PANE" --scrollback 100       # last 100 lines
+zellij subscribe -p "$PANE" --ansi                 # preserve ANSI
+```
+
+Blocking — stays open until pane closes or you kill it.
+
+Subscribe JSON shape:
+```json
+{"event":"pane_update","is_initial":true,"pane_id":"terminal_1","viewport":["line1","line2"],"scrollback":["..."]}
+```
+
+### When to use which
+
+| Use case | Tool |
+|---|---|
+| Check what's on screen right now | `dump-screen` |
+| Wait for specific output to appear | `subscribe` piped to `grep`/`jq` |
+| Capture full output after exit | `dump-screen --full` |
+| Monitor reactively | `subscribe -f json` |
+
+---
+
+## Sending Input
+
+| Command | What it does | Use for |
+|---|---|---|
+| `write-chars` | Sends literal characters (like typing) | Text content |
+| `send-keys` | Sends named key events | Control keys (`Enter`, `Ctrl c`, etc.) |
+| `paste` | Bracketed paste mode | Multi-line input |
+| `write` | Raw bytes | Binary sequences |
+
+```bash
+# Type text and submit
+zellij action write-chars -p "$PANE" "yes, proceed"
+zellij action send-keys -p "$PANE" "Enter"
+
+# Paste multi-line
+zellij action paste -p "$PANE" "line 1
 line 2
 line 3"
-```
 
-### Write raw bytes
-```bash
-# Rarely needed, but available for binary sequences
-zellij action write --pane-id "$AGENT_PANE" 121 101 115 10   # "yes\n" as ASCII bytes
-```
-
----
-
-## Step 4 — Automated prompt response (wait-and-respond)
-
-A simple polling loop for **automated** responses to predictable prompts (yes/no, press-enter). For human-in-the-loop supervision of long sessions, use the [Supervision Workflow](#supervision-workflow) instead.
-
-```bash
-#!/usr/bin/env bash
-# wait-and-respond.sh
-# Monitors a pane and automatically responds to prompts
-
-AGENT_PANE="${1:-terminal_3}"
-POLL_INTERVAL=2   # seconds between screen checks
-MAX_WAIT=120      # give up after this many seconds
-ELAPSED=0
-
-echo "Watching pane $AGENT_PANE..."
-
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-  SCREEN=$(zellij action dump-screen --pane-id "$AGENT_PANE" 2>/dev/null \
-    | sed 's/\x1b\[[0-9;]*m//g')   # strip color codes
-
-  LAST_LINE=$(echo "$SCREEN" | tail -3 | tr '\n' ' ')
-  echo "[${ELAPSED}s] Last line: $LAST_LINE"
-
-  # Detect common prompts and respond
-  if echo "$LAST_LINE" | grep -qiE '\[y/n\]|\(Y/n\)'; then
-    echo "→ Yes/No prompt detected, answering y"
-    zellij action write-chars --pane-id "$AGENT_PANE" "y"
-    zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
-
-  elif echo "$LAST_LINE" | grep -qiE 'press (enter|any key)'; then
-    echo "→ 'Press key' prompt, sending Enter"
-    zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
-
-  elif echo "$LAST_LINE" | grep -qiE '> $|> $|\? $'; then
-    echo "→ Input prompt, needs human decision — exiting watch loop"
-    break
-
-  elif echo "$SCREEN" | grep -qiE 'task complete|done|finished'; then
-    echo "→ Task appears complete!"
-    break
-  fi
-
-  sleep $POLL_INTERVAL
-  ELAPSED=$((ELAPSED + POLL_INTERVAL))
-done
+# Common keys
+zellij action send-keys -p "$PANE" "Ctrl c"    # interrupt
+zellij action send-keys -p "$PANE" "Ctrl d"    # EOF / exit
+zellij action send-keys -p "$PANE" "Escape"
+zellij action send-keys -p "$PANE" "Ctrl a" "k" "Enter"  # multiple
 ```
 
 ---
 
-## Supervision Workflow
-
-When you need to monitor a long-running agent session (e.g., a wiki ingest, a multi-phase task) and intervene at decision points, don't poll with blind sleeps. Use this diff-based watch loop — it prints output **only when it changes**, eliminating the "sleep 30 and hope" guessing game.
-
-### Basic supervision loop
+## Discovery
 
 ```bash
-supervise() {
-  local pane="$1"
-  local prev=""
-  local idle=0
-  local IDLE_THRESHOLD=6  # consecutive unchanged polls before flagging idle
+# Full JSON dump
+zellij action list-panes --json --all
 
-  echo "👁️  Watching pane $pane (Ctrl+C to break out and send a command)..."
-  echo ""
-
-  while true; do
-    curr=$(ZELLIJ_SESSION_NAME="${ZELLIJ_SESSION_NAME:-AgenticWiki}" zellij action dump-screen --pane-id "$pane" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
-
-    if [ "$curr" != "$prev" ]; then
-      # Only print the delta — new content since last check
-      if [ -n "$prev" ]; then
-        # Show last ~20 lines of what changed
-        echo "$curr" | tail -20
-        echo "────────────────────────────────────────────────────────────"
-      else
-        # First dump: show current state
-        echo "$curr" | tail -20
-        echo "────────────────────────────────────────────────────────────"
-      fi
-      prev="$curr"
-      idle=0
-    else
-      idle=$((idle + 1))
-      if [ $idle -eq $IDLE_THRESHOLD ]; then
-        echo "⏸️  Agent appears idle (no output for $((IDLE_THRESHOLD * 2))s)"
-        echo "   Screen is stable. Ready for a command."
-        break
-      fi
-    fi
-
-    sleep 2
-  done
-}
+# Find a pane by running command
+PANE=$(zellij action list-panes --json \
+  | jq -r '.[] | select(.terminal_command | test("make|cargo")) | "terminal_" + (.id|tostring)' \
+  | head -1)
 ```
 
-### Usage pattern
+### JSON field reference
 
-The loop is: **watch → decide → send → repeat.**
+The `id` field is a **bare integer**. Commands accept both `terminal_3` and bare `3`.
 
-```bash
-# 1. Discover the pane
-ZELLIJ_SESSION_NAME="AgenticWiki" zellij action list-panes --state --command --tab
-
-# 2. Start watching (blocks until agent is idle)
-supervise terminal_0
-
-# 3. Agent hit a decision point — send a command
-zellij action write-chars --pane-id terminal_0 "go ahead with Phase 2"
-zellij action send-keys --pane-id terminal_0 "Enter"
-
-# 4. Resume watching
-supervise terminal_0
-```
-
-### When to use `supervise` vs `wait_and_respond`
-
-| | `supervise` | `wait_and_respond` |
+| Field | Type | Notes |
 |---|---|---|
-| Use case | Human-in-the-loop supervision of long sessions | Automated response to predictable prompts |
-| Decision maker | You read output, decide what to send | Script auto-responds |
-| Idle detection | Diff-based: prints when screen changes | Timeout-based: gives up after MAX_WAIT |
-| Interaction | You break out (Ctrl+C) and manually send commands | Script sends pre-programmed responses |
-
-### Watching delegate subagents
-
-When the supervised agent spawns subagents via `delegate`, the screen shows live progress (status dots, token counts, tool uses). The `supervise` loop will stream this as it updates. No special handling needed — just watch and wait for the agent to become idle again.
+| `id` | int | Pane ID. Use `"terminal_" + (.id\|tostring)` for commands |
+| `title` | string | Pane title (updates dynamically for agents) |
+| `terminal_command` | string? | Running command (null for shells, plugins) |
+| `pane_command` | string? | Shell binary (e.g. `/usr/bin/bash`) |
+| `pane_cwd` | string? | Working directory |
+| `is_focused` | bool | Currently focused |
+| `is_floating` | bool | Floating pane |
+| `exited` | bool | Process has exited |
+| `exit_status` | int? | Exit code if exited |
+| `is_held` | bool | Exited but pane kept open |
+| `tab_name` | string | Parent tab name |
+| `tab_id` | int | Parent tab ID |
+| `is_plugin` | bool | Plugin vs terminal |
+| `pane_rows`, `pane_columns` | int | Size |
 
 ---
 
-## Patterns for common agent workflows
-
-### Launch an agent in a new pane, capture its pane ID
+## Pane Management
 
 ```bash
-# Start agent in a new split pane
-AGENT_PANE=$(zellij action new-pane --direction down --name "claude-agent" \
-  -- claude --dangerously-skip-permissions)
-echo "Agent started in pane: $AGENT_PANE"
+zellij action close-pane -p "$PANE"
+zellij action focus-pane-id "$PANE"
+zellij action move-focus right                    # or left/up/down
+zellij action move-focus-or-tab right             # crosses tab boundary
+zellij action move-pane right -p "$PANE"
+zellij action resize increase right -p "$PANE"    # or decrease + direction
+zellij action toggle-fullscreen -p "$PANE"
+zellij action toggle-pane-embed-or-floating -p "$PANE"
+zellij action rename-pane -p "$PANE" "build:feature-x"
+zellij action set-pane-color --fg "#00e000" --bg "#001a3a" -p "$PANE"
+zellij action set-pane-color --reset -p "$PANE"
 ```
 
-### Launch in a named floating pane
+---
+
+## Tab Management
 
 ```bash
-AGENT_PANE=$(zellij action new-pane --floating --name "agent-1" \
-  --cwd /home/user/project \
-  -- pi "implement feature X")
+TAB=$(zellij action new-tab -n "agents" --cwd /home/user/project)
+zellij action go-to-tab 1
+zellij action go-to-tab-name "agents"
+zellij action go-to-next-tab
+zellij action rename-tab "build" -t "$TAB"
+zellij action close-tab -t "$TAB"
+zellij action toggle-active-sync-tab -t "$TAB"    # broadcast to all panes
+zellij action move-tab right
 ```
 
-### Wait for the agent to become idle, then send a follow-up
+---
+
+## Layout Management
+
+```bash
+zellij action override-layout mylayout                         # reset to layout
+zellij action override-layout mylayout \
+  --retain-existing-terminal-panes \
+  --retain-existing-plugin-panes
+zellij action override-layout --layout-string 'layout { pane }'
+zellij action next-swap-layout                                # cycle layouts
+zellij action previous-swap-layout
+zellij action dump-layout                                     # export current layout
+```
+
+---
+
+## Monitoring Scripts
+
+### Wait for idle (diff-based)
+
+Detects when a pane stops producing output. More reliable than `sleep`.
 
 ```bash
 wait_for_idle() {
-  local pane="$1"
-  local prev_screen=""
-  local stable_count=0
-  local needed=3   # screen must be unchanged this many consecutive checks
-
-  while [ $stable_count -lt $needed ]; do
+  local pane="$1" stable_needed="${2:-3}" stable=0 prev=""
+  while [ $stable -lt $stable_needed ]; do
     sleep 2
-    curr=$(zellij action dump-screen --pane-id "$pane")
-    if [ "$curr" = "$prev_screen" ]; then
-      stable_count=$((stable_count + 1))
-    else
-      stable_count=0
-      prev_screen="$curr"
-    fi
+    curr=$(zellij action dump-screen -p "$pane" 2>/dev/null)
+    if [ "$curr" = "$prev" ]; then stable=$((stable + 1))
+    else stable=0; prev="$curr"; fi
   done
-  echo "Pane $pane appears idle"
+  echo "Pane $pane is idle"
 }
-
-wait_for_idle "$AGENT_PANE"
-zellij action write-chars --pane-id "$AGENT_PANE" "now write the tests"
-zellij action send-keys --pane-id "$AGENT_PANE" "Enter"
 ```
 
-### Scrape and store the agent's final output
+### Supervise with change detection
+
+Prints output only when the screen changes. Stops when idle.
 
 ```bash
-# When the agent is done, grab the full scrollback and save it
-zellij action dump-screen --pane-id "$AGENT_PANE" --full \
-  | sed 's/\x1b\[[0-9;]*m//g' \
-  > /tmp/agent-output-$(date +%s).txt
+supervise() {
+  local pane="$1" prev="" idle=0 threshold=6
+  while true; do
+    curr=$(zellij action dump-screen -p "$pane" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
+    if [ "$curr" != "$prev" ]; then
+      echo "$curr" | tail -20
+      echo "────────────────────────────────────"
+      prev="$curr"; idle=0
+    else
+      idle=$((idle + 1))
+      [ $idle -eq $threshold ] && echo "⏸ Idle ($((threshold * 2))s)" && break
+    fi
+    sleep 2
+  done
+}
 ```
 
-### Run multiple agents in parallel tabs
+### React to output with subscribe
 
 ```bash
+# Wait for specific string in viewport
+zellij subscribe -p "$PANE" -f json \
+  | jq --unbuffered -r '.viewport[]' \
+  | grep -m1 "Server running on" \
+  && echo "Server is up!"
+```
+
+---
+
+## Driving Coding Agents
+
+Coding agents are interactive terminal programs. Drive them the same way as any interactive process: `new-pane` → `send-keys`/`write-chars` → `dump-screen`.
+
+```bash
+# Launch pi in a pane
+PANE=$(zellij run -n "pi" -- pi "implement feature X")
+
+# Launch claude
+PANE=$(zellij run -n "claude" -- claude --dangerously-skip-permissions)
+
+# Multiple agents in parallel tabs
 for i in 1 2 3; do
-  zellij action new-tab --name "agent-$i"
-  pane=$(zellij action new-pane -- pi "task number $i")
-  echo "agent-$i running in $pane"
+  zellij action new-tab -n "agent-$i"
+  zellij run -n "worker-$i" -- pi "task $i"
 done
 ```
 
----
+### Detecting what the agent needs
 
-## Useful tab and session management
+| Pattern on screen | Agent is… | Send |
+|---|---|---|
+| `> ` or `? ` at end of last line | Waiting for input | `write-chars` + `send-keys Enter` |
+| `[y/n]` or `(Y/n)` | Yes/no prompt | `write-chars "y"` + `send-keys Enter` |
+| `(1) … (2) …` numbered menu | Choice prompt | `write-chars "1"` + `send-keys Enter` |
+| No new output for 10+ seconds | Thinking | Wait and re-dump |
+| `Error:` or stack trace | Failed | Decide: fix, retry, escalate |
+
+### When to use non-interactive mode instead
+
+Most agents support `-p`/`--print` for one-shot use — simpler than driving a TUI when you just want a result:
 
 ```bash
-# Create a dedicated tab for agents
-zellij action new-tab --name "agents"
-
-# Focus a pane by ID
-zellij action go-to-tab-by-id <tab-id>
-
-# Rename a pane to track what it's doing
-zellij action rename-pane --pane-id "$AGENT_PANE" "claude:feature-x"
-
-# Dump the current layout to reproduce it later
-zellij action dump-layout
-
-# Save session state to disk
-zellij action save-session
+pi -p "list all .ts files"             # pi
+claude -p "list all .ts files"         # claude
+devin -p "list all .ts files"          # devin
+opencode run "list all .ts files"      # opencode
 ```
 
----
+Use interactive panes when you need to monitor progress, intervene mid-task, handle unexpected prompts, or let a human take over.
 
-## Limitations and gotchas
-
-**Screen dump is the viewport, not a structured API.** You're reading rendered terminal output — the same thing a human would see. This means:
-- ANSI escape codes for colors/styles are present unless you strip them
-- Cursor position isn't told to you directly — infer from content
-- Output may be truncated if the terminal is narrow (use `--full` for scrollback)
-
-**Timing matters.** Agents think for a while before responding. Don't poll too aggressively (2–5 second intervals work well). The "stable screen" heuristic (check that the screen hasn't changed across N polls) is more reliable than fixed waits.
-
-**write-chars vs send-keys:**
-- `write-chars` sends literal characters, like typing. Use it for the text content only.
-- `send-keys` sends named keys (`Enter`, `Ctrl c`, `F1`, etc.). Use it for the actual Enter key — never rely on `\n` inside `write-chars` to submit input. Agents in raw terminal mode need the real key event.
-- For multi-line input, prefer `paste` to avoid readline interpreting embedded newlines.
-- **Do not use `\n` inside `write-chars` to submit.** The agent runs in raw terminal mode and needs the actual Enter key event. Always send Enter separately via `send-keys`.
-
-**Pane IDs change between sessions.** Don't hardcode `terminal_3` — always discover pane IDs dynamically with `list-panes`.
-
-**Background sessions start with a very narrow terminal** (typically 25 columns). Content will word-wrap aggressively. This doesn't stop the agent from working, but the screen dumps will look garbled. If you need clean output, resize the pane after creation:
-```bash
-ZELLIJ_SESSION_NAME="$SESSION" zellij action resize --pane-id "$AGENT_PANE" increase right
-# Or launch with explicit dimensions via a layout file
-```
-
-**`ZELLIJ_SESSION_NAME` env var is required** when not inside zellij. There is no `--session` flag on `action` subcommands — the env var is the only external targeting mechanism.
+Read `references/coding-agents.md` when launching or configuring a specific coding agent (pi, claude, agent, opencode, devin) — it has per-agent CLI flags, output formats, session resume, and a comparison table.
