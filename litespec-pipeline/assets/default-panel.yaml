@@ -11,7 +11,7 @@ reviewers:
     model: glm-5.1
     label: GLM-5.1
   - tool: pi
-    provider: deepseek
+    provider: opencode-go
     model: deepseek-v4-pro
     label: DeepSeek-V4-Pro
   - tool: devin
