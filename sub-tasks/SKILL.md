@@ -66,7 +66,7 @@ Agents live in `.pi/agents/*.md`. Project-local agents override global ones. Cur
 | `tools` | Array: `read`, `write`, `edit`, `bash`. | all four |
 | `thinking` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. | agent default → off |
 | `skills` | Array of skill names to inject into the subagent's system prompt. | — |
-| `cwd` | Working directory. | parent session cwd |
+| `cwd` | Working directory. Accepts absolute, relative, and `~` paths. | parent session cwd |
 | `context` | `fresh` (clean) or `with-parent-transcript` (inject full conversation — expensive, use deliberately). | `fresh` |
 | `sessionId` | Named persistent session. First call creates, subsequent reuse. | — |
 | `resumeFrom` | Absolute path to a previous session `.jsonl`. Agent resumes with full history. | — |
@@ -88,6 +88,19 @@ Keep a subagent alive across multiple interactions:
 ```
 
 Pooled agents auto-close after 10 minutes of inactivity.
+
+### Handling Partial Failures
+
+When multiple tasks run in parallel, some may succeed and others fail. The delegate tool returns results for each task — errors include a `resumeFrom` path pointing to the failed session:
+
+```json
+// Result from a 3-task delegate where task 2 failed:
+// Task 1: ✓ success
+// Task 2: ✗ error — resumeFrom: /path/to/session.jsonl
+// Task 3: ✓ success
+```
+
+Recovery pattern: read the successful results, then `resumeFrom` the failed one with a corrective prompt. You can also combine `resumeFrom` with `sessionId` to pool the recovered agent for further turns.
 
 ### Resuming Failed Sessions
 
@@ -265,13 +278,5 @@ zellij action send-keys -p "$PANE" "Enter"
 - Subagents only have the core tools (read, write, edit, bash). They don't inherit your MCP tools or skills unless you specify `skills` in the task.
 - `delegate` is synchronous by default — all tasks must complete before you get results. Use `async: true` to fire-and-forget.
 - `with-parent-transcript` injects your *entire* conversation. A 50k-token session means the subagent starts 50k tokens deep. Use sparingly.
-- Agent names come from `.pi/agents/*.md`. A typo in the name silently falls back to a generic agent with the parent model.
 
-**Zellij:**
-- Background sessions start narrow (~25 columns). Resize after creation.
-- `write-chars` + `\n` is NOT Enter — use `send-keys Enter` for raw-mode programs (agents, REPLs).
-- `--block-until-exit-success` hangs forever on non-zero. Use `--block-until-exit` instead.
-- Short-lived commands may exit before you can read output. Redirect to a file.
-- Don't assume existing zellij sessions are disposable — treat the user's workspace with care.
-
-Full zellij gotchas and operational details in `references/zellij-quickref.md`.
+**Zellij:** see full gotchas in `references/zellij-quickref.md`.
