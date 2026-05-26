@@ -17,6 +17,29 @@ you're in the right place. Use the appropriate tool below for the image instead.
 All tools accept `image_source` (local file path or remote URL). Video tools
 accept `video_source` (local path or URL, ≤8 MB, MP4/MOV/M4V).
 
+### Timeouts
+
+Vision calls typically take 30–60s. Video analysis can take longer.
+When calling from pi, set **both** timeouts:
+
+| Tool | mcporter `--timeout` | pi bash `timeout` |
+|------|---------------------|-------------------|
+| Image tools (default) | `120000` (2 min) | `150` (2.5 min) |
+| Video analysis | `300000` (5 min) | `330` (5.5 min) |
+
+```bash
+# Image example
+mcporter call zai-vision.analyze_image --timeout 120000 \
+  image_source="path/to/img.png" prompt="Describe this image"
+
+# Video example
+mcporter call zai-vision.analyze_video --timeout 300000 \
+  video_source="path/to/clip.mp4" prompt="What happens in this video?"
+```
+
+The rule: pi's bash timeout (seconds) must be > mcporter's timeout (seconds).
+mcporter handles the timeout cleanly; pi's SIGKILL does not.
+
 ## Decision Guide
 
 ```
@@ -185,3 +208,5 @@ mcporter call zai-vision.analyze_video \
   `prompt`, `spec`, `description`.
 - **diagram_type is optional** but helps accuracy. Valid values include
   `architecture`, `flowchart`, `uml`, `er-diagram`, `sequence`.
+- **Default mcporter timeout (60s) is too short** for vision calls. Always pass
+  `--timeout 120000` for images, `--timeout 300000` for video.
