@@ -52,7 +52,6 @@ Agents live in `.pi/agents/*.md`. Project-local agents override global ones. Cur
 |---|---|---|---|
 | **reviewer** | deepseek-v4-pro | Code review: bugs, security, edge cases. Read-only. | read, bash |
 | **scout** | deepseek-v4-flash | Codebase investigation: map architecture, trace imports. | read, bash |
-| **researcher** | GPT-5.4-mini | Web research: search, evaluate, synthesize a brief. | read, write, bash |
 | **workhorse** | deepseek-v4-pro | Mechanical execution: bulk edits, boilerplate, refactors. | all |
 
 ### Task Fields
@@ -189,7 +188,7 @@ Multiple independent tasks at once — the full Kage Bunshin:
   "tasks": [
     { "prompt": "Review the API handlers for security issues", "agent": "reviewer" },
     { "prompt": "Map the database schema and trace all migrations", "agent": "scout" },
-    { "prompt": "Research best practices for rate limiting in Go web services", "agent": "researcher" }
+    { "prompt": "Research best practices for rate limiting in Go web services", "skills": ["web-content"] }
   ]
 }
 ```
