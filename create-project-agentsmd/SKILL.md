@@ -5,8 +5,8 @@ description: >
   instruction file for a project. Use when the user asks to "create an AGENTS.md", "set up
   agent instructions", "write a CLAUDE.md", "add project context for AI", "generate instruction
   file", or mentions configuring any AI coding agent's behavior for their project. Produces
-  instruction files that encode goals and shape — not implementation details — so they stay
-  accurate as the codebase evolves.
+  instruction files that encode goals, shape, and stable project knowledge — avoiding
+  volatile implementation specifics — so they stay accurate as the codebase evolves.
 license: Apache-2.0
 metadata:
   version: "1.0"
@@ -32,6 +32,34 @@ The auth middleware is in src/middleware/auth.ts and uses JWT with RS256.
 API routes follow REST conventions. Auth is required on all mutating endpoints.
 When adding endpoints, match the patterns of nearby files — the codebase is the source of truth.
 ```
+
+## Stable Reference Facts Are Not Noise
+
+"Implementation details" are things that change when you refactor — file paths, function names, current library versions. **Stable reference facts** are things the agent needs to know but cannot reliably discover from code. Don't conflate the two.
+
+**Include stable reference facts:**
+
+| Category | Examples |
+|----------|----------|
+| External data sources | CDN URLs, API endpoints, auth/CORS quirks, expected response formats |
+| Data contracts | Database schemas, file formats, data shapes, field naming conventions |
+| Domain vocabulary | What "trial" means here, what a "gap" represents, confidence level definitions |
+| Workflows | Required commands, SQL queries that encode project-specific knowledge, multi-step procedures |
+| Known gotchas | Non-obvious system behavior, historical surprises, pitfalls documented from past work |
+
+These don't rot — CDN URLs and schemas change far less often than file locations. And even when they do change, having them documented means the next agent can find and update them instead of guessing.
+
+**Cut volatile implementation details:**
+
+| Category | Why cut |
+|----------|---------|
+| Exhaustive file trees | Discoverable with `ls`/`find` |
+| Function/class names (unless public contracts) | Discoverable with `grep`, change on refactor |
+| Line numbers | Rot immediately |
+| Component inventories | Discoverable from file tree; current structure is temporary |
+| "Currently implemented in X" notes | Will be wrong tomorrow |
+
+**The litmus test:** Could the agent discover this from code alone? If yes, cut it. If no — or if discovery would be expensive enough that documenting it saves real time — keep it.
 
 ## Before Writing
 
@@ -126,6 +154,8 @@ All database queries use Prisma Client. Models are defined in prisma/schema.pris
 Database access goes through an ORM/data layer — never raw SQL in route handlers.
 Check the existing code for the current query patterns.
 ```
+
+This doesn't mean "never include specifics." Stable reference facts like API endpoints, database schemas, and domain definitions belong in AGENTS.md — the agent can't infer them. The rule is: avoid coupling to *current implementation choices likely to change*, not *stable project knowledge.*
 
 ## Tool-Specific Adaptation
 
