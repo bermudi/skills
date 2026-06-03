@@ -4,7 +4,7 @@ description: >
   Retrieve secrets, credentials, and tokens from Proton Pass via the pass-cli.
   Triggers on: "get credentials", "fetch the token", "look up the password",
   "secrets from Proton Pass", "pass-cli", "Proton Pass vault", "API key from vault".
-disable-model-invocation: yes
+disable-model-invocation: true
 ---
 
 # Pass CLI — Secrets Retrieval

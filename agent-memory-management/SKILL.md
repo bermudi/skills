@@ -5,7 +5,7 @@ license: Apache-2.0
 metadata:
   version: "3.1"
   topic: context-engineering
-disable-model-invocation: yes
+disable-model-invocation: true
 ---
 
 # Agent Memory & Session Management
