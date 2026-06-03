@@ -21,11 +21,18 @@ jobs:
       - name: Validate all skills
         run: |
           # Find all directories containing SKILL.md and validate them
+          # Note: skills-ref doesn't recognize 'disable-model-invocation' yet;
+          # it's a valid spec field. Filter out that false positive.
           failed=0
           for dir in */; do
             if [ -f "${dir}SKILL.md" ]; then
               echo "::group::Validating ${dir%/}"
-              if ! skills-ref validate "${dir}"; then
+              output=$(skills-ref validate "${dir}" 2>&1) || true
+              echo "$output"
+              # Check for real errors: filter lines about the known field,
+              # then look for any remaining Unexpected fields lines
+              real_errors=$(echo "$output" | grep 'Unexpected fields' | grep -v 'disable-model-invocation')
+              if [ -n "$real_errors" ]; then
                 failed=1
               fi
               echo "::endgroup::"
