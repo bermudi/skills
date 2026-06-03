@@ -11,6 +11,7 @@ license: Apache-2.0
 metadata:
   version: "1.0"
   topic: agent-configuration
+disable-model-invocation: yes
 ---
 
 # Create Project AGENTS.md

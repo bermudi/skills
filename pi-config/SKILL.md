@@ -7,6 +7,7 @@ description: >
   how to set up pi for a project. Also triggers on: "pi config", "pi settings",
   "configure pi", "customize pi", "pi setup", "how do I change X in pi",
   "pi keybindings", "pi AGENTS.md", "pi theme".
+disable-model-invocation: yes
 ---
 
 # Pi Configuration

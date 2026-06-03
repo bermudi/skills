@@ -11,6 +11,7 @@ description: >
   the agent made and why. Also triggers when users ask about "agent
   observability," "agent tracing," "agent evals," "LLM-as-judge," "quality
   scoring," "debugging agent decisions," or "why did my agent do X."
+disable-model-invocation: yes
 ---
 
 # Agent Observability
