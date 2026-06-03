@@ -31,7 +31,7 @@ jobs:
               echo "$output"
               # Check for real errors: filter lines about the known field,
               # then look for any remaining Unexpected fields lines
-              real_errors=$(echo "$output" | grep 'Unexpected fields' | grep -v 'disable-model-invocation')
+              real_errors=$(echo "$output" | grep 'Unexpected fields' | grep -v 'disable-model-invocation' || true)
               if [ -n "$real_errors" ]; then
                 failed=1
               fi
