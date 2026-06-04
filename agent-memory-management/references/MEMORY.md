@@ -178,6 +178,33 @@ IF last_accessed > 7 days:
 - **Minimum floor**: Never decay below 0.1 (allows recovery if the memory becomes relevant again).
 - **Access refresh**: When a memory is retrieved and used, reset its `accessed_at` timestamp.
 
+### Temporal Tags
+
+Every memory should carry explicit temporal metadata to help the agent calibrate trust and handle conflicting information:
+
+```yaml
+---
+created_at: "2026-06-03T14:22:00Z"
+updated_at: "2026-06-03T14:22:00Z"
+last_accessed: "2026-06-03T15:00:00Z"
+temporal_context: "after macOS Sequoia update, before Tahoe release"
+---
+```
+
+**Why explicit temporal tags matter:**
+- **Conflict resolution**: When a user says "I like cats" after previously saying "I like dogs", the newer timestamp wins.
+- **Stale detection**: Memories older than a configurable threshold (e.g., 90 days) can be marked as potentially stale during injection.
+- **Decay accuracy**: `last_accessed` drives confidence decay; `created_at` enables half-life calculations independent of access patterns.
+- **Temporal context**: Free-text field describing the surrounding situation (e.g., "during the Q2 migration") helps the agent understand when a memory applies.
+
+**Injection format**: When inserting memory into context, annotate age:
+```
+- User prefers dark mode (learned 3 days ago, last confirmed today)
+- Project uses Bun (learned 2 months ago)
+```
+
+This lets the agent weight memories appropriately — recent, frequently confirmed memories get more trust.
+
 ## 3. Provenance & Trust
 
 Track the lineage of every memory — and detect when the source disappears.
@@ -230,6 +257,21 @@ This catches quality issues that slipped through the extraction pipeline.
 - **Session-Level**: Isolated to a single conversation (used for compaction).
 - **Agent-Level**: Per-agent workspace with independent persona, memory, and session files.
 - **Application-Level**: Shared baseline knowledge for all users (must be sanitized).
+
+## 5. Context Profiles
+
+Different agent archetypes have different context pressure patterns. Design your memory strategy around your agent's profile:
+
+| Profile | Context Dominant Component | Memory Strategy | Example |
+|:---|:---|:---|:---|
+| **RAG-heavy assistant** | Retrieved knowledge, citations, policy documents | Chunk documents aggressively; use hybrid search; inject top-K into system prompt | Policy QA agent, documentation assistant |
+| **Tool-heavy workflow** | Frequent tool calls and large returned payloads | Truncate tool outputs first; compact old tool results; keep tool definitions minimal | CI/CD agent, data pipeline agent |
+| **Conversational concierge** | Growing dialogue history, assistant reasoning tokens | Summarize early and often; extract facts to long-term memory; trim at user boundaries | Coaching agent, travel planner |
+
+**Profile-specific tuning:**
+- **RAG-heavy**: Prioritize retrieval quality over session compaction. Use larger chunk overlap (120 tokens) since exact citation matters.
+- **Tool-heavy**: Set aggressive tool-output caps (3KB old, 50KB recent). Compaction should trigger at 70% context fill, not 85%.
+- **Conversational**: Summarization is your primary tool. Use structured summary prompts with explicit fields (identifiers, milestones, current status, next steps). See `SESSIONS.md` for summary prompt templates.
 
 ## 5. Dual Storage Pattern
 

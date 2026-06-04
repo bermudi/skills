@@ -53,6 +53,27 @@ Choose your memory architecture based on your constraints, not your ambitions.
 └─────────────────────────────────────────────────────────┘
 ```
 
+### Memory Taxonomy
+
+Separate two fundamentally different kinds of memory. Mixing them causes behavior drift:
+
+- **Instruction memory**: Human-written rules that tell the agent how to work — coding standards, directory conventions, build commands, naming conventions, safety rules. These are stable, version-controlled, and loaded at session start. Equivalent to `AGENTS.md` / `CLAUDE.md` / `.cursorrules`.
+- **Learning memory**: Accumulated by the agent over time from corrections, preferences, failed attempts, common commands, and project habits. These evolve and may be stale.
+
+**Rule**: Write rules, policies, and behavioral constraints into instruction memory. Write experience, preferences, temporary discoveries, and retrospective takeaways into learning memory.
+
+**Memory scopes** — define who owns it, who shares it, and who it applies to:
+
+| Scope | Storage | Examples | Commit to Git? |
+|:---|:---|:---|:---|
+| **Organization** | System-level path (`/etc/system.md`, MDM, Ansible) | Security requirements, compliance, baseline code review standards | No — distributed centrally |
+| **Project** | Repo root (`AGENTS.md`, `.claude/rules/`) | Architecture docs, build/test commands, naming conventions, API layout | Yes |
+| **User** | Home dir (`~/.config/devin/`, `~/.claude/`) | Personal coding style, preferred debugging sequence, output format | No — personal |
+| **Local** | Working copy (`local.md`) | Test accounts, dev ports, mock endpoints, machine-specific notes | No — `.gitignore` |
+| **Role / Subagent** | Per-agent memory dir | Testing agent remembers CI behavior; refactoring agent remembers module boundaries | Optional |
+
+Keep the main instruction file under 200 lines. Split specialized rules into modular files (`testing.md`, `api-design.md`, `security.md`) and scope them to specific subdirectories or file types so they load only when needed.
+
 ## Memory Filesystem Design
 
 When you choose a file-based memory architecture, the filesystem structure is your primary design lever. Getting this right determines how efficiently agents can store, discover, and update knowledge.
@@ -130,6 +151,19 @@ Track every change to memory with a version control system (git is the natural c
 - **Diff-based sync**: When memory is synced between processes or machines, diffs are smaller and more efficient than full copies.
 
 This is especially critical for multi-agent systems where concurrent writes need coordination (see Multi-Agent Memory Coordination below).
+
+## Context Failure Modes
+
+Long-running agents degrade when context is mismanaged. Four failure modes to monitor and mitigate:
+
+| Failure Mode | What it looks like | Mitigation |
+|:---|:---|:---|
+| **Context Burst** | Sudden token spike from a large tool output or document dump dumped into context | Control tool output size; return high-signal fields only; set output caps (e.g., 3KB for old tool results) |
+| **Context Conflict** | Contradictory instructions in the same context (e.g., "never issue refunds without warranty" + "VIP customers get full refunds") | Be explicit and structured in prompts; keep tool sets small and non-overlapping; avoid ambiguous definitions |
+| **Context Poisoning** | Incorrect information enters context and propagates across turns (bad summarization, wrong facts in memory) | Filter aggressively before persistence; mark memory as potentially stale; validate summaries against source |
+| **Context Noise** | Redundant or overly similar tool definitions, excessive system instructions, or too many loaded rule files | Scope rules to relevant subdirectories; load only what's needed; keep rule files under 200 lines; use progressive disclosure |
+
+**Prevention**: Set context thresholds at 40–80% of the window limit — do not wait until the hard limit. Track token allocation across system instructions, tool definitions, retrieved knowledge, and conversation history.
 
 ## Implementation Workflow
 
@@ -289,4 +323,14 @@ Aim for 15–25 files organized in 2–3 levels of hierarchy (see Memory Filesys
 - **Anti-Poisoning**: Filter noise before it becomes memory. Use guard levels to let users control the strictness/coverage tradeoff.
 - **Graceful Degradation**: Always have a fallback when compaction or summarization fails — raw archive, truncation, or read-only mode.
 - **File-First When Possible**: Plain Markdown is human-readable, git-friendly, and has zero vendor lock-in. Add a pluggable vector/FTS index layer on top (like ReMeLight) when you need semantic search, keeping files as the source of truth. When you use git for versioning, agents can manage memory using their full terminal capabilities — bash for batch operations, scripts for programmatic processing, and standard git workflows for coordination.
+
+### Memory Guardrails for Injection
+
+When injecting retrieved memory back into the agent's context, mark it as auxiliary — not authoritative:
+
+- **Stale marker**: Prepend injected memory with `"The following memory may be stale or incomplete:"`. This prevents the agent from treating aged memories as ground truth.
+- **Precedence rule**: Live context (user's current message, recent tool outputs) always overrides injected memory. If a memory contradicts current context, prefer current context.
+- **Avoid overweighting**: Do not stuff so much memory into the system prompt that it drowns out current task instructions. Use token budgets (~2000 characters for medium corpora).
+- **No secrets in memory**: Memory files are not vaults. Never store API keys, passwords, or tokens in learning memory. Use environment variables or a secrets manager instead.
+- **Temporal tagging**: Include `created_at` and `updated_at` on every memory. When injecting, sort by recency and annotate age (e.g., `"(3 days ago)"`). This helps the agent calibrate trust.
 - **Bilingual Awareness**: If your users are multilingual, ensure extraction patterns, tokenization, and deduplication work across languages. CJK bigram tokenization and bilingual regex patterns are validated patterns.

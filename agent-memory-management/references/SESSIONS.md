@@ -24,6 +24,17 @@ As conversations grow, you must compact the history to manage costs and avoid "c
 - **Time-Based**: Trigger after a period of inactivity (e.g., 30 minutes).
 - **Event-Based**: Trigger upon task completion or topic change.
 
+### Context Failure Modes to Monitor
+
+| Failure Mode | Signature | Compaction Response |
+|:---|:---|:---|
+| **Context Burst** | Sudden token spike from a single tool output or document dump | Truncate that specific tool output immediately; cap at 3KB |
+| **Context Conflict** | Contradictory instructions or tool results in the same turn | Flag for review; do not compact into summary until resolved |
+| **Context Poisoning** | Incorrect information propagates across turns via bad summaries | Validate summaries against source messages before persisting |
+| **Context Noise** | Redundant tool definitions or excessive loaded rule files | Scope rules to relevant files; unload irrelevant tool definitions |
+
+Set **thresholds at 40–80%** of context window capacity — do not wait until the hard limit. Compaction is a prevention tool, not an emergency brake.
+
 ## Tiered Compaction (Production Pattern)
 
 Single-strategy compaction breaks down in long or complex conversations. Instead, escalate through tiers based on context pressure:
@@ -68,6 +79,35 @@ Compaction triggered (75% threshold)
 ```
 
 **Best for**: Any system where important information surfaces in long conversations and might be lost during compaction. Particularly valuable for agents that work on complex, multi-step tasks.
+
+### Summary Prompt Template
+
+When using LLM summarization, provide a structured prompt that forces temporal ordering, contradiction detection, and hallucination control:
+
+```markdown
+You are a senior support assistant. Summarize the conversation below into a
+structured factual summary. Be careful with contradictions — if the user said
+something different earlier, note the change. Maintain temporal ordering.
+
+Include these fields:
+- Product / Environment: device, OS version, purchase location
+- Reported Issues: what the user asked about
+- What Worked: steps or advice that resolved or helped
+- What Didn't Work: steps tried that failed
+- Identifiers: order numbers, account IDs, model numbers
+- Key Timelines: purchase date, update date, service dates
+- Current Status: where things stand now
+- Next Recommended Steps: what should happen next
+
+Conversation:
+{{conversation_history}}
+
+Summary:
+```
+
+**Why structured summaries beat freeform**: A freeform paragraph accumulates contradictions over time and becomes harder to parse. Structured fields make it obvious when "What Worked" in turn 3 conflicts with "What Didn't Work" in turn 5. They also make the summary machine-parseable for downstream extraction.
+
+**Hallucination control**: Explicitly instruct the summarizer to flag uncertainty. If the model is unsure about a fact, it should write `"[uncertain: user may have said X or Y]"` rather than guessing.
 
 ## User-Turn Boundary Detection
 

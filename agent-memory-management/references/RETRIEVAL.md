@@ -93,9 +93,54 @@ Don't choose between proactive and reactive — use both channels simultaneously
 
 **Channel A + B** is the recommended baseline. Add **Channel C** only when memory recall failure is costly and the latency budget allows it.
 
+## Chunking for Embeddings
+
+When indexing memory files for vector search, don't embed entire files. Break them into chunks:
+
+- **Chunk size**: ~400 tokens per chunk
+- **Overlap**: ~80 tokens between consecutive chunks
+- **Line ranges**: Store start/end line numbers with each chunk so the agent can cite exactly where a memory came from
+
+**Why chunk?** Long documents diluted into a single embedding lose specificity. A 3000-token file about a project's testing conventions, API design, and security rules produces a single "average" vector that matches poorly against specific queries. Chunking keeps each embedding focused.
+
+**Overlap rationale**: 80 tokens (~20%) ensures concepts that span chunk boundaries aren't split. Queries about "testing authentication flows" might hit the boundary between a chunk ending with "authentication" and the next starting with "test strategies." Overlap gives both chunks a chance to match.
+
+### Embedding Cache
+
+Embedding API calls are expensive and add up quickly. Cache embeddings keyed by content hash:
+
+```
+embedding_cache (
+    content_hash  TEXT PRIMARY KEY,   -- SHA-256 of chunk text
+    provider      TEXT,               -- e.g., "openai", "ollama"
+    model         TEXT,               -- e.g., "text-embedding-3-small"
+    embedding     BLOB                -- float32 array
+)
+```
+
+**Sync workflow**: During incremental sync, hash each chunk's text. If the hash exists in the cache with the same provider+model, reuse the embedding. Only call the embedding API for new or changed chunks.
+
+**Re-index trigger**: If the embedding provider, model, or chunk size changes, detect the mismatch in metadata and rebuild the entire index. Do this safely by building into a temporary database, then atomically swapping it into place.
+
 ## Hybrid Search
 
 Don't choose between keyword and semantic search — use both. Users sometimes search with exact terms ("project Aurora") and sometimes with conceptual queries ("that thing we discussed about the deployment").
+
+### Candidate Multiplier
+
+For hybrid fusion to work well, fetch more candidates than the final result count:
+
+- **Multiplier**: 4× the requested result count (e.g., if the agent asks for 6 results, fetch 24 from each search method)
+- **Why**: Fusion can only surface documents that appear in at least one search's candidate set. A low recall from one method gets rescued by the other only if the document is in the candidate pool.
+- **Cap**: Hard cap at 200 candidates total to prevent excessive latency.
+
+### Minimum Score Threshold
+
+After fusion and sorting, filter results below a relevance floor:
+
+- **Default threshold**: 0.35
+- **Rationale**: Below this, results are typically noise — vaguely related concepts that don't actually answer the query.
+- **Tuning**: Raise to 0.50 for high-stakes domains (medical, legal) where false positives are costly. Lower to 0.25 for exploratory retrieval where breadth matters.
 
 ### Reciprocal Rank Fusion (RRF)
 
@@ -200,6 +245,60 @@ MMR(item) = λ × relevance(item) − (1−λ) × max_similarity(item, selected)
 - **Proactive (Force Search)**: Load memories automatically at the start of every turn (1s timeout). Higher availability but adds latency to every turn. Best for high-stakes recall.
 - **Reactive (Memory-as-a-Tool)**: The agent calls `memory_search` only when it needs more context. More efficient but requires an extra LLM reasoning step. Best for most use cases.
 - **Always-Loaded**: Identity and persona files always in system prompt. Zero runtime cost but limited to a fixed set of files. Recommended baseline for all systems.
+
+## Memory Injection Guardrails
+
+When inserting retrieved memories into the agent's working context, follow these rules to prevent memory from hijacking the agent's reasoning:
+
+### Stale Marker
+
+Always prepend injected memory with a stale/incomplete warning:
+
+```
+The following memory may be stale or incomplete. Prefer current context
+if there is any contradiction:
+
+- User prefers dark mode (learned 3 days ago)
+- Project uses Bun instead of npm (learned 2 months ago)
+```
+
+This framing prevents the agent from treating aged memories as ground truth. It mirrors how a human treats notes from last month — useful context, but verify against current reality.
+
+### Precedence Rules
+
+Establish a clear hierarchy for conflicting information:
+
+1. **Current user message** > **Recent tool output** > **Injected memory** > **System instructions**
+2. If memory contradicts the user's explicit current statement, ignore the memory.
+3. If two memories conflict, prefer the one with the more recent `updated_at` timestamp.
+4. If timestamps are similar, prefer the memory with higher confidence score.
+
+### Overweighting Prevention
+
+Memory should augment, not drown, the current task:
+
+- **Small corpus** (< 50 memories): Inject everything. No risk of overweighting.
+- **Medium corpus** (50–500): Budget ~2000 characters for memory in the system prompt. Report omitted count: `(+N memories omitted for brevity)`.
+- **Large corpus** (500+): Use memory-as-a-tool. The agent explicitly requests what it needs, so injection is bounded by `maxResults`.
+
+### Format for Injection
+
+Structure injected memory to help the agent calibrate trust:
+
+```
+[Memory: project/testing.md:12-18 | score: 0.87 | age: 3 days]
+Run `pnpm test` after modifying business logic. Keep test files co-located
+with the code they test.
+
+[Memory: user/preferences.md:5-8 | score: 0.92 | age: 2 months]
+User prefers compact code — collapse duplicate else branches, avoid
+unnecessary nesting.
+```
+
+Each entry includes:
+- **Source**: file path and line range (enables citation)
+- **Score**: fusion score (helps the agent assess relevance)
+- **Age**: how long ago the memory was learned (helps assess staleness)
 
 ## Optimization Techniques
 
