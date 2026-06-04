@@ -76,7 +76,7 @@ count_checked() {
     grep -cP '^\s*- \[x\]' "$1" 2>/dev/null || echo "0"
 }
 
-PROMPT="Apply litespec change '${CHANGE}'"
+PROMPT="Use your litespec-build skill to implement the next phase of change '${CHANGE}'. Read specs/changes/${CHANGE}/tasks.md, implement the first unchecked phase, mark tasks done, commit."
 
 ITERATION=0
 PREV_UNCHECKED=-1

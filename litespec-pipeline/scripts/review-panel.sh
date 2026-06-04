@@ -121,13 +121,13 @@ build_command() {
             if [[ -n "$provider" ]]; then
                 prov_flag="--provider $provider"
             fi
-            echo "pi -p $prov_flag --model '$model' --session-dir '$sessdir' 'Review litespec change $CHANGE' > '$outfile' 2>'$logfile'; echo DONE"
+            echo "pi -p $prov_flag --model '$model' --session-dir '$sessdir' 'Use your litespec-review skill to review litespec change $CHANGE. Read all change artifacts and implementation code. Produce a full review report.' > '$outfile' 2>'$logfile'; echo DONE"
             ;;
         devin)
-            echo "devin -p --model '$model' --permission-mode dangerous -- 'Review litespec change $CHANGE' > '$outfile' 2>'$logfile'; echo DONE"
+            echo "devin -p --model '$model' --permission-mode dangerous -- 'Use your litespec-review skill to review litespec change $CHANGE. Read all change artifacts and implementation code. Produce a full review report.' > '$outfile' 2>'$logfile'; echo DONE"
             ;;
         agent)
-            echo "agent -p --model '$model' --trust 'Review litespec change $CHANGE' > '$outfile' 2>'$logfile'; echo DONE"
+            echo "agent -p --model '$model' --trust 'Use your litespec-review skill to review litespec change $CHANGE. Read all change artifacts and implementation code. Produce a full review report.' > '$outfile' 2>'$logfile'; echo DONE"
             ;;
         *)
             echo "Error: unknown tool '$tool'" >&2

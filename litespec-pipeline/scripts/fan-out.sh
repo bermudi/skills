@@ -55,7 +55,7 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-PROMPT="Review litespec change '${CHANGE}'"
+PROMPT="Use your litespec-review skill to review litespec change '${CHANGE}'. Read all change artifacts (proposal, specs, design, tasks) and the implementation code. Produce a full review report."
 
 PIDS=()
 NAMES=()
