@@ -308,7 +308,7 @@ Each entry includes:
 - **Embedding Cache**: SHA-256 keyed LRU cache for embedding vectors (~58MB for 10K entries).
 - **Incremental Indexing**: Track file hashes and mtimes to only reindex changed content.
 - **File Watcher**: Monitor memory files for changes and asynchronously update the search index.
-- **Expansion Pool**: Fetch 3x candidate pool (capped at 200) before fusion, then take top-K from fused results. Improves recall without increasing final result size.
+- **Expansion Pool**: Fetch 4× candidate pool (capped at 200) before fusion, then take top-K from fused results. Improves recall without increasing final result size.
 
 ## Token Budgets
 

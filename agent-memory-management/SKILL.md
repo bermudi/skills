@@ -332,5 +332,4 @@ When injecting retrieved memory back into the agent's context, mark it as auxili
 - **Precedence rule**: Live context (user's current message, recent tool outputs) always overrides injected memory. If a memory contradicts current context, prefer current context.
 - **Avoid overweighting**: Do not stuff so much memory into the system prompt that it drowns out current task instructions. Use token budgets (~2000 characters for medium corpora).
 - **No secrets in memory**: Memory files are not vaults. Never store API keys, passwords, or tokens in learning memory. Use environment variables or a secrets manager instead.
-- **Temporal tagging**: Include `created_at` and `updated_at` on every memory. When injecting, sort by recency and annotate age (e.g., `"(3 days ago)"`). This helps the agent calibrate trust.
-- **Bilingual Awareness**: If your users are multilingual, ensure extraction patterns, tokenization, and deduplication work across languages. CJK bigram tokenization and bilingual regex patterns are validated patterns.
+- **Temporal tagging**: Include `created_at` and `updated_at` on every memory. When injecting, sort by recency and annotate age (e.g., `"(3 days ago)"`). This helps the agent calibrate trust. See [Memory Lifecycle Deep-Dive](references/MEMORY.md) for CJK bigram tokenization and bilingual extraction patterns.
