@@ -1,18 +1,16 @@
 ---
 name: sub-tasks
 description: >
-  Delegate work to subagents and zellij panes — spawn parallel tasks, run code reviews,
-  investigate codebases, launch long-running processes, drive external coding agents.
+  Delegate work to subagents — spawn parallel tasks, run code reviews,
+  investigate codebases, launch long-running processes.
   Triggers on: "delegate", "subagent", "spawn", "in parallel", "review this", "scout",
-  "investigate", "run in background", "zellij", "launch agent", "long-running",
+  "investigate", "run in background", "launch agent", "long-running",
   "code review", "multi-agent", "do these at the same time", "while that runs".
 ---
 
 # Sub-Tasks: Multiplying Yourself
 
-One agent, many hands. Use `delegate` for in-session parallelism (fast, structured, same process). Use zellij for long-running commands, interactive TUIs, and external coding agents (persistent, visible, cross-process).
-
-Read `references/zellij-quickref.md` when orchestrating terminal panes, launching external agents, or running long-lived processes.
+One agent, many hands. Use `delegate` for in-session parallelism — fast, structured, same process.
 
 ---
 
@@ -27,12 +25,6 @@ What are you doing?
 │
 ├─ Need specialist eyes (review, investigation, research)
 │  └─ delegate with the right agent
-│
-├─ Long-running, needs monitoring, or interactive TUI
-│  └─ zellij pane
-│
-├─ External coding agent (pi, claude, opencode in a terminal)
-│  └─ zellij pane + drive it with write-chars/send-keys
 │
 └─ Multi-turn conversation with a subagent
    └─ delegate with sessionId
@@ -226,43 +218,6 @@ Expensive but sometimes necessary. Prefer summarizing what it needs in the promp
 
 ---
 
-## When to Use Zellij Instead
-
-| Use case | Use |
-|---|---|
-| Multiple independent reads/edits/analyses | `delegate` |
-| Code review or investigation | `delegate` with agent |
-| Long-running build, server, test suite | zellij pane |
-| Driving an interactive coding agent (pi, claude, etc.) | zellij pane |
-| Process that needs monitoring or human takeover | zellij pane |
-| One-shot agent command with file output | zellij `run -- bash -c 'agent -p "..." > /tmp/out.txt'` |
-
-Read `references/zellij-quickref.md` for the full zellij command reference (session management, pane operations, driving coding agents, monitoring scripts).
-
-### Quick Zellij Pattern
-
-```bash
-# Create headless session
-SESSION="task-$(date +%s)"
-zellij attach "$SESSION" --create-background 2>/dev/null
-zellij list-sessions | grep -qx "$SESSION" || { echo "Session creation failed"; exit 1; }
-export ZELLIJ_SESSION_NAME="$SESSION"
-
-# Launch a process
-PANE=$(zellij run -n "build" -- make test)
-
-# Check on it later
-zellij action dump-screen -p "$PANE" | sed 's/\x1b\[[0-9;]*m//g'
-
-# Launch a coding agent and send it a prompt
-PANE=$(zellij run -n "pi" -- pi --extension roundtable)
-# Wait for prompt, then:
-zellij action write-chars -p "$PANE" "implement the auth middleware"
-zellij action send-keys -p "$PANE" "Enter"
-```
-
----
-
 ## When NOT to Delegate
 
 - You can answer by reading one or two files directly — don't spawn a scout to do what a single `read` handles.
@@ -277,5 +232,3 @@ zellij action send-keys -p "$PANE" "Enter"
 - Subagents only have the core tools (read, write, edit, bash). They don't inherit your MCP tools or skills unless you specify `skills` in the task.
 - `delegate` is synchronous by default — all tasks must complete before you get results. Use `async: true` to fire-and-forget.
 - `with-parent-transcript` injects your *entire* conversation. A 50k-token session means the subagent starts 50k tokens deep. Use sparingly.
-
-**Zellij:** see full gotchas in `references/zellij-quickref.md`.
