@@ -29,7 +29,7 @@ The `SKILL.md` file must contain YAML frontmatter followed by Markdown content.
 | `compatibility` | No       | Max 500 characters. Indicates environment requirements (intended product, system packages, network access, etc.). |
 | `metadata`      | No       | Arbitrary key-value mapping for additional metadata.                                                              |
 | `allowed-tools` | No       | Space-separated string of pre-approved tools the skill may use. (Experimental)                                    |
-| `disable-model-invocation` | No | Set to `yes` to prevent the model from automatically loading this skill. Use for manual-only workflows. Default: `no`. |
+| `disable-model-invocation` | No | Set to `true` to prevent the model from automatically loading this skill. Use for manual-only workflows. Default: `false`. |
 
 <Card>
   **Minimal example:**

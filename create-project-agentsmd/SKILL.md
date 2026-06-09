@@ -1,12 +1,12 @@
 ---
 name: create-project-agentsmd
 description: >
-  Generate a well-structured AGENTS.md (or CLAUDE.md, .cursorrules, copilot-instructions.md)
-  instruction file for a project. Use when the user asks to "create an AGENTS.md", "set up
-  agent instructions", "write a CLAUDE.md", "add project context for AI", "generate instruction
-  file", or mentions configuring any AI coding agent's behavior for their project. Produces
-  instruction files that encode goals, shape, and stable project knowledge — avoiding
-  volatile implementation specifics — so they stay accurate as the codebase evolves.
+  Generate a well-structured AGENTS.md (or CLAUDE.md, .cursorrules) instruction
+  file for a project. Use when the user asks to "create an AGENTS.md", "set up
+  agent instructions", "write a CLAUDE.md", or wants to configure an AI coding
+  agent's behavior for their project. Produces instruction files that encode
+  goals, shape, and stable project knowledge — avoiding volatile implementation
+  specifics — so they stay accurate as the codebase evolves.
 license: Apache-2.0
 metadata:
   version: "1.0"
@@ -61,6 +61,33 @@ These don't rot — CDN URLs and schemas change far less often than file locatio
 | "Currently implemented in X" notes | Will be wrong tomorrow |
 
 **The litmus test:** Could the agent discover this from code alone? If yes, cut it. If no — or if discovery would be expensive enough that documenting it saves real time — keep it.
+
+## File It, Don't Delete It
+
+Cutting from AGENTS.md doesn't mean the knowledge should vanish. If something took real effort to figure out — an investigation, a comparison of approaches, a non-obvious gotcha — it has value. It just doesn't belong in a file injected into *every* agent interaction.
+
+**File elsewhere when:**
+- The context is useful but too niche for the root file (e.g., a specific subsystem's conventions)
+- It's an explanation of *why* a decision was made, not a rule the agent needs to follow
+- It documents a complex workflow that only matters in certain tasks
+- It's a gotcha that's real but rare — worth knowing about, not worth taxing every interaction
+
+**Where to file it:**
+- `docs/adr/` (or `docs/decisions/`) for investigations and tradeoff analysis
+- Subdirectory `AGENTS.md` (or `CLAUDE.md`) for per-directory rules
+- `docs/agent-context/` or project `docs/` for anything the agent reads on demand
+
+Reference the file from AGENTS.md with a one-liner. Most agents have a `read` tool — a path mention is enough to prompt them to load it.
+
+```markdown
+# AGENTS.md
+## Architecture
+Monorepo with event-driven backend. See `docs/adr/003-event-sourcing.md` for the rationale.
+```
+
+**The refined litmus test:** Two questions, not one:
+1. Could the agent discover this from code alone? → If yes, cut it.
+2. Would rediscovering it from scratch cost real time or risk getting it wrong? → If yes, file it — just not in the root AGENTS.md.
 
 ## Before Writing
 
@@ -158,17 +185,19 @@ Check the existing code for the current query patterns.
 
 This doesn't mean "never include specifics." Stable reference facts like API endpoints, database schemas, and domain definitions belong in AGENTS.md — the agent can't infer them. The rule is: avoid coupling to *current implementation choices likely to change*, not *stable project knowledge.*
 
+### ❌ Over-pruning until the file says nothing
+The other extreme of including too much. If your AGENTS.md is just "write clean code, test things, follow conventions" — delete it. It's wasting tokens without guiding behavior.
+
+But don't mistake *specific* for *volatile*. A note like "we use event sourcing because we need audit trails" is specific *and* stable. Cutting it because it's "too detailed" leaves the agent guessing at every architectural decision. If an investigation took real time, the answer belongs *somewhere* — even if it's not in the root file. See [File It, Don't Delete It](#file-it-dont-delete-it).
+
 ## Tool-Specific Adaptation
 
 The same principles apply regardless of the file name. Adapt the output based on the target tool:
 
 | Tool | File | Notes |
 |------|------|-------|
-| Claude Code | `CLAUDE.md` | Supports hierarchy — root + per-directory. Use `@path/to/file.md` for imports. |
-| GitHub Copilot | `.github/copilot-instructions.md` | Use `applyTo` in `.github/instructions/*.md` for path-scoped rules. |
+| Pi | `AGENTS.md` | Walks up parent directories. No inline imports — reference files by path, agent reads on demand via `read` tool. |
 | Cursor | `.cursorrules` | Keep to one file at root. |
-| Cline | `.clinerules/*.md` | Supports conditional `paths:` frontmatter. Split by topic. |
-| OpenHands | `.openhands/microagents/` | Use repo microagents for always-active rules, knowledge for trigger-based. |
 | Generic | `AGENTS.md` | Widely recognized. Good default. |
 
 If the user doesn't specify, produce `AGENTS.md` and note alternatives.
@@ -181,9 +210,11 @@ If the user doesn't specify, produce `AGENTS.md` and note alternatives.
 4. **Count** — if over 200 lines, cut more. Every line is a tax on every interaction.
 5. **Write** the file to the project root (or wherever the target tool expects it)
 
+## Maintaining the File
+
+- **Update when patterns change, not when files move.** If you switch from REST to GraphQL, update the architecture section. If you rename a file, don't bother.
+
 ## Gotchas
 
 - **Don't duplicate the README.** The agent can read it. AGENTS.md should contain things the README doesn't — operational rules, constraints, non-obvious conventions.
 - **Don't try to be comprehensive.** A focused 50-line file outperforms a diffuse 300-line one. The agent has context limits and attention limits.
-- **Update when patterns change, not when files move.** If you switch from REST to GraphQL, update the architecture section. If you rename a file, don't bother.
-- **HTML comments are hidden from some agents.** In Claude Code, `<!-- -->` in CLAUDE.md is stripped before injection. Don't put rules in comments.
