@@ -19,7 +19,7 @@ compatibility: Requires agent-browser CLI (npm install -g agent-browser) and Chr
 allowed-tools:
   - Bash(agent-browser:*)
   - Bash(npx agent-browser:*)
-disable-model-invocation: yes
+disable-model-invocation: true
 ---
 
 # agent-browser
