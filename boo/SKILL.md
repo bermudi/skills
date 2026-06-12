@@ -6,7 +6,7 @@ description: >
   terminal sessions. Triggers on "run in background", "terminal session",
   "multiplexer", "send keys to terminal", "read terminal output", or
   any task involving interactive CLI programs that need scripted control.
-  Use boo instead of screen/tmux when automation or screen-reading is needed.
+
 license: MIT
 ---
 
@@ -105,7 +105,7 @@ Replaces sleep-and-poll loops. `--text` does a plain substring match against the
 
 ```bash
 boo new build -d -- make test
-boo wait build --text 'PASS\|FAIL' --timeout 5m
+boo wait build --text 'PASS' --timeout 5m
 boo peek build --scrollback
 boo kill build
 ```
