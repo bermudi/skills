@@ -1,14 +1,12 @@
 ---
 name: sub-tasks
 description: >
-  Delegate work to subagents or terminal sessions — spawn parallel AI tasks,
-  run code reviews, investigate codebases, drive interactive programs, automate
-  CLI workflows, manage long-running processes.
-  Triggers on: "subagent", "spawn", "delegate", "in parallel", "review this",
-  "scout", "investigate", "launch agent", "code review", "multi-agent",
-  "do these at the same time", "while that runs", "run in background",
-  "terminal session", "send keys", "read terminal output", "multiplexer",
-  "interactive program", "REPL", "TUI".
+  Delegate work to subagents or terminal sessions. Use when spawning parallel
+  AI tasks (code reviews, investigation, bulk edits), driving interactive
+  programs (builds, REPLs, TUIs, servers), or any workflow that needs
+  concurrent execution or scripted terminal control. Triggers on: "subagent",
+  "spawn", "delegate", "in parallel", "review this", "scout", "investigate",
+  "run in background", "terminal session", "send keys", "REPL", "TUI".
 ---
 
 # Sub-Tasks: Multiplying Yourself
@@ -75,7 +73,7 @@ Agents live in `.pi/agents/*.md`. Project-local agents override global ones. Cur
 | `context` | `fresh` (clean) or `with-parent-transcript` (inject full conversation — expensive). | `fresh` |
 | `sessionId` | Named persistent session. First call creates, subsequent reuse. | — |
 | `resumeFrom` | Absolute path to a previous session `.jsonl`. Agent resumes with full history. | — |
-| `action` | `prompt` (default), `close` (tear down session), `list` (show active). | `prompt` |
+| `action` | `prompt` (default), `close` (tear down session), `list` (show active), `poll` (check async tickets), `cancel` (abort async ticket). | `prompt` |
 
 ## Session Reuse (Multi-Turn)
 
@@ -83,16 +81,16 @@ Keep a subagent alive across multiple interactions:
 
 ```json
 // Create and run
-{ "prompt": "Investigate the auth module", "agent": "scout", "sessionId": "auth-research" }
+{ "tasks": [{ "prompt": "Investigate the auth module", "agent": "scout", "sessionId": "auth-research" }] }
 
 // Continue the same agent
-{ "prompt": "Now check the tests for that module", "sessionId": "auth-research" }
+{ "tasks": [{ "prompt": "Now check the tests for that module", "sessionId": "auth-research" }] }
 
 // Clean up
-{ "sessionId": "auth-research", "action": "close" }
+{ "tasks": [{ "sessionId": "auth-research", "action": "close" }] }
 ```
 
-Pooled agents auto-close after 10 minutes of inactivity.
+Pooled agents auto-close after 10 minutes of inactivity. Async tickets have a 30-minute hard timeout.
 
 ## Async Mode
 
@@ -111,7 +109,18 @@ Max 5 concurrent async tickets. Completed tickets auto-deliver results.
 
 ## Handling Failures
 
-When tasks fail, results include a `resumeFrom` path pointing to the failed session. Recovery: read the successful results, then `resumeFrom` the failed one with a corrective prompt.
+When tasks fail, results include a `resumeFrom` path pointing to the failed session. Recover by resuming with a corrective prompt:
+
+```json
+{
+  "tasks": [{
+    "prompt": "Continue — the server is running on :3000, retry the failed request",
+    "resumeFrom": "/home/user/.pi/agent/sessions/project/2026-01-01T12-00-00Z_abc123.jsonl"
+  }]
+}
+```
+
+Combine `resumeFrom` with `sessionId` to resume AND pool for further turns.
 
 ## `with-parent-transcript`
 
@@ -223,6 +232,8 @@ boo rename <name> <new-name>       # rename a session
 ```
 
 - Without `-- <command>`, the session runs `$SHELL`.
+- `boo new -d` prints the session name to stdout — useful for `NAME=$(boo new -d -- bash)`.
+- Sessions run with `TERM=xterm-256color`.
 - Commands accepting `<name>` also accept unique prefixes (e.g., `boo peek bu` matches "build").
 
 ### Sending Input — `boo send`
@@ -234,7 +245,7 @@ boo send <name> --key Enter                   # press Enter
 boo send <name> --key Up,Enter                # multiple keys
 ```
 
-**Critical**: `--text` is **literal** — no escape processing, no implicit newline. Add `--enter` explicitly. `--key` and `--text` cannot be combined in one call; use two `boo send` invocations.
+**Critical**: `--text` is **literal** — no escape processing, no implicit newline. Add `--enter` explicitly when sending a command (not needed when typing into a form field). `--key` and `--text` cannot be combined in one call; use two `boo send` invocations.
 
 Named keys: `Enter`, `Tab`, `Escape`, `Space`, `Backspace`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `C-a` through `C-z`.
 
@@ -246,7 +257,18 @@ boo peek <name> --scrollback     # screen + scrollback history
 boo peek <name> --json           # structured output with cursor/metadata
 ```
 
-Returns the **rendered screen** — what a human would see right now. `--scrollback` for history.
+Returns the **rendered screen** — what a human would see right now — reconstructed from terminal state, not a raw byte stream. `--scrollback` for history. `--json` outputs:
+
+```json
+{
+  "session": "build",
+  "title": "make",
+  "rows": 24,
+  "cols": 80,
+  "cursor": {"row": 5, "col": 0},
+  "screen": "...rendered text..."
+}
+```
 
 ### Waiting — `boo wait`
 
