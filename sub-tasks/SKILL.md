@@ -1,12 +1,9 @@
 ---
 name: sub-tasks
 description: >
-  Delegate work to subagents or drive terminal sessions for concurrent
-  execution. Use when spawning parallel AI tasks (code review across files,
-  codebase investigation, bulk refactors), running several subagents at once,
-  or driving interactive programs (builds, REPLs, TUIs, dev servers) and waiting
-  for their output. If it needs thinking, use delegate; if it needs a terminal,
-  use boo.
+  Delegate work to subagents or drive terminal sessions for concurrent/durable
+  execution. Use when spawning parallel AI tasks, running several subagents
+  at once, or driving interactive programs and waiting for their output.
 ---
 
 # Sub-Tasks: Multiplying Yourself
