@@ -1,12 +1,12 @@
 ---
 name: sub-tasks
 description: >
-  Delegate work to subagents or terminal sessions. Use when spawning parallel
-  AI tasks (code reviews, investigation, bulk edits), driving interactive
-  programs (builds, REPLs, TUIs, servers), or any workflow that needs
-  concurrent execution or scripted terminal control. Triggers on: "subagent",
-  "spawn", "delegate", "in parallel", "review this", "scout", "investigate",
-  "run in background", "terminal session", "send keys", "REPL", "TUI".
+  Delegate work to subagents or drive terminal sessions for concurrent
+  execution. Use when spawning parallel AI tasks (code review across files,
+  codebase investigation, bulk refactors), running several subagents at once,
+  or driving interactive programs (builds, REPLs, TUIs, dev servers) and waiting
+  for their output. If it needs thinking, use delegate; if it needs a terminal,
+  use boo.
 ---
 
 # Sub-Tasks: Multiplying Yourself
@@ -50,13 +50,9 @@ Spawn subagents that run in parallel. Each gets independent context, model, tool
 
 ## Available Agents
 
-Agents live in `.pi/agents/*.md`. Project-local agents override global ones. Current roster:
+Discover the agents available in *this* environment by calling `delegate({})` with no tasks — it prints a manual listing every agent with its model, tools, and description. **List first, then reference by name.**
 
-| Agent | Model | Specialty | Tools |
-|---|---|---|---|
-| **reviewer** | deepseek-v4-pro | Code review: bugs, security, edge cases. Read-only. | read, bash |
-| **scout** | deepseek-v4-flash | Codebase investigation: map architecture, trace imports. | read, bash |
-| **workhorse** | deepseek-v4-pro | Mechanical execution: bulk edits, boilerplate, refactors. | all |
+Agents live in `.pi/agents/*.md` (project-local) and `~/.pi/agent/agents/` (global); project-local overrides global by name. A typical roster includes a read-only reviewer, a scout for codebase investigation, and a workhorse for mechanical bulk edits — but the exact names, models, and tool sets are per-install. Don't assume a named agent exists; the recipe examples below use illustrative names.
 
 ## Task Fields
 
@@ -66,14 +62,22 @@ Agents live in `.pi/agents/*.md`. Project-local agents override global ones. Cur
 | `agent` | Named agent from `.pi/agents/`. Overrides: `model`, `tools`, `thinking`, `systemPrompt` all work inline. | parent model |
 | `systemPrompt` | Full system prompt. Required if no `agent`. | — |
 | `model` | e.g. `anthropic/claude-sonnet-4`. | agent default → parent |
-| `tools` | Array: `read`, `write`, `edit`, `bash`. | all four |
+| `tools` | Array of tool names. **Only** `read`, `write`, `edit`, `bash` exist for subagents — MCP/extension tools are not available. | all four |
 | `thinking` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. | agent default → off |
 | `skills` | Array of skill names to inject into the subagent's system prompt. | — |
 | `cwd` | Working directory. Accepts absolute, relative, and `~` paths. | parent session cwd |
 | `context` | `fresh` (clean) or `with-parent-transcript` (inject full conversation — expensive). | `fresh` |
 | `sessionId` | Named persistent session. First call creates, subsequent reuse. | — |
 | `resumeFrom` | Absolute path to a previous session `.jsonl`. Agent resumes with full history. | — |
-| `action` | `prompt` (default), `close` (tear down session), `list` (show active), `poll` (check async tickets), `cancel` (abort async ticket). | `prompt` |
+| `action` | Per-task: `prompt` (default), `close` (tear down a pooled session), `list` (show active sessions). | `prompt` |
+
+**Top-level delegate parameters** sit on the call itself, not inside `tasks[]`:
+
+- `tasks` — the array of task objects above.
+- `async` (boolean) — fire tasks in the background; returns a ticket ID immediately (see [Async Mode](#async-mode)).
+- `action` + `ticket` — async ticket control, no `tasks` needed: `poll` (list all tickets, or check one via `ticket`), `cancel` (abort a running ticket).
+
+Per-task `action` (`prompt` / `close` / `list`) and top-level `action` (`poll` / `cancel`) are different namespaces — don't mix them.
 
 ## Session Reuse (Multi-Turn)
 
@@ -105,7 +109,7 @@ Returns a ticket ID immediately. Poll with:
 - `delegate({ "action": "poll", "ticket": "abc123" })` — check one
 - `delegate({ "action": "cancel", "ticket": "abc123" })` — abort
 
-Max 5 concurrent async tickets. Completed tickets auto-deliver results.
+Max 5 concurrent async tickets (default; configurable via `~/.pi/agent/delegate.json` → `maxAsyncTickets`). Completed tickets auto-deliver results.
 
 ## Handling Failures
 
@@ -127,6 +131,8 @@ Combine `resumeFrom` with `sessionId` to resume AND pool for further turns.
 Injects your full conversation into the subagent. Token-expensive — only use when the subagent genuinely needs your entire context. For everything else, summarize what it needs in the `prompt`.
 
 ## Recipes
+
+Examples use illustrative agent names (`reviewer`, `scout`, `workhorse`). Run `delegate({})` to see what's available in your env and substitute — or omit `agent` to inherit the parent model.
 
 ### Code Review
 
@@ -153,7 +159,7 @@ Injects your full conversation into the subagent. Token-expensive — only use w
 }
 ```
 
-Specify thoroughness: **Quick** (key files), **Medium** (follow imports, default), **Thorough** (all deps + tests + types).
+State the thoroughness you want in the prompt — e.g. key files only, follow imports (a sensible default), or trace all deps + tests + types.
 
 ### Parallel Swarm
 
@@ -187,8 +193,8 @@ Specify thoroughness: **Quick** (key files), **Medium** (follow imports, default
 
 ## Gotchas
 
-- Subagents only have core tools (read, write, edit, bash). They don't inherit MCP tools or skills unless you specify `skills`.
-- `delegate` is synchronous by default. Use `async: true` to fire-and-forget.
+- Subagents are sandboxed to the four core tools (read, write, edit, bash). The `tools` field only accepts those names; MCP and extension tools are **never** available to subagents. Passing `skills` injects a skill's `SKILL.md` *instructions* into the system prompt (text) — it does not unlock extra tools.
+- `delegate` is synchronous by default. Sync calls run at most **3 tasks at once** (the rest queue, not fail) — default ceiling, configurable via `~/.pi/agent/delegate.json` → `maxConcurrent`. `async: true` moves execution to the background so you keep working: up to 5 tickets run independently, each internally capped the same way.
 - `with-parent-transcript` injects your *entire* conversation. A 50k-token session means the subagent starts 50k tokens deep.
 
 ---
@@ -220,67 +226,14 @@ Always create sessions detached (`-d`) — you are not attaching interactively.
 
 ## Commands
 
-### Session Management
+Run `boo help <command>` for canonical flags — `boo` is fully self-documenting. The five you'll touch: `new`, `send`, `peek`, `wait`, `kill` (plus `ls`, `rename` for housekeeping).
 
-```bash
-boo new <name> -d -- <command>     # new detached session running command
-boo new <name> -d -- bash          # new detached shell session
-boo ls [--json]                     # list sessions
-boo kill <name>                     # end a session
-boo kill --all                      # end every session
-boo rename <name> <new-name>       # rename a session
-```
+Two details worth knowing up front:
 
-- Without `-- <command>`, the session runs `$SHELL`.
-- `boo new -d` prints the session name to stdout — useful for `NAME=$(boo new -d -- bash)`.
-- Sessions run with `TERM=xterm-256color`.
-- Commands accepting `<name>` also accept unique prefixes (e.g., `boo peek bu` matches "build").
+- `boo new <name> -d -- <command>` prints the session name to stdout, so `NAME=$(boo new -d -- bash)` captures it for scripting.
+- Sessions run with `TERM=xterm-256color` — colors and cursor control render correctly.
 
-### Sending Input — `boo send`
-
-```bash
-boo send <name> --text 'make test' --enter   # type text + press Enter
-boo send <name> --key C-c                     # send Ctrl-C
-boo send <name> --key Enter                   # press Enter
-boo send <name> --key Up,Enter                # multiple keys
-```
-
-**Critical**: `--text` is **literal** — no escape processing, no implicit newline. Add `--enter` explicitly when sending a command (not needed when typing into a form field). `--key` and `--text` cannot be combined in one call; use two `boo send` invocations.
-
-Named keys: `Enter`, `Tab`, `Escape`, `Space`, `Backspace`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `C-a` through `C-z`.
-
-### Reading Output — `boo peek`
-
-```bash
-boo peek <name>                  # current screen
-boo peek <name> --scrollback     # screen + scrollback history
-boo peek <name> --json           # structured output with cursor/metadata
-```
-
-Returns the **rendered screen** — what a human would see right now — reconstructed from terminal state, not a raw byte stream. `--scrollback` for history. `--json` outputs:
-
-```json
-{
-  "session": "build",
-  "title": "make",
-  "rows": 24,
-  "cols": 80,
-  "cursor": {"row": 5, "col": 0},
-  "screen": "...rendered text..."
-}
-```
-
-### Waiting — `boo wait`
-
-```bash
-boo wait <name> --text 'PASS' --timeout 2m    # until screen contains text
-boo wait <name> --idle                         # until output settles (2s quiet)
-boo wait <name> --idle --timeout 30s           # settle with timeout
-```
-
-`--text` does a substring match against the rendered screen. `--idle` waits until no output for 2 seconds. Always set `--timeout`.
-
-**Exit codes**: `0` condition met, `1` error, `3` no such session, `4` timed out.
+The recipes below show these commands in real usage.
 
 ## Recipes
 
@@ -292,6 +245,19 @@ boo wait build --text 'PASS' --timeout 5m
 boo peek build --scrollback
 boo kill build
 ```
+
+### Interrupt a Running Session
+
+`--key` sends named keys — `C-c` stops a runaway build or REPL command:
+
+```bash
+boo send build --key C-c          # stop it
+boo wait build --idle --timeout 5s
+boo peek build --scrollback       # see where it stopped
+boo kill build
+```
+
+Named keys: `C-a`–`C-z`, `Enter`, `Tab`, `Escape`, arrows, `Home`/`End`. `--key` and `--text` can't combine in one call — use two.
 
 ### Drive an Interactive Program
 
@@ -328,6 +294,38 @@ else
   # failure — peek scrollback for errors
 fi
 ```
+
+### Long-Running Server (dev server)
+
+Start, gate on readiness, walk away — peek when something breaks.
+
+```bash
+# 1. Start detached
+boo new dev -d -- bun run dev
+
+# 2. Gate on the ready marker before touching it
+#    vite: 'Local:   http://localhost:5173'
+#    next: 'Ready in 1.2s'
+#    express: 'listening on port 3000'
+boo wait dev --text 'localhost:' --timeout 30s
+
+# ...edit files, run other tasks — HMR handles reloads...
+
+# 3. Something broke (compile error, user bug report) — read the history
+boo peek dev --scrollback | tail -50
+
+# 4. Config change HMR won't catch (.env, vite.config, tsconfig) → restart
+boo kill dev && boo new dev -d -- bun run dev
+boo wait dev --text 'localhost:' --timeout 30s
+
+# 5. Done with the session
+boo kill dev
+```
+
+- **Readiness gate is load-bearing.** Don't sleep blindly or race the server — `wait --text` on the URL/ready string it prints.
+- **`peek --scrollback` is the debug lens.** HMR events, compile errors, and request logs all land there.
+- **Know what survives HMR.** Code/component changes reload live; `.env`, config files, and port-binding changes need a full restart.
+- **Always `boo kill`.** A leaked `bun run dev` holds a port and a PTY.
 
 ## Gotchas
 
