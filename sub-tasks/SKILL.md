@@ -8,12 +8,12 @@ description: >
 
 # Sub-Tasks: Multiplying Yourself
 
-Two mechanisms, one routing rule: **if it needs *thinking*, use `delegate`. If it needs a *terminal*, use `boo`.**
+Two mechanisms, one routing rule: **if it needs *thinking*, use `delegate`. If it needs a durable or interactive terminal session, use `boo`; otherwise run one-shot commands directly.**
 
 | Mechanism | What it does | Use for |
 |---|---|---|
 | **`delegate` tool** | Spawn AI subagents with their own context, model, and tools | Code review, investigation, parallel coding tasks, research |
-| **`boo` CLI** | Drive terminal sessions — send input, read output, wait for conditions | Builds, REPLs, TUIs, servers, interactive CLI programs |
+| **`boo` CLI** | Drive terminal sessions — send input, read output, wait for conditions | Long-running builds/tests, REPLs, TUIs, servers, concurrent terminal sessions |
 
 ## Decision Tree
 
@@ -28,7 +28,9 @@ What are you doing?
 │
 ├─ Multi-turn conversation with a subagent → delegate with sessionId
 │
-├─ Run a build/test/server and read output → boo
+├─ Run a one-shot build/test command → direct shell
+│
+├─ Keep a server/build/test running, wait on readiness, or inspect later → boo
 │
 ├─ Drive an interactive program (REPL, TUI, prompts) → boo
 │
