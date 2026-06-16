@@ -1,34 +1,42 @@
 ---
 name: terminal-sessions
 description: >
-  Drive durable or interactive terminal sessions: dev servers, REPLs, TUIs,
-  and programs you need to start now and inspect later. Use when a command
-  needs a readiness gate before you proceed, produces output you must monitor
-  or read back while it keeps running, or needs typed input sent to an
-  interactive program. Do not use for one-shot commands — even long builds
-  or tests — run those directly with bash.
+  Use this skill when terminal work needs a durable or interactive session:
+  dev servers, watchers, REPLs, TUIs, prompts, readiness gates, log monitoring,
+  or typed input. Do not use for ordinary one-shot shell commands, including long
+  builds or tests, unless they require interactive control or later inspection.
 ---
 
 # Terminal Sessions
 
-One routing rule: **if it needs a durable or interactive terminal session, use `boo`; otherwise run one-shot commands directly with bash.**
+Use `boo` only when terminal state has to survive beyond a single command invocation. If a command simply runs to completion, run it directly with bash.
 
-## Decision Tree
+## Route before you run
 
-```
-What are you doing?
-│
-├─ One-shot command (even a long build/test) → direct shell (bash)
-│
-├─ Output over time, wait on readiness, or inspect later → boo
-│
-├─ Drive an interactive program (REPL, TUI, prompts) → boo
-│
-└─ Multiple terminal tasks in parallel → boo (multiple sessions)
-```
+- **Direct shell:** one-shot builds, tests, linters, codegen, searches, scripts, and any command where final stdout/stderr/exit code is enough.
+- `boo`: dev servers, watchers, daemons, REPLs, TUIs, command prompts, or programs that need typed input.
+- `boo`: commands that need a readiness gate before other work proceeds, then keep running while you edit/test elsewhere.
+- `boo`: sessions you need to inspect later with terminal screen state or scrollback.
+- `boo`: multiple independent terminal jobs that need continued monitoring; use one session per job.
 
-## Read the reference before you act
+## If you choose boo
 
-`boo` has non-obvious behavior that will bite you. On your first session, read its reference first — not as background, but before you spawn or drive anything.
+Read `references/boo.md` before the first `boo` command in the task. It covers the command set, recipes, and the sharp edges that matter during automation.
 
-- **boo** → `references/boo.md`. Two sharp edges to know up front: `send --text` is literal — no implicit Enter, no shell escaping — and `wait`/`peek` match the *rendered screen*, not scrollback. The reference covers the command set, core loop, recipes, and gotchas.
+Default loop:
+
+1. Pick a unique, purpose-specific session name.
+2. Start detached: `boo new <name> -d -- <command>`.
+3. Prefer a readiness gate: `boo wait <name> --text '<ready marker>' --timeout <duration>`.
+4. Use `boo peek <name>` for current screen state; use `boo peek <name> --scrollback` for history.
+5. Send input only when needed: `boo send <name> --text '<literal text>' --enter` or `boo send <name> --key C-c`.
+6. Kill sessions when they are no longer needed: `boo kill <name>`.
+
+## Gotchas to keep in working memory
+
+- `send --text` is literal: no shell escaping and no implicit Enter. Add `--enter` when the program needs Enter.
+- `send --key` and `send --text` cannot be combined; use separate calls.
+- `wait --text` and plain `peek` match the rendered screen, not all prior output. Use `peek --scrollback` when debugging history.
+- `wait --idle` means “no output for 2 seconds,” not “the process finished.”
+- `wait` exits `4` on timeout. Treat that as a real branch: inspect scrollback, adjust the readiness marker, or stop the session.
+- Avoid blind sleeps for readiness. Wait on the program's actual ready text whenever it has one.
