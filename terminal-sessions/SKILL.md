@@ -3,19 +3,20 @@ name: terminal-sessions
 description: >
   Use this skill when terminal work needs a durable or interactive session:
   dev servers, watchers, REPLs, TUIs, prompts, readiness gates, log monitoring,
-  or typed input. Do not use for ordinary one-shot shell commands, including long
-  builds or tests, unless they require interactive control or later inspection.
+  typed input, or long builds and tests that may exceed the shell tool's timeout.
+  Do not use for quick one-shot commands that finish within the timeout window.
 ---
 
 # Terminal Sessions
 
-Use `boo` only when terminal state has to survive beyond a single command invocation. If a command simply runs to completion, run it directly with bash.
+Use `boo` when terminal state has to survive beyond a single command invocation, or when a long-running command (a big build, a slow test suite) might outlive the shell tool's timeout. Otherwise, if a command finishes well within the timeout and you just need its final output and exit code, run it directly with bash.
 
 Output is parsed through a real terminal emulator, so `peek` returns what a human attached to the terminal would see — colors, cursor movement, alternate screens, and the rest.
 
 ## Route before you run
 
-- **Direct shell:** one-shot builds, tests, linters, codegen, searches, scripts, and any command where final stdout/stderr/exit code is enough.
+- **Direct shell:** quick builds, tests, linters, codegen, searches, scripts, and any command where final stdout/stderr/exit code is enough and the run fits comfortably inside the tool timeout.
+- `boo`: long builds or test suites that may run past the shell tool's timeout — start detached, poll with `peek`, and gate on completion with `wait --idle`.
 - `boo`: dev servers, watchers, daemons, REPLs, TUIs, command prompts, or programs that need typed input.
 - `boo`: commands that need a readiness gate before other work proceeds, then keep running while you edit/test elsewhere.
 - `boo`: sessions you need to inspect later with terminal screen state or scrollback.
@@ -61,6 +62,26 @@ boo kill "$SESSION"
 - **Use `peek --scrollback` as the debug lens.** HMR events, compile errors, and request logs live there.
 - **Restart when HMR is not enough.** `.env`, config files, `tsconfig`, and port-binding changes usually need a full restart.
 - **Always clean up.** Leaked dev servers hold ports and PTYs.
+
+### Build or test that may outlive the timeout
+
+Run detached so the shell tool's timeout cannot kill the process mid-run, then poll for progress and gate on completion.
+
+```bash
+SESSION=$(boo new "build-$$" -d -- cargo build --release)
+
+# While it runs, check progress:
+boo peek "$SESSION" --scrollback | tail -40
+
+# Gate on completion: idle exits after ~2s of no output.
+boo wait "$SESSION" --idle --timeout 1800s
+boo peek "$SESSION" --scrollback | tail -80
+boo kill "$SESSION"
+```
+
+- **Detached keeps the run alive.** A direct bash call that hits `timeout_ms` is killed; a `boo` session keeps running.
+- **`--idle` is a proxy for completion, not proof.** A build can pause between phases; `peek` to confirm it reached the final line before killing.
+- **Inspect scrollback before killing.** Compile errors and test failures live there.
 
 ### Interrupt a running session
 
