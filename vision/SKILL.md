@@ -1,212 +1,172 @@
 ---
 name: vision
 description: >
-  Analyze images, screenshots, videos, diagrams, charts, and UI mockups. Use 
-  when read returns "model does not support images" or "image will be omitted" — 
-  fall back to mcporter call zai-vision instead.
+  Transcribe or analyze images and video. Use when read returns "model does
+  not support images" or "image will be omitted", or when you need OCR on a
+  screenshot. Local tesseract for fast free transcription; Gemini for
+  understanding, comparison, and video.
 ---
 
 # Vision
 
-Visual understanding via Z.AI GLM-4.6V, called through mcporter:
-`mcporter call zai-vision.<tool> key=value`.
+Image/video understanding via the `gemini-vision` MCP, called through mcporter:
+`mcporter call gemini-vision.<tool> key=value`.
 
-**If `read` returned "model does not support images" or "image will be omitted"** —
-you're in the right place. Use the appropriate tool below for the image instead.
+**If `read` returned "model does not support images" or "image will be omitted"**
+— you're in the right place. Use the appropriate tool below for the image instead.
 
-All tools accept `image_source` (local file path or remote URL). Video tools
-accept `video_source` (local path or URL, ≤8 MB, MP4/MOV/M4V).
-
-### Timeouts
-
-Vision calls typically take 30–60s. Video analysis can take longer.
-When calling from pi, set **both** timeouts:
-
-| Tool | mcporter `--timeout` | pi bash `timeout` |
-|------|---------------------|-------------------|
-| Image tools (default) | `120000` (2 min) | `150` (2.5 min) |
-| Video analysis | `300000` (5 min) | `330` (5.5 min) |
-
-```bash
-# Image example
-mcporter call zai-vision.analyze_image --timeout 120000 \
-  image_source="path/to/img.png" prompt="Describe this image"
-
-# Video example
-mcporter call zai-vision.analyze_video --timeout 300000 \
-  video_source="path/to/clip.mp4" prompt="What happens in this video?"
-```
-
-The rule: pi's bash timeout (seconds) must be > mcporter's timeout (seconds).
-mcporter handles the timeout cleanly; pi's SIGKILL does not.
+All tools accept a local file path or remote URL. **No clipboard support** —
+save the image to disk first (e.g. `grim > /tmp/x.png`).
 
 ## Decision Guide
 
 ```
 What does the user have?
 │
-├── A screenshot or image
-│   ├── UI design / mockup → ui_to_artifact
-│   │   ├── Want code? → output_type=code
-│   │   ├── Want a prompt for another AI? → output_type=prompt
-│   │   ├── Want design specs? → output_type=spec
-│   │   └── Just describe it → output_type=description
-│   │
-│   ├── Text to extract (code, terminal, docs) → extract_text_from_screenshot
-│   ├── Error message / stack trace → diagnose_error_screenshot
-│   ├── Technical diagram (architecture, UML, flowchart) → understand_technical_diagram
-│   ├── Chart / graph / dashboard → analyze_data_visualization
-│   └── None of the above → analyze_image (general fallback)
+├── An image, and they want the TEXT out of it
+│   (code, terminal output, a document, log lines, an error message)
+│   → ocr  (local tesseract: instant, free, no rate limits)
+│       └─ only reach for analyze_image if OCR fails (handwriting,
+│          low-contrast/stylized text, mixed text+graphics where
+│          meaning matters more than verbatim text)
 │
-├── Two UI screenshots to compare → ui_diff_check
+├── An image, and they want UNDERSTANDING or DESCRIPTION
+│   (what's in this photo, read this diagram, describe this UI,
+│    what does this chart show)
+│   → analyze_image
+│
+├── Two images to COMPARE (expected vs actual, before/after,
+│   design vs implementation)
+│   → compare_images
 │
 └── A video file → analyze_video
 ```
 
+**Rule of thumb:** reach for `ocr` first when the goal is *transcription*. It's
+local (~0.1s), free, and never rate-limited. Use `analyze_image` only when you
+need meaning, description, or OCR-quality is insufficient.
+
+## Timeouts
+
+| Tool | mcporter `--timeout` | pi bash `timeout` |
+|------|---------------------|-------------------|
+| `ocr` (local) | `15000` (15s) | `30` |
+| Gemini image tools | `120000` (2 min) | `150` (2.5 min) |
+| `analyze_video` | `300000` (5 min) | `330` (5.5 min) |
+
+The rule: pi's bash timeout (seconds) must be > mcporter's timeout (seconds).
+mcporter handles the timeout cleanly; pi's SIGKILL does not.
+
+```bash
+# Local OCR — fast
+mcporter call gemini-vision.ocr --timeout 15000 \
+  image_source="path/to/terminal.png"
+
+# Gemini image analysis
+mcporter call gemini-vision.analyze_image --timeout 120000 \
+  image_source="path/to/img.png" prompt="Describe this diagram's data flow"
+
+# Compare two UIs
+mcporter call gemini-vision.compare_images --timeout 120000 \
+  expected_image_source="path/to/design.png" \
+  actual_image_source="path/to/implementation.png" \
+  prompt="Check spacing, color, and layout differences"
+
+# Video
+mcporter call gemini-vision.analyze_video --timeout 300000 \
+  video_source="path/to/clip.mp4" prompt="What happens in this video?"
+```
+
 ## Quick Reference
 
-| Tool | What it does | Key params |
-|------|-------------|------------|
-| `ui_to_artifact` | UI → code, prompt, spec, or description | `image_source`, `output_type`, `prompt` |
-| `extract_text_from_screenshot` | OCR for code, terminals, docs | `image_source`, `prompt`, `programming_language?` |
-| `diagnose_error_screenshot` | Error analysis + actionable fixes | `image_source`, `prompt`, `context?` |
-| `understand_technical_diagram` | Architecture, UML, flowcharts, ER | `image_source`, `prompt`, `diagram_type?` |
-| `analyze_data_visualization` | Charts, dashboards, graphs | `image_source`, `prompt`, `analysis_focus?` |
-| `ui_diff_check` | Compare expected vs actual UI | `expected_image_source`, `actual_image_source`, `prompt` |
-| `analyze_image` | General-purpose image understanding | `image_source`, `prompt` |
-| `analyze_video` | Video scenes, moments, entities | `video_source`, `prompt` |
+| Tool | Engine | What it does | Key params |
+|------|--------|--------------|------------|
+| `ocr` | local tesseract | Verbatim text transcription (fast, free) | `image_source` |
+| `analyze_image` | Gemini | Single-image understanding/description | `image_source`, `prompt`, `model?`, `thinking?` |
+| `compare_images` | Gemini | Two-image diff (expected vs actual) | `expected_image_source`, `actual_image_source`, `prompt`, `model?`, `thinking?` |
+| `analyze_video` | Gemini (File API) | Video scenes, moments, entities | `video_source`, `prompt`, `model?`, `thinking?` |
+
+Default model: **`gemini-3.1-flash-lite`**. Override per call with `model=`
+(e.g. `model="gemini-3.5-flash"` for harder reasoning, `model="gemini-3.5-pro"`
+for the strongest vision model).
+
+Default thinking: **`MEDIUM`**. Every Gemini tool reasons before responding and
+accepts an optional `thinking=` override — `MINIMAL`/`LOW` for simple perception
+(fast, cheap: "what color is this", "is there a button"), `MEDIUM` default for
+general analysis, `HIGH` for diagnosis, codegen from a mockup, or complex
+multi-step reasoning from a diagram. Lower thinking = lower latency + cost.
+
+```bash
+# Simple perception — minimal thinking, fastest/cheapest
+mcporter call gemini-vision.analyze_image --timeout 120000 \
+  image_source="path/to/img.png" prompt="What color is the button?" thinking="MINIMAL"
+
+# Hard reasoning — high thinking
+mcporter call gemini-vision.analyze_image --timeout 120000 \
+  image_source="path/to/error.png" prompt="Diagnose this error and propose a fix" thinking="HIGH"
+```
 
 ## Tool Details
 
-### ui_to_artifact — UI screenshots to artifacts
+### ocr — fast local transcription
 
-Turn a UI screenshot into code, an AI prompt, design specs, or a description.
-Pick `output_type` based on what the user wants:
+`tesseract` on the image. Use as the **default** for extracting text/code/
+terminal output/documents. ~0.1s, free, offline, no rate limits.
 
 ```bash
-# Generate frontend code
-mcporter call zai-vision.ui_to_artifact \
-  image_source="path/to/mockup.png" \
-  output_type=code \
-  prompt="Generate a React component with Tailwind CSS"
-
-# Generate an AI prompt for another model to recreate this UI
-mcporter call zai-vision.ui_to_artifact \
-  image_source="path/to/mockup.png" \
-  output_type=prompt \
-  prompt="Describe this UI for an AI image generator"
-
-# Extract design specifications
-mcporter call zai-vision.ui_to_artifact \
-  image_source="path/to/mockup.png" \
-  output_type=spec \
-  prompt="Extract colors, spacing, typography"
-
-# Natural language description
-mcporter call zai-vision.ui_to_artifact \
-  image_source="path/to/mockup.png" \
-  output_type=description \
-  prompt="Describe the layout and components"
+mcporter call gemini-vision.ocr --timeout 15000 \
+  image_source="path/to/error.png"
 ```
 
-### extract_text_from_screenshot — OCR
+Falls short on handwriting, low-contrast/stylized text, and mixed
+text+graphics where meaning matters — for those use `analyze_image`.
 
-Extract text from screenshots of code, terminal output, documentation, or
-anything with text. Optionally specify the programming language for code
-screenshots.
+### analyze_image — understanding & description
 
-```bash
-mcporter call zai-vision.extract_text_from_screenshot \
-  image_source="path/to/terminal.png" \
-  prompt="Extract the error message and stack trace"
-
-mcporter call zai-vision.extract_text_from_screenshot \
-  image_source="path/to/code.png" \
-  prompt="Extract the function signatures" \
-  programming_language="typescript"
-```
-
-### diagnose_error_screenshot — Error diagnosis
-
-Analyze error screenshots and propose actionable fixes. Provide context about
-when the error occurred for better diagnosis.
+Single image → Gemini. Describe contents, answer questions, extract meaning,
+identify objects/diagrams/charts. Use when you need *understanding*, not just
+transcription.
 
 ```bash
-mcporter call zai-vision.diagnose_error_screenshot \
-  image_source="path/to/error.png" \
-  prompt="What caused this error and how do I fix it?" \
-  context="during npm install"
-```
-
-### understand_technical_diagram — Diagram interpretation
-
-Interpret architecture diagrams, flowcharts, UML, ER diagrams, sequence
-diagrams. Optionally specify the diagram type for better results.
-
-```bash
-mcporter call zai-vision.understand_technical_diagram \
+mcporter call gemini-vision.analyze_image --timeout 120000 \
   image_source="path/to/architecture.png" \
-  prompt="Explain the data flow between services" \
-  diagram_type="architecture"
+  prompt="Explain the data flow between these services"
 ```
 
-### analyze_data_visualization — Charts and dashboards
+### compare_images — two-image diff
 
-Extract insights from charts, graphs, and dashboards. Optionally focus on
-trends, anomalies, comparisons, or performance metrics.
-
-```bash
-mcporter call zai-vision.analyze_data_visualization \
-  image_source="path/to/dashboard.png" \
-  prompt="What are the key metrics and trends?" \
-  analysis_focus="trends"
-```
-
-### ui_diff_check — Compare two UIs
-
-Compare a reference/expected UI screenshot against an actual implementation.
-Catches visual drift and implementation discrepancies.
+First image = expected/reference, second = actual/candidate. Use for UI diff,
+before/after, design vs implementation.
 
 ```bash
-mcporter call zai-vision.ui_diff_check \
+mcporter call gemini-vision.compare_images --timeout 120000 \
   expected_image_source="path/to/design.png" \
   actual_image_source="path/to/implementation.png" \
-  prompt="Check for spacing, color, and layout differences"
+  prompt="What visual differences are there?"
 ```
 
-### analyze_image — General-purpose fallback
+### analyze_video — video understanding
 
-Use when none of the specialized tools fit. Works for any image.
-
-```bash
-mcporter call zai-vision.analyze_image \
-  image_source="path/to/photo.jpg" \
-  prompt="Describe what's in this image in detail"
-```
-
-### analyze_video — Video understanding
-
-Analyze video content: scenes, actions, objects, people. Supports local files
-and remote URLs. Max 8 MB, MP4/MOV/M4V.
+Video file or URL → Gemini File API. Understand scenes, extract moments,
+identify activities. Max 8 MB, MP4/MOV/M4V.
 
 ```bash
-mcporter call zai-vision.analyze_video \
+mcporter call gemini-vision.analyze_video --timeout 300000 \
   video_source="path/to/demo.mp4" \
   prompt="What happens in this video? Describe key moments."
 ```
 
 ## Gotchas
 
-- **File paths must exist on disk** or be accessible remote URLs. The tool
-  can't see images pasted into chat — save them first.
-- **Video limit is 8 MB.** For larger files, trim or compress first.
-- **Pick the right tool.** Using `analyze_image` for a UI mockup will give a
-  description, not code — use `ui_to_artifact` instead. Using
-  `extract_text_from_screenshot` for an error will transcribe it, not diagnose
-  it — use `diagnose_error_screenshot`.
-- **The `output_type` on `ui_to_artifact` must be exactly one of:** `code`,
-  `prompt`, `spec`, `description`.
-- **diagram_type is optional** but helps accuracy. Valid values include
-  `architecture`, `flowchart`, `uml`, `er-diagram`, `sequence`.
-- **Default mcporter timeout (60s) is too short** for vision calls. Always pass
-  `--timeout 120000` for images, `--timeout 300000` for video.
+- **No clipboard input.** Save the image to disk first (`grim`, `spectacle`,
+  `curl`, etc.). KDE's clipboard manager makes "current clipboard" unreliable.
+- **Pick ocr vs analyze_image deliberately.** `ocr` transcribes verbatim and is
+  free/instant; `analyze_image` understands and costs a Gemini call. For "get
+  this text off my screen", `ocr` is almost always right.
+- **gemini-3.1-flash-lite is the default** for speed and low rate-limit
+  pressure. Bump to `gemini-3.5-flash` or `gemini-3.5-pro` per call when you
+  need stronger reasoning.
+- **Default mcporter timeout (60s) is too short** for Gemini image calls.
+  Always pass `--timeout 120000` for images, `--timeout 300000` for video.
+  Local `ocr` only needs `--timeout 15000`.
+- **File paths must exist on disk** or be accessible remote URLs.
