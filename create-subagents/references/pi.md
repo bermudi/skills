@@ -6,7 +6,7 @@ Pi's subagent story is **package-based**, not manifest-based like the other CLIs
 
 ## The packages
 
-| Package | Tool | Model |
+| Package | Tool(s) | Approach |
 |---|---|---|
 | **`pi-delegate`** | `delegate` | Minimal: one tool, fresh in-memory child, returns only the final report |
 | **`pi-subagents`** | `/run`, `/chain`, `/parallel` | Multi-agent: chains, parallel execution, saved workflows, built-in agent roster |

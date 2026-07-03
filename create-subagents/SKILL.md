@@ -75,7 +75,7 @@ Restrict tools to the minimum the job needs. A read-only research agent that can
 | Job | Tools |
 |---|---|
 | Codebase exploration / research | read, grep, glob (no write/edit) |
-| Code review | read, grep, glob, exec (read-only; maybe `git diff`) |
+| Code review | read, grep, glob, exec (scoped to read-only commands like `git diff`) |
 | Test running | read, grep, glob, exec (scoped to test commands) |
 | Implementation | full tool access |
 
@@ -103,8 +103,8 @@ Using the format and location from the reference file, write the subagent defini
 
 1. Choose **project scope** (shared via version control, recommended default) or **personal/global scope** (available everywhere, not shared).
 2. Pick the filename — most CLIs derive the agent name from the filename or a `name` field.
-3. Fill in frontmatter: `name`, `description`, tools, model.
-4. Write the system prompt as the markdown body.
+3. Fill in the config fields the CLI expects (`name`, `description`, tools, model — but field names and format vary; Codex uses TOML, AMP is programmatic). See the reference file.
+4. Write the system prompt as the markdown body (or `developer_instructions` for Codex, `instructions` for AMP).
 5. Save to the correct directory.
 
 See the reference file for a copy-pasteable template and the exact field names that CLI expects.
