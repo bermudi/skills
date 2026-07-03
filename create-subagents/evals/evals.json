@@ -1,0 +1,35 @@
+{
+  "skill_name": "create-subagents",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a read-only security reviewer subagent for my Claude Code project. It should look for secrets, unsafe patterns, and dependency risks, and run on Sonnet.",
+      "expected_output": "A markdown file at .claude/agents/security-reviewer.md with YAML frontmatter using Claude Code fields (name, description, tools: Read/Grep/Glob/Bash, model: sonnet) and a focused read-only system prompt. Should NOT use Devin's allowed-tools or Codex's TOML format.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Set up a custom PR reviewer agent for Codex that focuses on correctness, security, and missing tests. Use a strong reasoning model and read-only sandbox.",
+      "expected_output": "A TOML file at .codex/agents/reviewer.toml with required fields name, description, developer_instructions, plus model, model_reasoning_effort, sandbox_mode='read-only'. Must be TOML not markdown — this tests the agent doesn't default to markdown for every CLI.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Add a test-runner subagent to my Devin project that can run npm test, cargo nextest, and pytest, but can't write or edit files.",
+      "expected_output": "A markdown file at .devin/agents/test-runner/AGENT.md (note the directory + AGENT.md structure, not a flat .md) with Devin frontmatter using allowed-tools (not tools) and permissions.allow scoping exec to the three test commands, permissions.deny for write/edit.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I want a subagent that reviews my code before commits — looks for bugs, security issues, and bad patterns. Can you set that up?",
+      "expected_output": "The agent should NOT immediately write a file. It should recognize the CLI is unspecified and either detect from project signals or ask which CLI (Claude Code, Devin, OpenCode, Codex, AMP, Command Code, or Pi) the user is targeting, since the file format and location differ per CLI.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Create a custom code-review subagent for Amp that inspects only the files named by the caller and returns concise findings with severity, evidence, and suggested fixes.",
+      "expected_output": "A TypeScript plugin file using @ampcode/plugin that calls amp.experimental.createAgent({...}) and amp.registerTool({...}) with reviewer.run(request, {parentThreadID: ctx.thread.id}). Must NOT be a markdown manifest — Amp is programmatic.",
+      "files": []
+    }
+  ]
+}
