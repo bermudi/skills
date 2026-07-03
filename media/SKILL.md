@@ -16,7 +16,7 @@ mcporter: `mcporter call gemini-media.<tool> key=value`.
 **If `read` returned "model does not support images" or "image will be omitted"**
 — you're in the right place. Use the appropriate tool below for the image instead.
 
-All vision tools accept a local file path or remote URL. **No clipboard support**
+All image tools accept a local file path or remote URL. **No clipboard support**
 — save the image to disk first (e.g. `grim > /tmp/x.png`).
 
 Audio tools accept a YouTube URL directly — no download needed.
