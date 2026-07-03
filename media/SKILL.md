@@ -2,10 +2,8 @@
 name: media
 description: >
   Transcribe or analyze images, video, and audio. Use when read returned "model
-  does not support images" or "image will be omitted", when you need OCR on a
-  screenshot, or when you need to verify who said a quote in a YouTube video.
-  Local tesseract for fast free image transcription; Gemini for understanding,
-  comparison, video analysis, and audio speaker verification.
+  does not support X", when you need OCR on a screenshot, or even when you need
+  to verify who said a quote in a YouTube video.
 ---
 
 # Media
