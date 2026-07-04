@@ -4,10 +4,11 @@ description: >
   Create custom subagents (a.k.a. custom agents, delegate agents) for coding agent
   CLIs. Use when the user asks to "create a subagent", "set up a custom agent",
   "add a reviewer agent", "configure delegation", or wants a specialized worker
-  agent for Devin, Claude Code, OpenCode, Codex, AMP, Command Code, or Pi.
+  agent for Devin, Claude Code, OpenCode, Codex, AMP, Command Code, Pi, or ZCode.
   Covers file format, location, frontmatter fields, tool restrictions, model
   selection, and system-prompt authoring for each CLI.
 license: Apache-2.0
+disable-model-invocation: true
 metadata:
   version: "1.0"
   topic: agent-configuration
@@ -17,7 +18,7 @@ metadata:
 
 Custom subagents are specialized worker agents the main agent can delegate to. Each runs in its own context window with its own system prompt, tool set, and (often) model. They keep exploration, review, or niche workflows out of the main session's context.
 
-This skill covers seven CLIs that all support custom subagents. They share the same shape — a **name**, a **description** (the triggering mechanism), a **system prompt**, **tool restrictions**, and an optional **model override** — but differ in file format, location, and field names.
+This skill covers eight CLIs that all support custom subagents. They share the same shape — a **name**, a **description** (the triggering mechanism), a **system prompt**, **tool restrictions**, and an optional **model override** — but differ in file format, location, and field names.
 
 ## Step 1: Identify the target CLI
 
@@ -32,8 +33,9 @@ Ask or infer which CLI the user is targeting. Detect from project files when pos
 | `.commandcode/` | Command Code |
 | `amp` references, `@ampcode/plugin` | AMP |
 | `.pi/`, `pi` references | Pi |
+| `.zcode/`, `zcode` references, `~/.zcode/agents/` | ZCode |
 
-If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode, Codex, AMP, Command Code, or Pi?"
+If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode, Codex, AMP, Command Code, Pi, or ZCode?"
 
 **Read the matching reference file for the exact file format, location, and frontmatter fields:**
 
@@ -44,6 +46,7 @@ If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode
 - `references/commandcode.md` — Command Code (`.commandcode/agents/*.md`, YAML frontmatter)
 - `references/amp.md` — AMP (TypeScript plugin via `@ampcode/plugin`, programmatic)
 - `references/pi.md` — Pi (npm extension package, e.g. `pi-delegate`; or `.pi/agents/*.md` with some packages)
+- `references/zcode.md` — ZCode (`~/.zcode/agents/<name>.md`, written by the Settings UI; on-disk frontmatter schema is undocumented, so the UI is the only supported authoring path)
 
 ## Step 2: Apply universal subagent design principles
 
@@ -120,8 +123,9 @@ See the reference file for a copy-pasteable template and the exact field names t
 
 - **Reserved names.** Several CLIs reserve built-in names (`explore`, `plan`, `general`, `review`, `worker`, `explorer`, `default`). A custom file with a reserved name is silently ignored or causes conflicts. Check the reference file's reserved-names list before naming.
 - **`tools` vs `allowed-tools`.** Field names differ across CLIs (Claude Code uses `tools`, Devin uses `allowed-tools`). They're not interchangeable — use the one your CLI expects.
-- **Background subagents can't prompt.** In CLIs with background mode (Devin, Claude Code), a background subagent that needs an unapproved tool will fail silently. Either pre-approve the tools or restrict to read-only.
+- **Background subagents can't prompt.** In CLIs with background mode (Devin, Claude Code), a background subagent that needs an unapproved tool will fail silently. Either pre-approve the tools or restrict to read-only. (ZCode has no background mode yet — subagents run in the foreground, parallel when launched together, and the main task waits.)
 - **Nesting is off by default.** Most CLIs disable subagent-spawning inside subagents to prevent unbounded fan-out. Don't assume a subagent can spawn its own subagents unless you explicitly enable it.
 - **Codex uses TOML, not Markdown.** It's the odd one out — see `references/codex.md`.
 - **AMP is programmatic.** Subagents are defined in a TypeScript plugin, not a markdown file — see `references/amp.md`.
 - **Pi subagents come from extensions.** Pi's subagent model is package-based (`pi-delegate`, `pi-subagents`, `pi-subagent`); some packages also read `.pi/agents/*.md`. See `references/pi.md`.
+- **ZCode custom subagents are user-level (Beta) and UI-managed.** The Settings UI writes to `~/.zcode/agents/<name>.md` only — there's no project-level subagent directory, and the on-disk frontmatter schema is undocumented (the UI is the only supported authoring path). Plugin-bundled subagents are **not actually loaded** by the current runtime — the official `diagnosing-plugins` skill lists the manifest `agents` field as "recorded but not executed," contradicting the public Plugin docs. See `references/zcode.md`.
