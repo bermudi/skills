@@ -74,7 +74,11 @@ with pdfplumber.open("file.pdf") as pdf:
 ```
 ````
 
-Ask yourself about each piece of content: "Would the agent get this wrong without this instruction?" If the answer is no, cut it. If you're unsure, test it. And if the agent already handles the entire task well without the skill, the skill may not be adding value. See [Evaluating skill output quality](/skill-creation/evaluating-skills) for how to test this systematically.
+Ask yourself about each piece of content: "Would the agent get this wrong without this instruction?" If the answer is no, cut it.
+
+The sharper, **sentence-by-sentence** version of this test is the *no-op check*: for each sentence, ask "if I deleted this, would the agent's behaviour change?" If not, delete the whole sentence — don't trim words from it. A whole paragraph instructing the agent to write a long commit message is the classic no-op; delete it and the agent still writes one. For the full pruning discipline — duplication, sediment, no-ops, sprawl — see [Writing skills well](writing-skills.md).
+
+If you're unsure whether the agent already handles a piece of the task, test it. And if the agent handles the entire task well without the skill, the skill may not be adding value. See [Evaluating skill output quality](/skill-creation/evaluating-skills) for how to test this systematically.
 
 ### Design coherent units
 

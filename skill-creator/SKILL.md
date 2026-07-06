@@ -21,9 +21,7 @@ Meet the user where they are. If they say "I want to make a skill for X", work t
 
 After the skill is done, offer to run the description optimizer for better triggering accuracy.
 
-## Communicating with the user
-
-Most skill creators are experienced developers, but don't assume. Match terminology to the user's demonstrated familiarity — clarify jargon (e.g., "progressive disclosure") only when the user's phrasing suggests they need it. Show, don't tell: demonstrate concepts through examples rather than defining them.
+Match terminology to the user's demonstrated familiarity — show concepts through examples rather than defining them.
 
 ---
 
@@ -94,15 +92,11 @@ cloud-deploy/
     └── azure.md
 ```
 
-Read `references/specification.md` for complete format details (all frontmatter fields, naming constraints, validation).
-
-Read `references/quickstart.md` for a complete end-to-end example (especially useful on your first skill).
+Format details and an end-to-end walkthrough live in `references/specification.md` and `references/quickstart.md` (see the reference table below).
 
 ### Test Cases
 
-After drafting the skill, run `skills-ref validate ./skill-name` to catch any frontmatter issues. Then create at least three realistic test prompts. Share them with the user for confirmation before running.
-
-Read `references/evaluating-skills.md` when setting up evals (covers test case design, assertions, grading, and workspace structure).
+After drafting the skill, run `skills-ref validate ./skill-name` to catch any frontmatter issues. Then create at least three realistic test prompts. Share them with the user for confirmation before running. Test-case design, assertions, and grading are covered in `references/evaluating-skills.md`.
 
 Save test cases to `evals/evals.json`:
 
@@ -120,13 +114,13 @@ Save test cases to `evals/evals.json`:
 }
 ```
 
-See `references/schemas.md` for the full schema (including the `assertions` field, which you'll add later).
+See `references/schemas.md` for the full schema (the `assertions` field comes later).
 
 ---
 
 ## Running and evaluating test cases
 
-**Execute this section as a continuous sequence** — stopping mid-way leaves runs incomplete and feedback uncollected.
+**Execute this section as a continuous sequence** — stopping mid-way leaves runs incomplete and feedback uncollected. Each step below ends on a **completion criterion** (the condition that says it's done — e.g. "every run has a `timing.json`"); don't advance until the current step's is met.
 
 **Workspace structure**: Use `<skill-name>-workspace/` as a sibling to the skill directory. Within it, organize by iteration (`iteration-1/`, `iteration-2/`, etc.) and within each, by test case (`eval-0/`, `eval-1/`, etc.). Create directories as needed rather than upfront.
 
@@ -186,15 +180,15 @@ Process each notification as it arrives rather than batching.
 
 Once all runs are done:
 
-1. **Grade each run** — evaluate each assertion against the outputs. Save results to `grading.json` in each run directory. The grading.json expectations array must use `text`, `passed`, and `evidence` fields. For assertions that can be checked programmatically, write and run a script rather than eyeballing it.
+1. **Grade each run** — evaluate each assertion against the outputs, saving results to `grading.json` in each run directory (expectations use `text`, `passed`, `evidence`). For assertions you can check programmatically, write and run a script; for the rest, hand the transcript and outputs to the grader subagent described in `references/grading-subagent.md` rather than eyeballing it.
 
 2. **Aggregate into benchmark** — run the aggregation script:
    ```bash
    python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
    ```
-   This produces `benchmark.json` and `benchmark.md`. See `references/schemas.md` for the exact schema.
+   This produces `benchmark.json` and `benchmark.md` (schema in `references/schemas.md`).
 
-3. **Run an analyst pass** — read the benchmark data and surface patterns the aggregate stats might hide. See `references/analysis-subagent.md` for what to look for.
+3. **Run an analyst pass** — read the benchmark data and surface patterns the aggregate stats might hide. The post-hoc analyzer in `references/analysis-subagent.md` is built for this.
 
 4. **Launch the viewer** with both qualitative outputs and quantitative data:
    ```bash
@@ -224,6 +218,8 @@ Kill the viewer when done: `kill $VIEWER_PID 2>/dev/null`
 
 This is the heart of the loop. You've run the test cases, the user has reviewed the results, and now you need to make the skill better.
 
+When a skill underperforms, read `references/writing-skills.md` — it's a diagnostic rubric (invocation, information hierarchy, steering via leading words and completion criteria, and pruning) with a quick symptom→fix table. Reach for it whenever feedback is vague ("the skill feels weak") rather than specific.
+
 ### How to think about improvements
 
 1. **Generalize from feedback.** A skill runs against many prompts. Resist overfitting to a single test case — if a problem persists across cases, rewrite the underlying instruction rather than patching around it.
@@ -232,7 +228,7 @@ This is the heart of the loop. You've run the test cases, the user has reviewed 
 
 3. **Explain why, don't just command.** Instructions that explain their purpose let the agent adapt to edge cases. Replace `MUST do X` with `Do X because Y` — the agent will make better judgment calls when it understands the reasoning.
 
-4. **Bundle repeated work.** If the agent independently writes similar helper scripts across test cases, extract it into `scripts/`. Read `references/using-scripts.md` for making scripts self-contained with inline dependency declarations.
+4. **Bundle repeated work.** If the agent independently writes similar helper scripts across test cases, extract it into `scripts/`. `references/using-scripts.md` covers making them self-contained with inline dependency declarations.
 
 Write a draft revision, then re-read it as if you're encountering it for the first time. Cut anything that doesn't pull its weight.
 
@@ -252,7 +248,7 @@ Keep going until the user says they're happy, the feedback is all empty, or you'
 
 ## Advanced: Blind comparison
 
-For situations where you want a more rigorous comparison between two versions of a skill, there's a blind comparison system. Read `references/comparison-subagent.md` and `references/analysis-subagent.md` for details. The basic idea: give two outputs to an independent agent without telling it which is which, and let it judge quality.
+For situations where you want a more rigorous comparison between two versions of a skill, there's a blind comparison system: give two outputs to an independent agent without telling it which is which, and let it judge quality. The comparator and analyzer prompts live in `references/comparison-subagent.md` and `references/analysis-subagent.md`.
 
 This is optional and most users won't need it. The human review loop is usually sufficient.
 
@@ -268,7 +264,7 @@ Agents use progressive disclosure. At startup, only `name` and `description` loa
 
 Important nuance: agents typically only consult skills for tasks that require knowledge beyond what they can handle alone. Simple, one-step queries may not trigger a skill even if the description matches. Specialized-knowledge tasks are where a well-written description makes the difference.
 
-**Read `references/optimizing-descriptions.md`** for the full trigger optimization guide (eval query design, the optimization loop, train/validation splits).
+The full trigger optimization guide — eval query design, the optimization loop, train/validation splits — is in `references/optimizing-descriptions.md`.
 
 ### Writing effective descriptions
 
@@ -276,6 +272,7 @@ Important nuance: agents typically only consult skills for tasks that require kn
 - **Focus on user intent, not implementation.** Describe what the user is trying to achieve.
 - **Err on the side of being pushy.** Explicitly list contexts where the skill applies, including cases where the user doesn't name the domain directly.
 - **Keep it concise.** A few sentences to a short paragraph. Hard limit: 1024 characters.
+- **Reuse the skill's leading words.** A *leading word* is a compact, pretraining-resident term the agent will echo in its reasoning when the skill fires (e.g. "vertical slice" in a TDD skill). Put the same leading words you use in the body into the description — when they also appear in the user's prompt, the agent links them to the skill and triggers more reliably. The full discipline is in `writing-skills.md`.
 
 ### Step 1: Generate trigger eval queries
 
@@ -406,5 +403,6 @@ This creates a `.skill` file (zip format) that can be installed by any agent cli
 | Grading via subagent | `references/grading-subagent.md` |
 | Blind A/B comparison between outputs | `references/comparison-subagent.md` |
 | Analyzing why one version beat another | `references/analysis-subagent.md` |
+| Diagnostic rubric: invocation, hierarchy, leading words, completion criteria, pruning | `references/writing-skills.md` |
 
 
