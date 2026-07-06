@@ -21,8 +21,6 @@ Meet the user where they are. If they say "I want to make a skill for X", work t
 
 After the skill is done, offer to run the description optimizer for better triggering accuracy.
 
-Match terminology to the user's demonstrated familiarity — show concepts through examples rather than defining them.
-
 ---
 
 ## Best practices
