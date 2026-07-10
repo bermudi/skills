@@ -273,7 +273,7 @@ Different agent archetypes have different context pressure patterns. Design your
 - **Tool-heavy**: Set aggressive tool-output caps (3KB old, 50KB recent). Compaction should trigger at 70% context fill, not 85%.
 - **Conversational**: Summarization is your primary tool. Use structured summary prompts with explicit fields (identifiers, milestones, current status, next steps). See `SESSIONS.md` for summary prompt templates.
 
-## 5. Dual Storage Pattern
+## 6. Dual Storage Pattern
 
 For systems that need both structured querying and compatibility with file-based tools:
 

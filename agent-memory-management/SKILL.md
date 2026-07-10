@@ -154,14 +154,7 @@ This is especially critical for multi-agent systems where concurrent writes need
 
 ## Context Failure Modes
 
-Long-running agents degrade when context is mismanaged. Four failure modes to monitor and mitigate:
-
-| Failure Mode | What it looks like | Mitigation |
-|:---|:---|:---|
-| **Context Burst** | Sudden token spike from a large tool output or document dump dumped into context | Control tool output size; return high-signal fields only; set output caps (e.g., 3KB for old tool results) |
-| **Context Conflict** | Contradictory instructions in the same context (e.g., "never issue refunds without warranty" + "VIP customers get full refunds") | Be explicit and structured in prompts; keep tool sets small and non-overlapping; avoid ambiguous definitions |
-| **Context Poisoning** | Incorrect information enters context and propagates across turns (bad summarization, wrong facts in memory) | Filter aggressively before persistence; mark memory as potentially stale; validate summaries against source |
-| **Context Noise** | Redundant or overly similar tool definitions, excessive system instructions, or too many loaded rule files | Scope rules to relevant subdirectories; load only what's needed; keep rule files under 200 lines; use progressive disclosure |
+Long-running agents degrade when context is mismanaged. Four failure modes to monitor and mitigate: **Context Burst**, **Context Conflict**, **Context Poisoning**, and **Context Noise**. For the full failure-mode/mitigation table, read `references/SESSIONS.md` ("Context Failure Modes to Monitor").
 
 **Prevention**: Set context thresholds at 40–80% of the window limit — do not wait until the hard limit. Track token allocation across system instructions, tool definitions, retrieved knowledge, and conversation history.
 
@@ -169,17 +162,13 @@ Long-running agents degrade when context is mismanaged. Four failure modes to mo
 
 ### 1. Manage the Session (The "Now")
 
+> **Implementing session compaction?** Read `references/SESSIONS.md` first — it owns the full tiered-compaction table (70/75/85/95% escalation), tool-armed summarization, summary-prompt templates, crash recovery, and fallback chains.
+
 - **Capture Events**: Record every user input, model response, tool call, and tool output.
-- **Tiered Compaction**: Escalate through tiers based on context pressure:
-    1. **Tool Output Truncation** (70–75% full): Truncate old tool outputs (3KB cap), preserve recent (50KB). Cheapest tier.
-    2. **Move to Workspace** (75–85% full): Extract key facts to long-term memory; keep recent turns verbatim.
-    3. **Summarize** (85–95% full): LLM summarizes older messages, prefix summary before recent turns.
-    4. **Truncate** (95%+): Drop oldest messages entirely. Last resort.
+- **Tiered Compaction**: Escalate through four tiers as context pressure rises — truncate old tool outputs (70–75%), move facts to long-term memory (75–85%), summarize (85–95%), then truncate oldest messages (95%+, last resort). For the full tier-escalation table and rationale, read `references/SESSIONS.md` ("Tiered Compaction").
 - **Tool-Armed Summarization**: Give the summarizer `read_file`/`write_file`/`edit_file` tools so it actively persists important information during compaction — not just compresses. This turns compaction into a memory-persistence step.
 - **User-Turn Boundaries**: Only compact at user-turn boundaries to avoid splitting tool-call/tool-result pairs.
 - **Fallback Strategy**: Always have a degradation path (raw-archive after N summarization failures).
-
-See [Session Management Details](references/SESSIONS.md) for compaction strategies.
 
 ### 2. Generate Memory (The "Always")
 
@@ -228,19 +217,9 @@ This is distinct from consolidation (which handles duplicates and conflicts at t
 
 #### Anti-Poisoning
 
-Filter aggressively before information becomes "fact":
+> **Defining rejection rules or guard levels?** Read `references/MEMORY.md` ("Anti-Poisoning Guards" and "Guard Levels") — it owns the full reject list and the strict/standard/relaxed threshold table.
 
-**Reject if:**
-- Small talk, greetings, hedged statements
-- Contradictions of established high-confidence memories (flag for review instead)
-- Content below minimum length threshold (< 10 characters)
-- Statements about the agent itself ("you're helpful", "you made a mistake")
-- Questions or procedural text (commands, scripts)
-
-**Guard Levels**: Offer configurable strictness to control false-positive vs. false-negative tradeoff:
-- `strict`: Higher thresholds, fewer but higher-quality memories
-- `standard`: Balanced (default)
-- `relaxed`: Lower thresholds, more memories but potentially noisier
+Filter aggressively before information becomes "fact": reject small talk, greetings, hedged statements, contradictions of high-confidence memories, sub-minimum-length content, agent-directed remarks, and procedural text. Offer configurable guard levels (`strict` / `standard` / `relaxed`) to control the false-positive vs. false-negative tradeoff.
 
 #### Provenance
 
@@ -272,9 +251,9 @@ Don't choose between proactive and reactive — use both:
 
 #### Scoring Triad
 
-1. **Relevance**: Semantic similarity (vector embeddings) OR keyword match (SQL LIKE / FTS). Vector is better for conceptual queries; keyword is better for exact terms.
-2. **Recency**: Temporal decay: `score × exp(-λ × age_days)` where `λ = ln(2) / half_life`. Default half-life: 30 days.
-3. **Importance**: Significance weight (0–1) assigned at generation time. Confidence scores and guard levels serve as importance proxies.
+> **Defining retrieval scoring?** Read `references/RETRIEVAL.md` ("Retrieval Dimensions") — it owns the full Relevance + Recency + Importance rationale.
+
+Rank memories by blending **Relevance** (semantic similarity or keyword match), **Recency** (temporal decay: `score × exp(-λ × age_days)` where `λ = ln(2) / half_life`, default half-life 30 days), and **Importance** (a 0–1 weight assigned at generation; confidence and guard levels serve as proxies). Projects implementing all three outperform single-dimension retrieval.
 
 #### Hybrid Search Fusion
 

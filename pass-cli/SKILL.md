@@ -106,12 +106,5 @@ model provider. Never echo `$PROTON_PASS_PAT`.
 
 ## Gotchas
 
-- **Reason is mandatory.** Every `item view` call needs `PROTON_PASS_AGENT_REASON`.
-  If you forget it, the command will error.
-- **Never echo the PAT.** Sourced from `~/.pass-cli-env` at recovery time.
-  Resolve `$PROTON_PASS_PAT`, don't print it.
-- **Don't re-auth for the wrong error.** "item not found", "permission denied",
-  and "vault not found" are discovery problems, not auth problems. Re-run
-  `vault list` or `item list` to find the right names instead of logging in again.
-- **JSON output.** Always use `--output json` when parsing programmatically.
-  Human-readable output is fine for direct display only.
+- **Never echo the PAT.** It's sourced from `~/.pass-cli-env` at recovery time.
+  Resolve `$PROTON_PASS_PAT` into the command, don't print it.
