@@ -46,6 +46,27 @@ This repo is the **source of truth** for skills.
 
 **`skills` detects changes via git state, not filesystem mtime.** You must `git add && git commit` before `skills update -g` will pick up your edits. Pushing ensures remote mirrors stay in sync too.
 
+## Skill Provenance
+
+Some skills are authored here from scratch; others were adapted from upstream sources and should be checked periodically for updates. Verify candidates with `skills find <name>`, then compare the local copy against the upstream `SKILL.md` before merging changes — local versions have diverged.
+
+**Derived from upstream (track for updates):**
+
+| Skill | Upstream | Notes |
+|---|---|---|
+| `codebase-design` | `mattpocock/skills` → `skills/engineering/codebase-design` | Light local edits (`disable-model-invocation`, license) |
+| `domain-modeling` | `mattpocock/skills` → `skills/engineering/domain-modeling` | Light local edits |
+| `improve-codebase-architecture` | `mattpocock/skills` → `skills/engineering/improve-codebase-architecture` | Light local edits |
+| `grill-me` | `mattpocock/skills` → `skills/productivity/grill-me` | Local version expands the upstream stub |
+| `liteparse` | `run-llama/llamaparse-agent-skills` → `skills/liteparse` | Heavily rewritten (thinner wrapper) |
+| `agent-browser` | `vercel-labs/agent-browser` → `skills/agent-browser` | Rewrote description + inlined workflow content |
+| `mcporter` | `steipete/clawdis` → `skills/mcporter` | Condensed upstream into a minimal stub |
+| `skill-creator` | started from `anthropics/skills` → `skills/skill-creator` | **Owned here now** — substantially rewritten with its own eval tooling; no longer tracks upstream |
+
+**Authored here (no upstream):**
+
+`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `gh-repo-read`, `litespec-pipeline`, `media`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`, `web-content`, `youtube-transcript-extraction`.
+
 ## Validation
 
 Uses [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) (the official reference validator). CI runs on every push.
