@@ -18,7 +18,7 @@ skill-name/
 └── research/         # Optional: gitignored research artifacts (probes, raw data, etc.)
 ```
 
-**DO NOT touch the skills inside .agents/skills/ or .pi/skills/**
+**DO NOT touch the skills inside .agents/skills/, .pi/skills/ or any other skill outside of this repository!!**
 
 ## SKILL.md Format
 

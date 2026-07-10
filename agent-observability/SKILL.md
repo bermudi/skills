@@ -7,8 +7,7 @@ description: >
   Covers adding tracing to an agent, setting up evals for agent output quality,
   building a quality feedback loop, debugging agent failures in production,
   instrumenting tool calls and sub-agent delegation, and architectures where you
-  need to see what decisions the agent made and why. Invoke explicitly with
-  /agent-observability.
+  need to see what decisions the agent made and why. Invoked explicitly.
 disable-model-invocation: true
 ---
 

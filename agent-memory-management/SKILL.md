@@ -1,6 +1,6 @@
 ---
 name: agent-memory-management
-description: Framework for building stateful AI agents using Sessions (short-term history) and Memory (long-term persistence) — memory filesystem design, versioned storage, progressive disclosure, multi-agent memory coordination, and the full lifecycle from extraction through retrieval. Invoke explicitly with /agent-memory-management.
+description: Framework for building stateful AI agents using Sessions (short-term history) and Memory (long-term persistence) — memory filesystem design, versioned storage, progressive disclosure, multi-agent memory coordination, and the full lifecycle from extraction through retrieval. Invoked explicitly.
 license: Apache-2.0
 metadata:
   version: "3.1"

@@ -2,7 +2,7 @@
 name: pass-cli
 description: >
   Retrieve secrets, credentials, and tokens from Proton Pass vaults via the
-  pass-cli, including auth-error auto-recovery. Invoke explicitly with /pass-cli.
+  pass-cli, including auth-error auto-recovery. Invoked explicitly.
 disable-model-invocation: true
 ---
 

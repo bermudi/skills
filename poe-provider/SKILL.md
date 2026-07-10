@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider — authentication (API key or OAuth), API selection (Chat Completions for text, Responses API for reasoning/web search/structured outputs, Messages API for Anthropic SDK/Claude Code), content generation, usage/billing, and MCP setup. Invoke explicitly with /poe-provider."
+description: "Complete reference for integrating with Poe as an AI model provider — authentication (API key or OAuth), API selection (Chat Completions for text, Responses API for reasoning/web search/structured outputs, Messages API for Anthropic SDK/Claude Code), content generation, usage/billing, and MCP setup. Invoked explicitly."
 disable-model-invocation: true
 ---
 
