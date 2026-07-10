@@ -4,13 +4,11 @@ description: >
   Design and implement observability for AI agent systems — structured tracing
   (OpenTelemetry spans), eval scoring (LLM-as-judge and code-based), and
   quality loops that turn production failures into permanent regression tests.
-  Use when: adding tracing to an agent, setting up evals for agent output
-  quality, building a quality feedback loop, debugging an agent failure in
-  production, instrumenting tool calls and sub-agent delegation with spans,
-  or designing an agent architecture where you need to see what decisions
-  the agent made and why. Also triggers when users ask about "agent
-  observability," "agent tracing," "agent evals," "LLM-as-judge," "quality
-  scoring," "debugging agent decisions," or "why did my agent do X."
+  Covers adding tracing to an agent, setting up evals for agent output quality,
+  building a quality feedback loop, debugging agent failures in production,
+  instrumenting tool calls and sub-agent delegation, and architectures where you
+  need to see what decisions the agent made and why. Invoke explicitly with
+  /agent-observability.
 disable-model-invocation: true
 ---
 

@@ -1,9 +1,8 @@
 ---
 name: pass-cli
 description: >
-  Retrieve secrets, credentials, and tokens from Proton Pass via the pass-cli.
-  Triggers on: "get credentials", "fetch the token", "look up the password",
-  "secrets from Proton Pass", "pass-cli", "Proton Pass vault", "API key from vault".
+  Retrieve secrets, credentials, and tokens from Proton Pass vaults via the
+  pass-cli, including auth-error auto-recovery. Invoke explicitly with /pass-cli.
 disable-model-invocation: true
 ---
 

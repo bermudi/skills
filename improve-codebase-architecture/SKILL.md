@@ -10,7 +10,7 @@ Surface architectural friction and propose **deepening opportunities** — refac
 
 This command is _informed_ by the project's domain model and built on a shared design vocabulary:
 
-- Run the `/codebase-design` skill for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly in every suggestion — don't drift into "component," "service," "API," or "boundary."
+- Run the `/codebase-design` skill for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly — the HTML report's [Tone section](HTML-REPORT.md#tone) lists the exact words and the forbidden substitutes.
 - The domain language in `CONTEXT.md` gives names to good seams; ADRs in `docs/adr/` record decisions this command should not re-litigate.
 
 ## Process
@@ -40,13 +40,13 @@ For each candidate, render a card with:
 - **Files** — which files/modules are involved
 - **Problem** — why the current architecture is causing friction
 - **Solution** — plain English description of what would change
-- **Benefits** — explained in terms of locality and leverage, and how tests would improve
+- **Wins** — bullets, ≤6 words each, in glossary terms (locality, leverage) — how tests improve
 - **Before / After diagram** — side-by-side, custom-drawn, illustrating the shallowness and the deepening
 - **Recommendation strength** — one of `Strong`, `Worth exploring`, `Speculative`, rendered as a badge
 
 End the report with a **Top recommendation** section: which candidate you'd tackle first and why.
 
-**Use CONTEXT.md vocabulary for the domain, and the `/codebase-design` vocabulary for the architecture.** If `CONTEXT.md` defines "Order," talk about "the Order intake module" — not "the FooBarHandler," and not "the Order service."
+**Use CONTEXT.md vocabulary for the domain, and the `/codebase-design` vocabulary for the architecture** (see the [Tone section](HTML-REPORT.md#tone) for the exact terms and forbidden substitutes). If `CONTEXT.md` defines "Order," talk about "the Order intake module" — not "the FooBarHandler," and not "the Order service."
 
 **ADR conflicts**: if a candidate contradicts an existing ADR, only surface it when the friction is real enough to warrant revisiting the ADR. Mark it clearly in the card (e.g. a warning callout: _"contradicts ADR-0007 — but worth reopening because…"_). Don't list every theoretical refactor an ADR forbids.
 

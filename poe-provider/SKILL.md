@@ -1,6 +1,6 @@
 ---
 name: poe-provider
-description: "Complete reference for integrating with Poe as an AI model provider. Use when: (1) Configuring Poe as a provider for coding agents (Claude Code, Codex, OpenCode, Kimi), (2) Setting up Poe API authentication with API keys or OAuth, (3) Querying AI models — Chat Completions for simple text (most reliable), Responses API for reasoning/web search/structured outputs, Messages API for Anthropic SDK/Claude Code, (4) Generating images, videos, or audio through Poe, (5) Managing API usage and compute points billing, (6) Configuring Poe's MCP server for model access, (7) Using Poe as a drop-in replacement for the Anthropic API / Claude Code provider, (8) Users mention Poe subscriptions, model access, or wanting to use Poe with their favorite AI tools. Triggers especially when users say 'use Poe', 'Poe API', 'poe-code', 'configure AI provider', 'Anthropic compatible', 'Claude Code with Poe', or need to access models through Poe."
+description: "Complete reference for integrating with Poe as an AI model provider — authentication (API key or OAuth), API selection (Chat Completions for text, Responses API for reasoning/web search/structured outputs, Messages API for Anthropic SDK/Claude Code), content generation, usage/billing, and MCP setup. Invoke explicitly with /poe-provider."
 disable-model-invocation: true
 ---
 
@@ -23,7 +23,7 @@ Poe provides unified access to hundreds of AI models from multiple providers thr
 | **Model names** | `gpt-4`, `claude-3` | `Claude-Sonnet-4.6`, `GPT-5.5`, `Gemini-3.1-Pro` |
 | **Billing** | Tokens | Compute points |
 | **Auth header** | Varies by endpoint | See below |
-| **Chat Completions strict mode** | Strip all `extra_body` and non-standard fields | Use `extra_body` to pass custom bot parameters through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2). The API rejects fields the model does not declare in its schema. |
+| **Chat Completions strict mode** | Pass non-standard fields inline | Use `extra_body` to pass custom bot parameters through the OpenAI SDK. The API rejects fields the model does not declare in its schema — see [Strict Validation Rollout](#chat-completions-strict-validation-rollout). |
 
 ---
 
@@ -190,7 +190,7 @@ npx poe-code@latest mcp configure claude-code
 
 ## API Selection Guide
 
-Poe exposes four primary integration methods. Choose based on your needs, not a rigid priority order.
+Poe exposes four integration methods. Default to **Chat Completions** for plain text (fewest gaps); reach for the others only when you need a capability it lacks.
 
 | API / Library | Best For | Watch Out |
 |-----|----------|-----------|
@@ -238,7 +238,7 @@ Poe's `/v1/chat/completions` enforces **strict OpenAI-compatible request validat
 
 ---
 
-### Responses API (Primary Choice)
+### Responses API (Reasoning, Web Search, Structured Outputs)
 
 ```bash
 curl -X POST "https://api.poe.com/v1/responses" \
@@ -247,7 +247,9 @@ curl -X POST "https://api.poe.com/v1/responses" \
   -d '{"model": "Claude-Sonnet-4.6", "input": "Your question"}'
 ```
 
-### Messages API (Anthropic-Compatible — Secondary Choice for Claude Models)
+**Use when**: you need reasoning/thinking, web search, or structured outputs. Mind the platform gaps above (`instructions` ignored, `previous_response_id` broken) — for plain text, Chat Completions is more reliable.
+
+### Messages API (Anthropic-Compatible — for Claude Models)
 
 ```bash
 curl "https://api.poe.com/v1/messages" \
@@ -263,7 +265,7 @@ curl "https://api.poe.com/v1/messages" \
 
 **Ideal for**: Claude Code, Anthropic SDK integrations, or any tool that already speaks the Anthropic API protocol. Just swap `ANTHROPIC_BASE_URL` → `https://api.poe.com` and `ANTHROPIC_API_KEY` → your Poe key.
 
-### Chat Completions API
+### Chat Completions API (Most Reliable for Text)
 
 ```bash
 curl -X POST "https://api.poe.com/v1/chat/completions" \
@@ -277,7 +279,7 @@ curl -X POST "https://api.poe.com/v1/chat/completions" \
 
 **Use when**: you need the OpenAI SDK shape, or when `instructions`/`previous_response_id` gaps on the Responses API matter for your integration. System messages, multi-turn, tools, streaming, and image input all work reliably. Private bots are not currently supported.
 
-**Strict validation note**: Poe's strict validation for `/v1/chat/completions` is now the default (legacy fallback ended 2026-04-24). Fields the model doesn't declare in its schema are rejected. Custom bot parameters can be passed via `extra_body` through the OpenAI SDK (e.g., `extra_body={"aspect": "1280x720"}` for Sora-2) — check `GET /v1/models` for each model's parameter schema. See `references/feature-flags.md` for full details.
+**Strict validation note**: Poe's strict validation for `/v1/chat/completions` is now the default (legacy fallback ended 2026-04-24). See the [Strict Validation Rollout](#chat-completions-strict-validation-rollout) section above and `references/feature-flags.md` for the full procedure.
 
 ### Auth Header by Endpoint
 
@@ -431,14 +433,15 @@ curl -X POST "https://api.poe.com/bot/audio-tts" \
 
 ## Reference Files
 
-| File | Priority | When to Read |
-|------|----------|--------------|
-| `references/responses-api.md` | — | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use) |
-| `references/anthropic-api.md` | **2nd** | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use) |
-| `references/chat-completions-api.md` | — | Chat Completions API — most reliable for text generation (system messages, tools, multi-turn, streaming, images). Use when Responses API gaps matter. |
-| `references/feature-flags.md` | — | `/v1/chat/completions` rollout guidance: strict vs legacy headers, response confirmation, and migration steps |
-| `references/authentication.md` | — | OAuth flow, Poe-specific auth gotchas |
-| `references/bermudi-models.md` | — | bermudi's tracked models — families, thinking params, probe results, re-run instructions |
-| `references/costs_and_usage.md` | — | Compute point balance, usage history API, pagination patterns |
-| `references/cache.md` | — | Prompt caching: what works, what doesn't, point savings, per-endpoint guide |
-| `references/errors.md` | — | Error codes and debugging |
+| File | When to Read |
+|------|--------------|
+| `references/responses-api.md` | Full Responses API reference (reasoning, web search, structured outputs, streaming, tool use) |
+| `references/anthropic-api.md` | Anthropic-compatible Messages API (Claude Code, Anthropic SDK, tool use) |
+| `references/chat-completions-api.md` | Chat Completions API — most reliable for text generation (system messages, tools, multi-turn, streaming, images). Use when Responses API gaps matter. |
+| `references/feature-flags.md` | `/v1/chat/completions` rollout guidance: strict vs legacy headers, response confirmation, and migration steps |
+| `references/authentication.md` | OAuth flow, Poe-specific auth gotchas |
+| `references/models.md` | Canonical model list, capabilities, and pricing — **always re-verify against `GET /v1/models`**, since model names and availability change frequently |
+| `references/bermudi-models.md` | bermudi's tracked models — families, thinking params, probe results, re-run instructions |
+| `references/costs_and_usage.md` | Compute point balance, usage history API, pagination patterns |
+| `references/cache.md` | Prompt caching: what works, what doesn't, point savings, per-endpoint guide |
+| `references/errors.md` | Error codes and debugging |

@@ -1,6 +1,6 @@
 ---
 name: agent-memory-management
-description: Implements stateful AI agents using Sessions (short-term history) and Memory (long-term persistence). Use this skill when building agents that need to remember across interactions — user preferences, multi-turn state, persistent knowledge. Covers memory filesystem design, versioned storage, progressive disclosure, multi-agent memory coordination, and the full lifecycle from extraction through retrieval. Use this skill even for partial needs like "how should I structure my agent's memory files" or "how do I handle concurrent memory writes across subagents."
+description: Framework for building stateful AI agents using Sessions (short-term history) and Memory (long-term persistence) — memory filesystem design, versioned storage, progressive disclosure, multi-agent memory coordination, and the full lifecycle from extraction through retrieval. Invoke explicitly with /agent-memory-management.
 license: Apache-2.0
 metadata:
   version: "3.1"

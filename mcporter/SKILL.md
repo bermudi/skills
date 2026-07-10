@@ -26,9 +26,9 @@ Every non-trivial call involves **two** timeouts you control:
 
 - **mcporter `--timeout`** (ms) — how long mcporter waits for the server.
 - **the outer timeout** bounding the shell command that runs mcporter (seconds)
-  — whatever your host uses to limit command execution. In pi that's the `bash`
-  tool's `timeout` parameter; other hosts (Devin, Claude Code, …) have their own
-  equivalent. You know your own tool — set that one.
+  — whatever your host uses to limit command execution (the `bash` tool's
+  `timeout` parameter in pi/Claude Code; Devin and others have their own
+  equivalent). Set that one.
 
 **The outer timeout (seconds) must be strictly greater than mcporter ms ÷ 1000.**
 
@@ -38,9 +38,9 @@ vanishes without an error almost always means the outer timeout fired first and
 killed mcporter before it could report.
 
 ```text
-# outer timeout=660s, mcporter --timeout 600000 (ms = 600s)
-# 660 > 600  → mcporter times out first, returns an error  ✓
-# ≤ 600      → outer kill → silence                        ✗
+# outer timeout=600s (bash max), mcporter --timeout 540000 (ms = 540s)
+# 600 > 540  → mcporter times out first, returns an error  ✓
+# ≤ 540      → outer kill → silence                        ✗
 ```
 
 If your host exposes no configurable outer timeout, mcporter's `--timeout` is

@@ -2,11 +2,9 @@
 name: create-project-agentsmd
 description: >
   Generate a well-structured AGENTS.md (or CLAUDE.md, .cursorrules) instruction
-  file for a project. Use when the user asks to "create an AGENTS.md", "set up
-  agent instructions", "write a CLAUDE.md", or wants to configure an AI coding
-  agent's behavior for their project. Produces instruction files that encode
-  goals, shape, and stable project knowledge — avoiding volatile implementation
-  specifics — so they stay accurate as the codebase evolves.
+  file for a project — encoding goals, shape, and stable project knowledge while
+  avoiding volatile implementation specifics, so the file stays accurate as the
+  codebase evolves. Invoke explicitly with /create-project-agentsmd.
 license: Apache-2.0
 metadata:
   version: "1.0"
