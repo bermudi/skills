@@ -238,6 +238,22 @@ Poe's `/v1/chat/completions` enforces **strict OpenAI-compatible request validat
 
 ---
 
+### Chat Completions API (Default — Most Reliable for Text)
+
+```bash
+curl -X POST "https://api.poe.com/v1/chat/completions" \
+  -H "Authorization: Bearer $POE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Claude-Sonnet-4.6",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+**Default for plain text.** Use when you need the OpenAI SDK shape, system messages, reliable multi-turn, tools, streaming, or image input. Reach for the Responses or Messages API only when you need a capability Chat Completions lacks. Private bots are not currently supported.
+
+**Strict validation note**: Poe's strict validation for `/v1/chat/completions` is now the default (legacy fallback ended 2026-04-24). See the [Strict Validation Rollout](#chat-completions-strict-validation-rollout) section above and `references/feature-flags.md` for the full procedure.
+
 ### Responses API (Reasoning, Web Search, Structured Outputs)
 
 ```bash
@@ -264,22 +280,6 @@ curl "https://api.poe.com/v1/messages" \
 ```
 
 **Ideal for**: Claude Code, Anthropic SDK integrations, or any tool that already speaks the Anthropic API protocol. Just swap `ANTHROPIC_BASE_URL` → `https://api.poe.com` and `ANTHROPIC_API_KEY` → your Poe key.
-
-### Chat Completions API (Most Reliable for Text)
-
-```bash
-curl -X POST "https://api.poe.com/v1/chat/completions" \
-  -H "Authorization: Bearer $POE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Claude-Sonnet-4.6",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'
-```
-
-**Use when**: you need the OpenAI SDK shape, or when `instructions`/`previous_response_id` gaps on the Responses API matter for your integration. System messages, multi-turn, tools, streaming, and image input all work reliably. Private bots are not currently supported.
-
-**Strict validation note**: Poe's strict validation for `/v1/chat/completions` is now the default (legacy fallback ended 2026-04-24). See the [Strict Validation Rollout](#chat-completions-strict-validation-rollout) section above and `references/feature-flags.md` for the full procedure.
 
 ### Auth Header by Endpoint
 

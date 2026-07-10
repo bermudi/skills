@@ -2,6 +2,37 @@
 
 For extracting content from a single URL, escalate through the tiers. Start at the lowest tier that could work — each step up costs more (latency, API calls, or both). The goal is the article body, not the footer, ads, cookie banners, or bot-challenge pages.
 
+## How to decide which tier
+
+Before reaching for any tool, classify the URL:
+
+1. **Inspect the content type**: `curl -sL -o /dev/null -w '%{content_type}' <url>`
+   - `text/plain`, `application/json`, `text/csv`, etc. → **Tier 1** (raw). Done.
+   - `text/html` → a rendered page; start at **Tier 2**.
+2. **If `text/html`**, does the site look docs-shaped (mdx, docusaurus, cloudflare-proxied)? → try **Tier 2** (Accept negotiation) first.
+3. **Tier 2 returns HTML or a challenge page** → **Tier 3** (Jina).
+4. **Tier 3 returns garbage, or the page needs JS rendering / auth** → **Tier 4** (Tavily).
+
+## Failure signals per tier
+
+Don't escalate blindly — confirm the failure before moving up, so you don't pay Tier 4 cost for a Tier 1 problem.
+
+- **Tier 1 failure**: `curl` returns `text/html` (or the content type isn't a raw/text type) → the URL is a rendered page, not a raw file. Escalate to Tier 2.
+- **Tier 2 failure**: the response body is HTML (look for `<html` or `<body`), or it's a challenge/interstitial page ("Just a moment...", "Checking your browser") rather than clean markdown. Escalate to Tier 3.
+- **Tier 3 failure**: output is empty, garbled mojibake, or a login/challenge page. The page likely needs real browser rendering or auth. Escalate to Tier 4 with `extract_depth=advanced`.
+- **Tier 4 failure**: the content is genuinely unreachable. Fall back to `tavily_search` for a cached/summarized version, or tell the user the page can't be extracted.
+
+## Decision criteria
+
+| Situation | Tier | Notes |
+|---|---|---|
+| Raw file, GitHub raw, gist, pastebin | 1 | Cheapest; always try first |
+| Docs site, blog, plain article | 2 → 3 | Negotiate markdown; fall back to Jina |
+| JS SPA (React/Vue router), auth wall (LinkedIn) | 4 | Use `extract_depth=advanced` |
+| Batch of URLs | 4 | Tavily batches; curl/Jina don't |
+| Need relevance filtering (long page, specific topic) | 4 | Pass `query=` to rerank chunks |
+| Unknown / not sure | 1 → 2 → 3 → 4 | Escalate on confirmed failure |
+
 ## Tier 1: `curl -sL` — Raw Files
 
 If the URL serves content directly (no HTML wrapper), just curl it. Exact bytes, zero cost, zero transformation.

@@ -42,7 +42,7 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 ## Deploying Skills
 
-This repo is the **source of truth** for skills. 
+This repo is the **source of truth** for skills. Skills are installed with `skills add -g <name>` and recide in `~/.agents/skills/`.
 
 **`skills` detects changes via git state, not filesystem mtime.** You must `git add && git commit` before `skills update -g` will pick up your edits. Pushing ensures remote mirrors stay in sync too.
 

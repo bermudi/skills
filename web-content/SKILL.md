@@ -121,8 +121,9 @@ and the "not indexed" fallback pattern.
 
 When you have a URL, escalate through four tiers. Always start at the lowest
 tier that could work — each step up costs more (latency, API calls, or both).
-The full tier-by-tier validation logic and fallback reasoning lives in
-[Extraction Strategies](references/extraction-strategies.md); the quick form:
+For how to classify a URL, the failure signal at each tier, and when to escalate
+vs. stop, read [Extraction Strategies](references/extraction-strategies.md).
+Quick form:
 
 1. **Tier 1 — `curl -sL`**: raw files, no HTML wrapper. Zero cost.
    ```bash
@@ -170,8 +171,9 @@ The full tier-by-tier validation logic and fallback reasoning lives in
 
 Each reference carries a trigger — read it when you reach for that tool.
 
-- [Extraction Strategies](references/extraction-strategies.md) — read when a URL
-  extraction fails and you need the full validation/fallback logic
+- [Extraction Strategies](references/extraction-strategies.md) — read when you
+  need to classify a URL, identify a tier's failure signal, or decide when to
+  escalate vs. stop
 - [Search](references/search.md) — read before tuning `tavily_search` params
 - [Extract](references/extract.md) — read when using `tavily_extract` (batch,
   depth, relevance filtering)
