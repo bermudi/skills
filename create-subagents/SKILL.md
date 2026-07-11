@@ -1,12 +1,11 @@
 ---
 name: create-subagents
 description: >
-  Create custom subagents (a.k.a. custom agents, delegate agents) for coding agent
-  CLIs. Use when the user asks to "create a subagent", "set up a custom agent",
+  Create custom subagents for coding agent CLIs. Use when the user asks to "create a subagent", "set up a custom agent",
   "add a reviewer agent", "configure delegation", or wants a specialized worker
-  agent for Devin, Claude Code, OpenCode, Codex, AMP, Command Code, Pi, or ZCode.
-  Covers file format, location, frontmatter fields, tool restrictions, model
-  selection, and system-prompt authoring for each CLI.
+  agent for Devin, Claude Code, OpenCode, Codex, MiMo Code, AMP, Command Code, Pi,
+  or ZCode. Covers file format, location, frontmatter fields, tool restrictions,
+  model selection, and system-prompt authoring for each CLI.
 license: Apache-2.0
 disable-model-invocation: true
 metadata:
@@ -18,7 +17,7 @@ metadata:
 
 Custom subagents are specialized worker agents the main agent can delegate to. Each runs in its own context window with its own system prompt, tool set, and (often) model. They keep exploration, review, or niche workflows out of the main session's context.
 
-This skill covers eight CLIs that all support custom subagents. They share the same shape — a **name**, a **description** (the triggering mechanism), a **system prompt**, **tool restrictions**, and an optional **model override** — but differ in file format, location, and field names.
+This skill covers nine CLIs that all support custom subagents. They share the same shape — a **name**, a **description** (the triggering mechanism), a **system prompt**, **tool restrictions**, and an optional **model override** — but differ in file format, location, and field names.
 
 ## Step 1: Identify the target CLI
 
@@ -30,12 +29,13 @@ Ask or infer which CLI the user is targeting. Detect from project files when pos
 | `.devin/`, `devin` references | Devin |
 | `.opencode/`, `opencode.json` | OpenCode |
 | `.codex/`, `codex` references | Codex |
+| `.mimocode/`, `mimocode.json`, `mimo` references | MiMo Code |
 | `.commandcode/` | Command Code |
 | `amp` references, `@ampcode/plugin` | AMP |
 | `.pi/`, `pi` references | Pi |
 | `.zcode/`, `zcode` references, `~/.zcode/agents/` | ZCode |
 
-If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode, Codex, AMP, Command Code, Pi, or ZCode?"
+If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode, Codex, MiMo Code, AMP, Command Code, Pi, or ZCode?"
 
 **Read the matching reference file for the exact file format, location, and frontmatter fields:**
 
@@ -43,6 +43,7 @@ If unclear, ask: "Which agent CLI are you using — Claude Code, Devin, OpenCode
 - `references/devin.md` — Devin (`.devin/agents/<name>/AGENT.md`, YAML frontmatter)
 - `references/opencode.md` — OpenCode (`.opencode/agents/*.md` or `opencode.json`, YAML frontmatter)
 - `references/codex.md` — Codex (`~/.codex/agents/*.toml` or `.codex/agents/*.toml`, TOML)
+- `references/mimo.md` — MiMo Code (`.mimocode/agents/*.md` or `mimocode.json`, YAML frontmatter)
 - `references/commandcode.md` — Command Code (`.commandcode/agents/*.md`, YAML frontmatter)
 - `references/amp.md` — AMP (TypeScript plugin via `@ampcode/plugin`, programmatic)
 - `references/pi.md` — Pi (npm extension package, e.g. `pi-delegate`; or `.pi/agents/*.md` with some packages)
