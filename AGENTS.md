@@ -40,6 +40,8 @@ Skill instructions in Markdown...
 
 Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`.
 
+**Keep descriptions lean.** The `description` is loaded into context *every single turn* so the agent can decide whether to trigger the skill. Bloat it and you pay that token cost forever, on every message, whether the skill fires or not.
+
 ## Deploying Skills
 
 This repo is the **source of truth** for skills. Skills are installed with `skills add -g <name>` and recide in `~/.agents/skills/`.
