@@ -13,7 +13,7 @@ Before any control command, confirm this agent runs inside a Herdr pane:
 test "${HERDR_ENV:-}" = 1
 ```
 
-If this fails, you are not running inside Herdr. You may still issue control commands if the user names an explicit pane ID (e.g. `w1:p3`) — that ID removes the targeting hazard. Otherwise stop; without `--current` or an explicit target, a control command lands on whatever pane some other client has focused, which is usually not what the user wants.
+If this fails, you are not running inside Herdr. You may still issue control commands if the user names an explicit target — a pane ID (e.g. `w1:p3`) or an agent name. Either removes the targeting hazard. Otherwise stop; without `--current` or an explicit target, a control command lands on whatever pane some other client has focused, which is usually not what the user wants.
 
 ## Discover the CLI
 
@@ -25,7 +25,7 @@ Most control commands print JSON. Read IDs and state from responses; never const
 
 ## Model
 
-Terminals organize into workspaces → tabs → panes. An agent runs inside a pane; **the pane ID is the control surface** for agents, shells, servers, tests, and logs — spawning, input, reads, waits, and cleanup all key off it.
+Terminals organize into workspaces → tabs → panes. An agent runs inside a pane; **the pane ID is the control surface** for agents, shells, servers, tests, and logs — spawning, input, reads, waits, and cleanup all key off it. Agent commands (`agent read`, `agent wait`, `agent send`, `agent get`) also accept the agent's name or label as a target — use whichever identifier the user gave you, or the pane ID you parsed from JSON.
 
 IDs (`w1`, `w1:t1`, `w1:p1`, `term_...`) are opaque strings whose suffix can grow beyond one char. **Re-read JSON after any mutation** (create, split, move, list, get); never derive an ID from a workspace or display number. Closed IDs aren't reused; a moved pane gets a new ID.
 
@@ -86,7 +86,7 @@ If the user asks for a different tab, workspace, or worktree, discover that comm
 ## Safety
 
 - `--no-focus` for background work unless the user asked to switch context.
-- `--current` or an explicit ID; never another client's focused pane.
+- `--current` or an explicit target (pane ID or agent name); never another client's focused pane.
 - Parse IDs from JSON; never from sidebar order or examples.
 - Don't close workspaces, tabs, panes, or sessions you didn't create unless explicitly asked.
 - Never run `herdr server stop` from an active session, and never kill the main Herdr process.
