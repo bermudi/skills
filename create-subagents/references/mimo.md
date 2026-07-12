@@ -51,15 +51,15 @@ Provide constructive feedback without making direct changes.
 |---|---|
 | `description` | Required. What the agent does and when to use it. |
 | `mode` | `primary`, `subagent`, or `all` (default `all`). Use `subagent` for delegation. |
-| `model` | `provider/model-id`, e.g. `mimo/mimo-v2.5-pro`. Subagents inherit the invoking primary agent's model if omitted. |
+| `model` | `provider/model-id`, e.g. `mimo/mimo-v2.5-pro` (MiMo Platform). If omitted, primary agents use the globally-configured model and subagents inherit the invoking primary agent's model. |
 | `temperature` | 0.0–1.0. Lower = more focused. Defaults: 0 for most models, 0.55 for Qwen. |
-| `prompt` | System prompt file (`{file:./path}`), or use the markdown body. |
+| `prompt` | System prompt file (`{file:./path}`), or use the markdown body. Path is relative to the config file's location. |
 | `permission` | Object: `edit`, `bash`, `webfetch` each `allow`/`deny`/`ask`. `bash` accepts glob patterns. |
 | `permission.task` | Glob patterns controlling which subagents this agent can invoke via the Task tool. Last matching rule wins. |
 | `steps` | Max agentic iterations before forced text-only response (legacy `maxSteps` is deprecated). |
 | `tools` | Deprecated — use `permission` instead. `true` = `{"*": "allow"}`, `false` = `{"*": "deny"}`. Supports wildcards (`mymcp_*: false`). |
 | `top_p` | Top-p sampling (0.0–1.0). |
-| `color` | Hex (`#FF5733`) or theme (`primary`, `accent`, `success`, …). |
+| `color` | Hex (`#FF5733`) or theme (`primary`, `secondary`, `accent`, `success`, `warning`, `error`, `info`). |
 | `hidden` | `true` to hide from `@` autocomplete (subagents only). Hidden agents can still be invoked by the model via the Task tool. |
 | `disable` | `true` to disable the agent entirely. |
 
