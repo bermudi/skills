@@ -1,135 +1,120 @@
 ---
 name: liteparse
-description: >
-  Parse, OCR, and screenshot documents (PDF, DOCX, XLSX, PPTX, images) using
-  liteparse (CLI: lit). Use when the user asks to extract text from a document,
-  parse a PDF or Office file, OCR a scanned document or image, convert a file
-  to text or JSON, screenshot PDF pages, or batch-process a directory of
-  documents.
+description: Use this skill whenever a task involves a document file (PDF, DOCX, PPTX, XLSX, or image)
+  and you need to read it or pull text, tables, or specific values out of it — to answer a question about
+  its contents, look up a figure, or extract data. Provides fast, local, model-free extraction via the 
+  `lit` CLI with disciplined, low-cost search patterns.
+compatibility: Requires Node 18+ and `@llamaindex/liteparse` (`npm i -g @llamaindex/liteparse`, verify 
+  `lit --version`). LibreOffice for Office files; ImageMagick for images. The bundled search.py helper needs `uv`.
+license: MIT
+metadata:
+  author: LlamaIndex
+  version: "1.0.1"
 ---
 
-# liteparse
+# Effective LiteParse
 
-Parse documents from the command line. Supports PDF, DOCX, XLSX, PPTX, and
-images. Uses Tesseract for OCR by default; can also use an HTTP OCR server.
+Extract text from documents locally with the `lit` CLI — a fast, model-free parser. This skill is
+about using it **cheaply**: each `lit parse` re-runs full extraction, and every line you dump into
+the conversation is paid for on every subsequent turn. 
 
-The CLI is `lit` (or `liteparse`), installed globally via pnpm.
+## The golden rule: parse ONCE to a file, then search the file
 
-## Commands
-
-| Command | Purpose |
-|---------|---------|
-| `lit parse <file>` | Parse a single document to text or JSON |
-| `lit batch-parse <dir> <out>` | Parse all documents in a directory |
-| `lit screenshot <file>` | Render PDF pages as images |
-
-## `lit parse` — Single Document
+`lit parse` re-extracts the whole document every time you call it. Re-parsing per search is the #1
+waste seen in traces. Parse a document exactly once, to a temp file, then run all your searches
+against that file:
 
 ```bash
-lit parse document.pdf
+# ONE TIME, per document. --no-ocr for born-digital PDFs (almost all reports) — much faster.
+lit parse "/abs/path/doc.pdf" --format text --no-ocr -o /tmp/doc.txt && wc -l /tmp/doc.txt
 ```
 
-Output goes to stdout as plain text. Common options:
+Then search the file with cheap shell tools — **never** re-run `lit parse` to search again.
 
-| Flag | Effect |
-|------|--------|
-| `-o <file>` | Write to file instead of stdout |
-| `--format json` | Output structured JSON (default: text) |
-| `--no-ocr` | Skip OCR. Use for text-native PDFs — much faster. |
-| `--dpi <n>` | Rendering DPI (default 150). Higher = better OCR quality, slower. |
-| `--target-pages <pages>` | Parse specific pages only (e.g. `"1-5,10,15-20"`) |
-| `--max-pages <n>` | Cap pages parsed (default 10000) |
-| `--ocr-language <lang>` | Tesseract language code (default `en`) |
-| `--password <pw>` | Decrypt password-protected documents |
-| `--num-workers <n>` | Parallel OCR workers (default: CPU cores − 1) |
-| `--preserve-small-text` | Keep very small text that would otherwise be filtered |
-| `--no-precise-bbox` | Skip precise bounding boxes (faster, less layout info) |
-| `--ocr-server-url <url>` | Use external OCR server instead of local Tesseract |
-| `-q` | Suppress progress output |
+## Search discipline — minimize ROUND-TRIPS, then keep results small
 
-### Examples
+Every Bash call is a full model round-trip (latency + re-read of context). The biggest waste after
+parsing is a **serial** loop: grep → look → grep again → `sed` to read the window → grep again. In
+traces this doubled the turn count versus just reading the doc. Two rules fix it:
+
+**1. Get context in the SAME command — don't grep then `sed`.** Use `grep -C` so the surrounding
+lines come back with the hit. This removes the follow-up `sed` turn for the common case:
 
 ```bash
-# Quick text extraction
-lit parse report.pdf
-
-# JSON output to file, first 3 pages only
-lit parse report.pdf --format json -o report.json --max-pages 3
-
-# OCR a scanned document in Spanish, high DPI
-lit parse scan.pdf --ocr-language spa --dpi 300
-
-# Text-only PDF (no images) — skip OCR
-lit parse manual.pdf --no-ocr
-
-# Specific page range
-lit parse book.pdf --target-pages "42-45,67"
-
-# Password-protected file
-lit parse confidential.docx --password "s3cret"
+grep -n -i -C4 "total assets" /tmp/doc.txt | head -40      # location AND its window, one turn
 ```
 
-## `lit batch-parse` — Directory of Documents
+Only fall back to `sed -n 'A,Bp'` when you already know the exact line and need a *wider* window
+than `-C` gave you.
+
+**2. Batch independent lookups into ONE command.** When a question needs several distinct facts
+(e.g. emissions *and* revenue), don't spend one turn per term. Probe them together with labels:
 
 ```bash
-lit batch-parse ./input-dir ./output-dir
+for q in "carbon intensity" "scope 1" "total revenue"; do \
+  echo "=== $q ==="; grep -n -i -C3 "$q" /tmp/doc.txt | head -25; done
 ```
 
-Parses every supported file in `input-dir`, writing results to `output-dir`.
-Output filenames are derived from input filenames (e.g. `report.pdf` →
-`report.txt` or `report.json`).
+Then keep results small:
 
-Options match `parse`, plus:
+- **Always bound output** with `head` and use `-n` for line numbers.
+- **Don't fan out blindly.** Aim to resolve a question in ≤3 search commands. If two targeted greps
+  don't pin it down, switch to `search.py` (below) — don't keep firing keyword variations one per turn.
+- Prefer **Bash `grep`/`sed` on the saved file over the Read and Grep tools** — fewer round-trips and
+  you control output size precisely.
 
-| Flag | Effect |
-|------|--------|
-| `--recursive` | Recurse into subdirectories |
-| `--extension <.ext>` | Only process files with this extension (e.g. `.pdf`) |
+## Ranked search when keywords are uncertain (bundled helper)
 
-### Example
+When two targeted greps haven't pinned the answer, **stop greping** — don't iterate keyword variants
+one turn at a time. Run the bundled BM25 ranker ONCE to surface the most relevant line-windows in a
+single command:
 
 ```bash
-# Parse all PDFs in a folder to JSON
-lit batch-parse ./documents ./output --format json --extension .pdf --recursive
+./.claude/skills/effective-liteparse/scripts/search.py /tmp/doc.txt -q "materiality assessment priority topics" -k 8 -e 5
 ```
 
-## `lit screenshot` — PDF Pages as Images
+`-k` = number of matches, `-e` = lines of context around each (so the window comes back inline — no
+follow-up `sed` turn). It returns ranked windows with line numbers. Use a rich natural-language query
+(several synonyms in one string), not a single keyword. This replaces a long chain of speculative greps.
+
+## Born-digital vs scanned
+
+- **Born-digital PDF** (real text layer — nearly all corporate/finance/ESG reports): always pass
+  `--no-ocr`. It's much faster and the text is identical. Leaving OCR on wastes time.
+- **Scanned PDF / image**: drop `--no-ocr`. If the value is missing or digits look wrong, read the
+  page visually (see below) rather than trusting OCR.
+
+## Reading a page visually — last resort, ONE screenshot, modest DPI
+
+Screenshots are the most expensive thing you can put in context: a single high-DPI page PNG ran
+**~140k characters** in one trace, and agents often rendered the same page twice (default + hi-res).
+
+Only screenshot when text/tables genuinely can't answer the question (dense multi-column tables,
+figures, charts). Then:
+
+- Render **one** page at a time with `--target-pages "N"` (note: it's `--target-pages`, NOT `--pages`).
+- Use **modest DPI (~150–200)**. Do not start at 300+; do not re-render the same page at higher DPI
+  unless the text is actually illegible.
 
 ```bash
-lit screenshot document.pdf
+lit screenshot "/abs/path/doc.pdf" --target-pages "13" --dpi 150 -o /tmp/shots/   # then Read the PNG
 ```
 
-Renders PDF pages to PNG (default) or JPG in `./screenshots/`.
+## Many questions about the same document
 
-| Flag | Effect |
-|------|--------|
-| `-o <dir>` | Output directory (default `./screenshots`) |
-| `--target-pages <pages>` | Which pages to render (e.g. `"1,3,5"` or `"1-10"`) |
-| `--dpi <n>` | Rendering DPI (default 150) |
-| `--format png\|jpg` | Image format (default `png`) |
-| `--password <pw>` | Decrypt password-protected PDF |
+Parsing once to a file already covers this: keep the `/tmp/doc.txt` and reuse it across every
+question instead of re-parsing.
 
-### Example
+## Don't waste turns on preamble
 
-```bash
-# First 3 pages as high-res PNGs
-lit screenshot presentation.pdf --target-pages "1-3" --dpi 300 -o ./slides
-```
+Skip `lit --version`, `ls -la`, and `lit … --help` unless something actually failed. Go straight to
+the parse. Core flags you need:
 
-## Gotchas
+`--format text|json` · `--no-ocr` · `--target-pages "1-5,10"` · `--dpi <n>` (default 150) ·
+`--ocr-language <iso>`. Use `--format json` only when you need bounding boxes/layout — it's much
+larger; still search it, never load it whole.
 
-- **OCR is on by default.** For text-native PDFs and Office files, OCR is
-  unnecessary and slow. Use `--no-ocr` when you know the document has embedded
-  text.
-- **Stdout for large files.** `lit parse` writes to stdout. For large documents,
-  use `-o <file>` or pipe through a pager.
-- **`batch-parse` requires an output directory.** It won't create one
-  automatically — ensure the output directory exists first.
-- **`screenshot` only works with PDFs.** Office files and images must be
-  converted to PDF first if you need screenshots.
-- **OCR uses tesseract.js (in-process WASM).** No system binary needed, but
-  first run downloads language-traineddata from CDN (~12MB for English). On
-  air-gapped machines, pre-download traineddata and set `TESSDATA_PREFIX`.
-- **Language codes are normalized.** You can pass `--ocr-language en` or
-  `--ocr-language eng` — liteparse maps common 2-letter codes to Tesseract
-  3-letter codes automatically.
+## Setup
+
+PDFs work out of the box. If `lit` is missing: `npm i -g @llamaindex/liteparse`. Office docs need
+LibreOffice; images need ImageMagick (both auto-converted to PDF).
