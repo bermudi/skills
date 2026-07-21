@@ -10,6 +10,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
+<!-- Syntax highlighting via highlight.js (CDN, self-contained).
+     The github-dark theme matches the dark `pre.code-block` ground below.
+     Add a `language-xxx` class to any <code> you want highlighted; the init
+     script at the end of <body> calls hljs.highlightAll(). -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js" defer></script>
+
 <style>
   :root {
     --paper: #f4f3ee;
@@ -41,6 +48,10 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
   }
   pre.code-block code { background: none; padding: 0; color: inherit; }
+  /* highlight.js tokens: let the github-dark theme colorize, but keep the
+     code-block's own background/padding/radius. The theme sets its own
+     background on `.hljs`; neutralize it so the dark ink ground shows. */
+  pre.code-block code.hljs { background: transparent; padding: 0; }
 
   /* The playground lab panel — a tinted surface, distinct from the page. */
   .lab {
@@ -323,7 +334,10 @@
     <p class="leading-relaxed mb-3">
       <span class="ph">«Why this exists and what it buys you. One short paragraph.»</span>
     </p>
-<pre class="code-block"><code>// «code or spec snippet — keep it small, just the part being explained»</code></pre>
+<!-- Add the right `language-xxx` class to <code> for syntax highlighting
+     (e.g. language-python, language-javascript, language-rust, language-bash).
+     highlight.js auto-detects if you omit it, but an explicit class is sharper. -->
+<pre class="code-block"><code class="language-javascript">// «code or spec snippet — keep it small, just the part being explained»</code></pre>
     <p class="mt-3 leading-relaxed">
       <span class="ph">«Walk the lines that matter. Do not narrate every token — explain the story.»</span>
     </p>
@@ -531,6 +545,13 @@
 
     sections.forEach(s => io.observe(s));
   })();
+
+  // ── Syntax highlighting ────────────────────────────────────────────────
+  // highlight.js is loaded with `defer` in <head>, so it has run by the time
+  // this inline script executes. highlightAll() picks up every
+  // <code class="language-xxx"> and leaves <code> without a language class
+  // alone (it will try to auto-detect those too — add a class to be explicit).
+  if (window.hljs) hljs.highlightAll();
 </script>
 
 </body>
