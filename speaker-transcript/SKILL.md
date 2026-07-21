@@ -28,6 +28,10 @@ the **colab-mcp** bridge (`mcporter call colab-mcp.<tool>`). The notebook in
 - **Skip** for a single speaker, or when only raw text is needed — that's the
   `media` skill (Gemini transcription, no diarization, much faster, no Colab).
 
+## Local hardware constraint (why this skill runs on Colab, not locally)
+
+**Never run WhisperX/pyannote locally on this machine.** The GPU is a GTX 1060 (Pascal, sm_61); modern torch ships no CUDA kernels for it, so diarization falls back to CPU and pegs every core for ~1 hr per file. Compute belongs on Colab. (This scopes to the ML pipeline — Tier 0 LLM reading of a transcript is local and fine.)
+
 ## The five critical rules (these all cost real time — read first)
 
 Each is expanded in a reference; they're here so you don't hit them cold.
