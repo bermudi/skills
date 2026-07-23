@@ -88,9 +88,15 @@ call it again**. The server process is still running with the original
 connection. Calling again will open a new tab and destroy the original
 connection.
 
+If the server restarted, call **`reconnect_colab_session`** instead. It waits
+for the existing tab to reconnect without opening a new one.
+`open_colab_browser_connection` will refuse to open a new tab if a persisted
+session exists, which prevents orphaned tabs.
+
 Instead: check `mcporter list colab-mcp` — if the tools are still there, the
-connection is still live. If the tools dropped to just `open_colab_browser_connection`,
-the connection was lost and you have no choice but to reconnect.
+connection is still live. If the tools dropped to just `open_colab_browser_connection`
+and `reconnect_colab_session`, the connection was lost and you should use
+`reconnect_colab_session` after the server restarts.
 
 ### Scratch Notebooks Don't Survive Refreshes
 
@@ -117,15 +123,17 @@ needing MCP interaction mid-run.
 ### The MCP Server Process Can Die Silently
 
 mcporter manages the MCP server process with a `keep-alive` lifecycle, but if a
-tool call times out, mcporter may kill the server. The WebSocket port and token
-are generated randomly on each startup, so a restarted server cannot be
-reconnected to by an existing Colab tab.
+tool call times out, mcporter may kill the server. The patched `colab-mcp`
+server persists its WebSocket token and port to
+`~/.local/share/colab-mcp/session.json`, so a restart reuses the same endpoint.
 
-If you need to reconnect to an existing tab after a server restart, you can pin
-the token and port via environment variables in the mcporter config
-(`COLAB_MCP_TOKEN` and `COLAB_MCP_PORT`). The Colab frontend reads these from
-the URL fragment, so a tab refresh will reconnect to the pinned endpoint. But
-see the scratch notebook caveat above — refreshing loses cells.
+To reconnect after a restart:
+
+1. Call `reconnect_colab_session` — it does **not** open a new tab.
+2. Refresh the existing Colab tab. Because the endpoint is unchanged, the
+   frontend reconnects instead of starting a new session.
+3. For long jobs, use a **saved notebook** (not `empty.ipynb`) so the refresh
+   doesn't destroy your cells.
 
 ### Practical Pattern for Long Jobs
 
