@@ -5,6 +5,7 @@ description: >-
   technical concept. Use when the user asks to understand, explain, walk
   through, or be taught how something works.
 license: Apache-2.0
+disable-model-invocation: true
 metadata:
   version: "1.0"
 ---
