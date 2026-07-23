@@ -88,15 +88,18 @@ call it again**. The server process is still running with the original
 connection. Calling again will open a new tab and destroy the original
 connection.
 
-If the server restarted, call **`reconnect_colab_session`** instead. It waits
-for the existing tab to reconnect without opening a new one.
-`open_colab_browser_connection` will refuse to open a new tab if a persisted
-session exists, which prevents orphaned tabs.
+If the server restarted, you have two options:
 
-Instead: check `mcporter list colab-mcp` — if the tools are still there, the
-connection is still live. If the tools dropped to just `open_colab_browser_connection`
-and `reconnect_colab_session`, the connection was lost and you should use
-`reconnect_colab_session` after the server restarts.
+1. Call **`reconnect_colab_session`** and refresh the existing Colab tab. This
+   keeps the same notebook and does not open a new tab.
+2. Call **`open_colab_browser_connection`** to open a fresh copy of the same
+   persisted URL in a new tab. The single-client lock will disconnect the old
+   tab.
+
+If a tab is already connected, `open_colab_browser_connection` returns `true`
+immediately. Use `reconnect_colab_session` when you want to keep the existing
+browser tab; use `open_colab_browser_connection` when the old tab is gone or
+you want a fresh one.
 
 ### Scratch Notebooks Don't Survive Refreshes
 
@@ -129,9 +132,10 @@ server persists its WebSocket token and port to
 
 To reconnect after a restart:
 
-1. Call `reconnect_colab_session` — it does **not** open a new tab.
-2. Refresh the existing Colab tab. Because the endpoint is unchanged, the
-   frontend reconnects instead of starting a new session.
+1. Call `reconnect_colab_session` — it does **not** open a new tab — then
+   refresh the existing Colab tab.
+2. Or call `open_colab_browser_connection` to open a fresh copy of the same
+   persisted URL in a new tab.
 3. For long jobs, use a **saved notebook** (not `empty.ipynb`) so the refresh
    doesn't destroy your cells.
 
