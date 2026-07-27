@@ -72,7 +72,7 @@ herdr agent start devin-app --kind devin --pane <pane-id> -- --model swe-1.7 --p
 - Initial prompt can be supplied after `--` or via `--prompt-file`, but starting the TUI and using `herdr agent prompt` keeps orchestration consistent.
 - Resume arguments: `-c` for the most recent conversation in the cwd, or `-r <session-id>` for a specific session.
 - Fresh context: submit `/new`, wait for the new prompt, then submit the next task. Use this between implementation phases and between read-only review and review-fixing.
-- Slash-command workflows such as `/loop` can continue beyond the intended unit. State the one-phase boundary and explicit stop condition in the task, then inspect the diff before accepting the commit.
+- `/loop` is an orchestrator-side command, not something the child model chooses. For strict phase/review boundaries, the parent should submit a normal one-turn prompt instead of invoking `/loop`, then exit Devin with Ctrl-D and relaunch the desired model.
 - Observed SWE-1.7 profile: productive at tightly scoped implementation and tests, but prone to helpful scope expansion and insufficiently adversarial self-review. Treat its completion report and “unrelated/pre-existing” labels as unverified claims.
 
 ## Harnesses without a herdr integration (example: `cmd` / Command Code)
