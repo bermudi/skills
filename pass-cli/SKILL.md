@@ -1,110 +1,165 @@
 ---
 name: pass-cli
 description: >
-  Retrieve secrets, credentials, and tokens from Proton Pass vaults via the
-  pass-cli, including auth-error auto-recovery. Invoked explicitly.
-disable-model-invocation: true
+  Safely retrieve Proton Pass secrets or inject them into a command or protected
+  config file with pass-cli, including scoped Agent-token session recovery.
+disable-model-invocation: false
 ---
 
-# Pass CLI — Secrets Retrieval
+# Pass CLI — Safe Secret Consumption
 
-Retrieve credentials, tokens, and secrets from Proton Pass vaults. The CLI is
-already installed and configured; you just need to keep your session alive.
+Use Proton Pass secrets by the least-exposing route. This skill covers finding
+an accessible secret, passing it to a process, or rendering a requested local
+config file. It does **not** administer vaults, shares, agents, or access
+permissions: those are owner actions with a larger blast radius.
 
-## Session Health
+## Choose the route before reading anything
 
-Don't pre-check — just run your command. If it fails with an authentication
-error (messages like "not authenticated", "session expired", "401", or
-"invalid session"), use the Auto-Recovery flow below.
+| Need | Use |
+| --- | --- |
+| A program needs a secret, but the agent does not | `pass-cli run` with a `pass://` reference. This is the default. |
+| A requested config artifact needs a secret | `pass-cli inject` to an explicit file path. This writes secret material to disk. |
+| The task genuinely requires the value in context | `pass-cli item view --field`. Retrieve one field only. |
 
-Do NOT re-auth for other failures ("item not found", "permission denied",
-"vault not found") — those mean you have the wrong vault name or item title.
+Never use `pass-cli run --no-masking`. Do not read a full item merely to pass a
+secret to another command. Do not put a resolved value in a shell command,
+source file, commit, ticket, or final response.
 
-## Discovery
+## Session health and recovery
 
-List what you have access to:
+Run the intended command first; do not preflight it. Recover **only** for a
+clear authentication error such as `not authenticated`, `session expired`,
+`invalid session`, or `401`. Item-not-found, vault-not-found, and permission
+errors need discovery or an owner access change—not re-authentication.
 
-```bash
-pass-cli vault list --output json       # All vaults
-pass-cli share list --output json       # Vaults + direct shares
-pass-cli item list --output json        # All accessible items
-pass-cli item list --vault-name "Vault Name" --output json  # Items in a specific vault
-```
-
-Always use `--output json` when you need to parse results programmatically.
-
-## Reading Secrets
-
-Every read command **requires** the `PROTON_PASS_AGENT_REASON` environment
-variable — a brief explanation of why you need this secret. It's mandatory.
-
-### Read a full item
+The owner must have already created a private environment file containing the
+Agent PAT. Never create, print, inspect, or change that file. On authentication
+failure, run this recovery and the original command in the **same shell** so
+that the isolated session directory applies to both:
 
 ```bash
-PROTON_PASS_AGENT_REASON="Need GitHub token to push release" \
-  pass-cli item view --vault-name "Work" --item-title "GitHub PAT"
-```
-
-You can also address items by URI:
-
-```bash
-PROTON_PASS_AGENT_REASON="..." pass-cli item view "pass://SHARE_ID/ITEM_ID"
-```
-
-### Read a single field
-
-```bash
-PROTON_PASS_AGENT_REASON="Logging into admin dashboard" \
-  pass-cli item view --vault-name "Work" --item-title "Admin Dashboard" --field password
-```
-
-Use `--field` when you only need one field (password, username, token, etc.)
-to avoid exposing unrelated fields to context.
-
-## Quick Reference
-
-```bash
-pass-cli info                                          # Session status
-pass-cli vault list --output json                      # List vaults
-pass-cli item list --vault-name <NAME> --output json   # Items in vault
-pass-cli item view --vault-name <V> --item-title <T>   # Read full item
-pass-cli item view ... --field <FIELD>                 # Read single field
-pass-cli test                                          # API connectivity check
-pass-cli logout --force                                # Kill stale session
-```
-
-## Auto-Recovery
-
-If a command fails with an authentication error:
-
-```bash
-# Ensure the env file exists
-if [ ! -f ~/.pass-cli-env ]; then
-  echo "FATAL: ~/.pass-cli-env not found. Cannot re-authenticate."
-  echo "Create it with: echo 'export PROTON_PASS_PAT=\"<your-token>\"' > ~/.pass-cli-env && chmod 600 ~/.pass-cli-env"
+if [ ! -r "$HOME/.pass-cli-env" ]; then
+  printf '%s\n' 'FATAL: pass-cli Agent credentials are not configured for this user.' >&2
   exit 1
 fi
 
-source ~/.pass-cli-env
+# The file is owner-managed and must not be printed.
+. "$HOME/.pass-cli-env"
+: "${PROTON_PASS_PAT:?FATAL: PROTON_PASS_PAT is not configured}"
 
-if [ -z "$PROTON_PASS_PAT" ]; then
-  echo "FATAL: PROTON_PASS_PAT is empty in ~/.pass-cli-env. Cannot re-authenticate."
-  exit 1
-fi
+export PROTON_PASS_SESSION_DIR="${PASS_CLI_AGENT_SESSION_DIR:-$HOME/.local/share/pass-cli-agent}"
+(umask 077; mkdir -p "$PROTON_PASS_SESSION_DIR")
 
-pass-cli logout --force
-export PROTON_PASS_SESSION_DIR="/tmp/pass-agent-$(date +%s)"
+# This isolated session may safely be discarded without affecting a human session.
+pass-cli logout --force || printf '%s\n' 'No reusable Agent session to discard; continuing with login.' >&2
 PROTON_PASS_PERSONAL_ACCESS_TOKEN="$PROTON_PASS_PAT" pass-cli login
-pass-cli info  # confirm
+pass-cli info
+
+# Retry the original command here, with its required reason if it reads an item.
 ```
 
-Then retry the original command.
+Do not echo `$PROTON_PASS_PAT` or pass it by a command-line flag. Keep
+`PROTON_PASS_SESSION_DIR` set for every later `pass-cli` invocation; separate
+shell/tool calls do not retain an earlier `export`.
 
-The PAT lives in `~/.pass-cli-env` (mode 600, never committed). This file is
-sourced at recovery time — the token never appears in the skill text sent to the
-model provider. Never echo `$PROTON_PASS_PAT`.
+If login fails because secure key storage is unavailable (common in a headless
+container), stop and explain the error. The owner may deliberately choose the
+documented `PROTON_PASS_KEY_PROVIDER=fs` fallback; do not enable it silently,
+because it stores the local encryption key on disk.
 
-## Gotchas
+## Discover precise identifiers
 
-- **Never echo the PAT.** It's sourced from `~/.pass-cli-env` at recovery time.
-  Resolve `$PROTON_PASS_PAT` into the command, don't print it.
+Discovery exposes item metadata, so list only the scope needed for the task.
+Use JSON when parsing it.
+
+```bash
+pass-cli vault list --output json
+pass-cli item list --vault-name "Vault Name" --output json
+```
+
+Once found, prefer the vault share ID and item ID for automation. Names are
+convenient for an interactive one-off, but duplicate vault or item names can
+resolve to the wrong object.
+
+## Give a process a secret without exposing it
+
+Use a field-level reference in an environment variable, then run the target as
+a child process. `pass-cli` replaces the reference only for that child and
+masks resolved values in its output by default.
+
+```bash
+export DEPLOY_TOKEN='pass://SHARE_ID/ITEM_ID/token'
+pass-cli run -- ./deploy.sh
+```
+
+For project configuration, keep only references in a gitignored env file:
+
+```dotenv
+DATABASE_PASSWORD=pass://SHARE_ID/ITEM_ID/password
+```
+
+```bash
+pass-cli run --env-file .env.secrets -- ./start-server
+```
+
+A TOTP reference resolves to the current code. Use `?totp=uri` only when the
+task explicitly requires the underlying `otpauth://` URI.
+
+## Render a requested configuration file
+
+`inject` materializes secrets. Only use it when the task explicitly needs that
+file, choose an explicit output path, and keep the default `0600` permissions.
+Never write the result to stdout.
+
+```yaml
+# app-config.yaml.template
+api_token: '{{ pass://SHARE_ID/ITEM_ID/token }}'
+```
+
+```bash
+pass-cli inject \
+  --in-file app-config.yaml.template \
+  --out-file .runtime/app-config.yaml
+```
+
+Do not use `--force` unless the user has explicitly approved overwriting that
+specific file. Treat the generated file as secret material: do not commit it.
+
+## Read one field only when its value is necessary
+
+An Agent-token operation that views an item requires a non-empty reason (at
+most 300 characters). State the concrete task purpose; never include a secret
+in the reason.
+
+```bash
+PROTON_PASS_AGENT_REASON="Use the deploy token for the requested release" \
+  pass-cli item view --share-id "SHARE_ID" --item-id "ITEM_ID" --field token
+```
+
+If you need to discover field names, a full item view is allowed only when the
+field cannot be identified otherwise. Give it the same reason and do not repeat
+the resulting values in your response.
+
+## Audit boundary
+
+The account owner can inspect Agent accesses with:
+
+```bash
+pass-cli agent monitor "agent-name" --output json
+```
+
+Do not create, renew, delete, grant, or revoke Agents/PATs as part of a secret
+retrieval task. Ask the owner to provision the narrowest possible, expiring
+viewer access—ideally to the single required item—when access is missing.
+
+## Quick reference
+
+```bash
+pass-cli vault list --output json
+pass-cli item list --vault-name "Vault Name" --output json
+pass-cli run --env-file .env.secrets -- ./command
+pass-cli inject --in-file template --out-file .runtime/config
+PROTON_PASS_AGENT_REASON="..." pass-cli item view --share-id ID --item-id ID --field field
+pass-cli info
+pass-cli test
+```
