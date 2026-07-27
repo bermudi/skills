@@ -1,61 +1,79 @@
 # Harness launch recipes
 
-All recipes go after `herdr agent start <unique-name> [--workspace ID] [--no-focus] -- `.
+Start recipes use an existing shell pane:
 
-Detection support requires the matching integration: `herdr integration install <claude|codex|opencode|pi>`. Check with `herdr integration status`.
+```bash
+herdr agent start <unique-name> --kind <kind> --pane <pane-id> -- <harness-args...>
+```
+
+Herdr supplies the canonical executable; do not repeat it after `--`. Detection support requires the matching integration, for example `herdr integration install <claude|codex|opencode|pi|devin>`. Check with `herdr integration status`.
 
 ## Claude Code (`claude`)
 
 ```bash
--- claude --permission-mode acceptEdits          # auto-accept file edits, still prompts for risky actions
--- claude --dangerously-skip-permissions         # full autonomy — sandboxes only
--- claude --model sonnet -n my-session           # model + display name
--- claude --add-dir ../shared                    # extra allowed directories
+--permission-mode acceptEdits                    # auto-accept file edits, still prompts for risky actions
+--dangerously-skip-permissions                   # full autonomy — sandboxes only
+--model sonnet -n my-session                     # model + display name
+--add-dir ../shared                              # extra allowed directories
 ```
 
-- Initial prompt: positional arg, e.g. `-- claude "Fix the flaky test in auth/"`
-- Resume: `-- claude -c` (last conversation in cwd) or `-- claude -r <session-id>`
+- Prefer submitting the initial task with `herdr agent prompt` after startup.
+- Resume arguments: `-c` (last conversation in cwd) or `-r <session-id>`
 - **Trust prompt:** interactive first run in an untrusted directory may show a workspace-trust dialog. Expect `blocked`; read `visible` and confirm once, or pre-trust the directory.
 - Permission modes: `acceptEdits` | `auto` | `bypassPermissions` | `manual` | `dontAsk` | `plan`.
 
 ## Codex (`codex`)
 
 ```bash
--- codex -a on-request -s workspace-write        # recommended: writable workspace, model asks when unsure
--- codex -a never -s workspace-write             # no approval prompts, sandboxed to workspace
--- codex --dangerously-bypass-approvals-and-sandbox   # full autonomy — sandboxes only
--- codex -m gpt-5 -C ~/src/app                   # model + working root
+-a on-request -s workspace-write                 # recommended: writable workspace, model asks when unsure
+-a never -s workspace-write                      # no approval prompts, sandboxed to workspace
+--dangerously-bypass-approvals-and-sandbox       # full autonomy — sandboxes only
+-m gpt-5 -C ~/src/app                            # model + working root
 ```
 
-- Initial prompt: positional, `-- codex "Refactor the parser"`
-- Resume: `-- codex resume --last`
+- Prefer submitting the initial task with `herdr agent prompt` after startup.
+- Resume arguments: `resume --last`
 - Approval policies: `untrusted` | `on-request` | `never`. Sandbox: `read-only` | `workspace-write` | `danger-full-access`.
 - `codex exec` is the non-interactive mode — do not use it for driven sessions; use the TUI.
 
 ## OpenCode (`opencode`)
 
 ```bash
--- opencode                                      # TUI in cwd (or: opencode /path/to/project)
--- opencode --auto                               # auto-approve permissions (flag is documented as dangerous)
--- opencode -m anthropic/claude-sonnet-4-5       # provider/model
--- opencode --agent build                        # pick agent
+# no arguments                                   # TUI in pane cwd
+--auto                                           # auto-approve permissions (flag is documented as dangerous)
+-m anthropic/claude-sonnet-4-5                   # provider/model
+--agent build                                    # pick agent
 ```
 
-- Continue/resume: `-- opencode -c` or `-- opencode -s <session-id>`
+- Continue/resume arguments: `-c` or `-s <session-id>`
 - `opencode run <msg>` is non-interactive — not for driven sessions.
 
 ## Pi (`pi`)
 
 ```bash
--- pi                                            # interactive, default provider
--- pi --model anthropic/claude-sonnet-4-5        # or --provider X --model Y, supports model:thinking shorthands
--- pi -n my-session                              # display name
--- pi --tools read,grep,find,ls,bash             # tool allowlist (e.g. read-only-ish reviews)
+# no arguments                                   # interactive, default provider
+--model anthropic/claude-sonnet-4-5              # or --provider X --model Y; model:thinking works
+-n my-session                                    # display name
+--tools read,grep,find,ls,bash                   # tool allowlist (e.g. read-only reviews)
 ```
 
-- Initial prompt: positional, `-- pi "List all .ts files in src/"`
-- Continue/resume: `-- pi -c` or `-- pi -r`
+- Prefer submitting the initial task with `herdr agent prompt` after startup.
+- Continue/resume arguments: `-c` or `-r`
 - `pi -p` is non-interactive — not for driven sessions.
+
+## Devin (`devin`)
+
+```bash
+herdr agent start devin-app --kind devin --pane <pane-id> -- --model swe-1.7 --permission-mode accept-edits
+```
+
+- Model selection: `--model <name>`; inspect available account models with `devin models`.
+- Permission modes: `auto` (read-only auto-approval), `accept-edits`, `smart`, or `dangerous`. Prefer `accept-edits` for supervised repository work; `dangerous` is sandbox-only.
+- Initial prompt can be supplied after `--` or via `--prompt-file`, but starting the TUI and using `herdr agent prompt` keeps orchestration consistent.
+- Resume arguments: `-c` for the most recent conversation in the cwd, or `-r <session-id>` for a specific session.
+- Fresh context: submit `/new`, wait for the new prompt, then submit the next task. Use this between implementation phases and between read-only review and review-fixing.
+- Slash-command workflows such as `/loop` can continue beyond the intended unit. State the one-phase boundary and explicit stop condition in the task, then inspect the diff before accepting the commit.
+- Observed SWE-1.7 profile: productive at tightly scoped implementation and tests, but prone to helpful scope expansion and insufficiently adversarial self-review. Treat its completion report and “unrelated/pre-existing” labels as unverified claims.
 
 ## Harnesses without a herdr integration (example: `cmd` / Command Code)
 
@@ -64,8 +82,9 @@ No official integration → state detection may be `unknown`. Two options:
 **1. Launch with no-prompt flags and pattern-match output:**
 
 ```bash
-herdr agent start cmd-a --workspace <ws_id> --no-focus -- cmd -t --auto-accept   # or --yolo (full bypass)
-herdr wait output <pane_id> --match "Press Esc twice" --timeout 120000           # booted
+# Unsupported harnesses cannot use `herdr agent start`; run them in an existing pane.
+herdr pane run <pane_id> "cmd -t --auto-accept"  # or --yolo (full bypass)
+herdr wait output <pane_id> --match "Press Esc twice" --timeout 120000
 herdr wait output <pane_id> --match "some completion marker" --regex --timeout 1800000
 ```
 
@@ -81,8 +100,8 @@ States: `idle|working|blocked|unknown`. Use increasing `--seq` so stale reports 
 ## Interrupt / steering keys (all harnesses)
 
 ```bash
-herdr pane send-keys <pane_id> esc        # interrupt current generation (widely supported; verify per harness)
-herdr pane send-keys <pane_id> ctrl+c     # last resort
+herdr agent send-keys <name> esc          # interrupt current generation (widely supported; verify per harness)
+herdr agent send-keys <name> ctrl+c       # last resort
 ```
 
 ## Debugging detection
