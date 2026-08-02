@@ -96,21 +96,9 @@ Available JSON fields: `gitSHA`, `gitType`, `mode`, `modeOctal`, `name`,
 > **The `.entries[]` wrapper matters.** A bare `--jq '.[]'` returns nothing.
 > Always drill into `.entries[]` first.
 
-### Useful jq patterns
-
-```bash
-# Just the subdirectory names
-gh repo read-dir --repo cli/cli --json name,type \
-  --jq '.entries[] | select(.type=="dir") | .name'
-
-# Files with sizes, sorted descending
-gh repo read-dir docs --repo cli/cli --json name,type,size \
-  --jq '.entries[] | select(.type=="file") | "\(.size)\t\(.name)"'
-
-# Anything executable (modeOctal is a string — quote it)
-gh repo read-dir script --repo cli/cli --json name,modeOctal \
-  --jq '.entries[] | select(.modeOctal=="100755") | .name'
-```
+Read `references/jq-patterns.md` when filtering or projecting `read-dir`
+output — subdirectory lists, size-sorted files, executable bits, and the
+`mode`/`modeOctal` type trap.
 
 ---
 
@@ -147,23 +135,17 @@ gh repo read-file go.mod --repo cli/cli --json name,path,size,gitSHA
 Available fields: `content`, `downloadUrl`, `encoding`, `gitSHA`, `gitUrl`,
 `htmlUrl`, `name`, `path`, `size`, `type`, `url`.
 
-### Escape-sequence safety (read this)
+### Escape-sequence safety
 
 By default `read-file` **refuses to print files containing terminal escape
 sequences** to a terminal or pipe — a guard against malicious content that
-could manipulate your terminal. It will error rather than emit them.
+could manipulate your terminal. It errors rather than emitting them; use
+`--allow-escape-sequences` or `--output` to get the bytes anyway.
 
-- Want the file anyway? Use `--allow-escape-sequences`, **or**
-- Write to disk with `--output` — disk writes always contain the raw bytes
-  (equivalent to `--allow-escape-sequences`), where the bytes can't hijack a
-  terminal.
-
-The guard keys on **literal ESC (`0x1b`) bytes** — actual ANSI/CSI
-sequences. Files that merely *look* escapey (zsh `%{$fg[green]%}` prompt
-syntax, `$\033`-as-text in source) are not blocked, and arbitrary binaries
-are only blocked if they happen to contain an `0x1b` byte. When in doubt
-about a file's contents, `--output` to a temp path and read it back, rather
-than streaming to stdout.
+Read `references/escape-sequences.md` when `read-file` errors on escape
+sequences, or before streaming an untrusted file to stdout. It covers the
+`0x1b`-byte guard, the two workarounds, and the safe-by-default `--output`
+pattern.
 
 ---
 

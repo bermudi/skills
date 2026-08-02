@@ -218,62 +218,14 @@ YouTube silently ignores format parameter changes on expired URLs and returns em
 
 ## Deep fallback: `youtubei/v1/get_transcript`
 
-If direct XML fetch fails (rare with fresh URLs), you can call the InnerTube transcript endpoint. It requires protobuf-encoded params:
+If direct XML fetch fails (rare with fresh URLs), the InnerTube
+`get_transcript` endpoint accepts protobuf-encoded params and returns segments
+through a deeply nested response path.
 
-```js
-class PbWriter {
-    constructor() { this.buf = []; }
-    varint(v) {
-        while (v > 127) { this.buf.push((v & 0x7f) | 0x80); v >>>= 7; }
-        this.buf.push(v);
-    }
-    string(field, val) {
-        this.varint((field << 3) | 2);
-        const bytes = new TextEncoder().encode(val);
-        this.varint(bytes.length);
-        this.buf.push(...bytes);
-    }
-    finish() { return new Uint8Array(this.buf); }
-}
-
-function bytesToBase64(bytes) {
-    const bin = Array.from(bytes, (b) => String.fromCharCode(b)).join('');
-    return btoa(bin);
-}
-
-function encodeGetTranscriptParams(videoId, language, kind) {
-    const inner = new PbWriter();
-    inner.string(1, kind);      // "" for manual, "asr" for auto
-    inner.string(2, language);  // e.g. "en"
-    const innerB64 = bytesToBase64(inner.finish());
-
-    const outer = new PbWriter();
-    outer.string(1, videoId);
-    outer.string(2, innerB64);
-    return bytesToBase64(outer.finish());
-}
-```
-
-Request shape:
-```js
-const resp = await fetch(`https://www.youtube.com/youtubei/v1/get_transcript?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        params: encodeGetTranscriptParams(videoId, language, kind),
-        context: ANDROID_CONTEXT
-    })
-});
-```
-
-Response path:
-```js
-const segments = data?.actions?.[0]?.updateEngagementPanelAction
-    ?.content?.transcriptRenderer?.content?.transcriptSearchPanelRenderer
-    ?.body?.transcriptSegmentListRenderer?.initialSegments ?? [];
-```
-
-Each segment has `transcriptSegmentRenderer.startMs` and `snippet.runs[].text`.
+Read `references/get-transcript-fallback.md` when the primary XML pipeline
+fails and you need to fall back to `get_transcript`. It covers the
+`PbWriter` protobuf encoder, the `encodeGetTranscriptParams` shape, the request
+body, and the response path to `initialSegments`.
 
 ## Key findings from the field
 

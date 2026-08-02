@@ -96,55 +96,25 @@ with an image path skips OCR entirely.
 
 ## What the response contains
 
-Use `--json` to inspect the raw OCR response. Each page carries:
+Use `--json` to inspect the raw OCR response. The primary output is the
+per-page `markdown` field (text + layout); `images`, `tables`, `hyperlinks`,
+`blocks`, and `confidence_scores` arrive alongside it when the corresponding
+flags are set.
 
-| Field | Content |
-|-------|---------|
-| `markdown` | Text + layout (tables, lists) as Markdown — the primary output |
-| `images` | Embedded figures (base64 when `--images` is set) |
-| `tables` | Tables extracted separately when `--table-format` is set |
-| `hyperlinks` | Detected hyperlinks |
-| `header` / `footer` | Running headers/footers (when `--header` / `--footer` are set) |
-| `dimensions` | Page size in pixels |
-| `blocks` | Paragraph-level bounding boxes + block labels (OCR 4+, `--blocks`) |
-| `confidence_scores` | Page/word confidence (when `--confidence` is set) |
+Read `references/response-structure.md` when parsing the raw JSON response —
+the full per-page field table, the top-level fields (`model`,
+`document_annotation`, `usage_info`), the image/table placeholder mapping, and
+the `--blocks` block-type vocabulary.
 
-Top level also has `model`, `document_annotation` (when `--prompt` is used),
-and `usage_info` (`pages_processed`, `doc_size_bytes`).
+## Large files
 
-When images/tables are extracted, the `markdown` field replaces them with
-placeholders (`![img-0.jpeg](img-0.jpeg)`, `[tbl-3.html](tbl-3.html)`) — map
-them back via the `images` and `tables` arrays.
+Inline `data:` URIs (what `scripts/ocr.py` uses) suit typical documents. For
+large PDFs, upload via the files API first and feed the signed URL back to the
+OCR endpoint.
 
-### Block types (when `--blocks` is set)
-
-`text`, `title`, `list`, `table`, `image`, `equation`, `caption`, `code`,
-`references`, `aside_text`, `header`, `footer`, `signature`. Blocks are
-returned in reading order with `top_left_x/y`, `bottom_right_x/y`, `content`,
-and `type`.
-
-## Large files — use the files API
-
-Inline `data:` URIs (what the script uses) suit typical documents. For large
-PDFs, upload first and feed the signed URL back to the OCR endpoint:
-
-```bash
-# 1. upload (purpose MUST be "ocr")
-FILE_ID=$(curl -s https://api.mistral.ai/v1/files \
-  -H "Authorization: Bearer $MISTRAL_API_KEY" \
-  -F purpose=ocr -F file=@big.pdf \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
-
-# 2. get a signed URL
-URL=$(curl -s "https://api.mistral.ai/v1/files/$FILE_ID/url" \
-  -H "Authorization: Bearer $MISTRAL_API_KEY" \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["url"])')
-
-# 3. OCR the signed URL (the script accepts URLs directly)
-python3 scripts/ocr.py "$URL"
-```
-
-Signed URLs expire — use them immediately, don't cache them.
+Read `references/large-files.md` when OCRing a PDF too large for inline
+base64. It covers the upload → signed-URL → OCR three-step pattern, signed-URL
+expiry, and the Batch Inference service for large-scale workloads.
 
 ## Gotchas
 
@@ -173,8 +143,8 @@ Signed URLs expire — use them immediately, don't cache them.
   require OCR 2512+; `include_blocks` requires OCR 4 (`mistral-ocr-4-0`)+.
   `mistral-ocr-latest` tracks the current best — use it unless you need to pin
   a version for reproducibility.
-- **For large-scale OCR**, use Mistral's Batch Inference service — cheaper and
-  parallel — rather than looping the OCR API directly.
+- **For large-scale OCR**, use Mistral's Batch Inference service rather than
+  looping the OCR API — see `references/large-files.md`.
 - **`qna.py` has no `--pages` flag.** The whole document is sent to the chat
   model as one content item; the chat API has no page-slice parameter. For
   large docs where you only need a section, OCR the relevant pages with
