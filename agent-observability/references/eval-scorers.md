@@ -59,6 +59,32 @@ function scoreExactMatch(output: string, reference: string): number {
 
 ## LLM-as-Judge Scorers
 
+### The Reliability Problem
+
+Before implementing LLM-as-Judge, understand the evidence against its
+reliability. Four independent sources challenge the assumption that an LLM can
+fairly judge another LLM's output:
+
+| Source | Finding |
+|--------|---------|
+| **RUBRICEVAL** (Pan et al., 2026) | GPT-4o: 55.97% balanced accuracy on hard rubric judgments. Claude-Sonnet-4.5: 55.65%. Judge selection alone shifts scores by up to 25 points. |
+| **DELEGATE-52** (Laban et al., 2026) | GPT 5.4 as judge captures at most 25% of the variance of domain-specific parsing metrics. Generic rubrics miss nuanced semantic corruption. |
+| **Bias in the Loop** (Zhao et al., 2026) | 12 prompt-induced biases produce 40+ point swings from candidate ordering and prompt framing. Biases are directional, not random. |
+| **Practitioner consensus** | Dex Horthy: "models are optimized to tell you what you want to hear." Samuel Colvin: "the lunatics running the asylum." Both prefer deterministic checks. |
+
+**Implication for implementation:** LLM-as-Judge is a noisy signal generator,
+not a reliable gate. Use it for exploration and surfacing candidates for
+review, but make deterministic checks the final disposition. When you must use
+an LLM judge:
+
+- **Rubric-level over checklist-level**: evaluate each rubric in a separate
+  call (7–12 point accuracy gain over evaluating all rubrics in one pass).
+- **Add reasoning (CoT)**: improves accuracy 6–9 points, at token cost.
+- **Test for positional bias**: swap candidate order and re-score; if the
+  result flips, the judge is responding to position, not quality.
+- **Report measurement error**: don't present a single score as ground truth.
+  Report the judge identity, paradigm, and bias-sensitivity range.
+
 ### The Rubric Design Pattern
 
 A bad rubric: "Is the output helpful?" — too vague, the model can't apply
@@ -246,6 +272,11 @@ Run scorers as a pipeline — fast, deterministic checks first to fail early:
 ```
 
 This avoids paying for LLM-as-Judge when the output is structurally broken.
+This is the **deterministic-first principle** in action: "never send an AI to
+do a linter's job." Anything that can be evaluated deterministically should be
+— save LLM evaluation for the parts that genuinely need it. The deterministic
+layer is the final gate; LLM-as-judge generates signal but does not make
+disposition.
 
 ```typescript
 async function scorePipeline(
@@ -278,6 +309,189 @@ async function scorePipeline(
   };
 }
 ```
+
+### Per-Step Scorers (Workflow-Graph Evaluation)
+
+A refinement of trajectory eval: attach scorers directly to individual
+workflow steps rather than only evaluating final output. Each step declares
+what "correct" looks like for that step, and the system tracks conformance
+automatically. The workflow graph becomes the eval scaffold.
+
+```typescript
+const classifyStep = workflow.defineStep({
+  name: "classifyEmail",
+  scorer: {
+    name: "classifiedEmailScore",
+    ratio: 1,  // fires on every execution
+    evaluate: (input, output) => {
+      return output.category === expectedCategory(input) ? 1.0 : 0.0;
+    },
+  },
+});
+```
+
+Failed runs can be saved as dataset items for future regression testing — the
+same flywheel as the quality loop, but triggered at the step level.
+
+### Deterministic Guardrails Between LLM Steps
+
+Between LLM-call steps, insert deterministic validation that checks the LLM's
+output before passing it downstream. Neither the LLM's classification nor the
+deterministic check is trusted alone — only their agreement produces the
+routing decision.
+
+```typescript
+// After LLM classifies an email
+const llmCategory = await llm.classify(email);
+// Deterministic cross-check via keyword signals
+const keywordSignals = detectSponsorKeywords(email);
+
+if (llmCategory === "sponsor" && keywordSignals.length > 0) {
+  return { route: "sponsor-pipeline", confidence: "high" };
+}
+// Disagreement → flag for review, don't auto-route
+return { route: "review", reason: "llm-keyword-mismatch" };
+```
+
+This operationalizes "never send an AI to do a linter's job": the deterministic
+checks are narrow, mechanical validations that don't consume model tokens or
+reasoning budget. They act as output gates between LLM steps, catching
+misclassifications before they cascade.
+
+## Online Evals: Scoring Production Traces Without Ground Truth
+
+All of the above are **offline** evals — curated inputs, known or judgeable
+reference outputs, run on demand. **Online evals** score production traces
+*without ground truth*, because real user interactions have no reference
+answer.
+
+### Perceived Error Detection
+
+The concrete pattern (Harrison Chase, LangChain): a small purpose-trained
+model scans transcripts for signals that the user believes the agent failed:
+
+- Direct complaints: "you messed up," "that's wrong," "no, I meant..."
+- Error pasting: user pastes back a code snippet with an error message
+- Repetition: user re-asks the same question, implying the first answer failed
+
+```typescript
+interface OnlineEvalConfig {
+  model: string;          // small, cheap classifier — not a frontier judge
+  samplingRate: number;   // 1.0 in production (cost is per-call, not per-token-heavy)
+  signals: string[];      // ["complaint", "error_paste", "repetition"];
+}
+
+async function perceivedErrorEval(
+  transcript: Transcript,
+  config: OnlineEvalConfig
+): Promise<{ perceivedError: boolean; signals: string[] }> {
+  // Small model classifier — runs at full production volume
+  return classifyTranscript(transcript, config);
+}
+```
+
+**Economics:** online evals run at full production volume, so the evaluator
+model's per-call cost dominates. Use a cheap purpose-trained classifier, not a
+frontier judge. This mirrors the small-model findings: the evaluator doesn't
+need to be smart, it needs to be cheap and consistent.
+
+**Why perceived error is viable despite the LLM-as-Judge crisis:** perceived
+error is a *classification* task (does this transcript contain an error
+signal?) rather than an open-ended quality judgment. This is structurally
+closer to MAST (Multi-Agent System Failure Taxonomy, Cemri et al. 2025 —
+human inter-annotator agreement κ=0.88, with an LLM-as-judge pipeline that
+matches human labels) than to rubric-level quality scoring (RUBRICEVAL:
+55.97%). The distinction matters: LLM-as-judge works better on structured
+classification than on open-ended rubric evaluation, but it's still
+LLM-judged (probabilistic,
+not deterministic) — so it's more reliable than outcome-layer rubric judging,
+but not a substitute for deterministic checks where those are possible.
+
+### Guardrails vs. Online Evals
+
+The timing distinction matters:
+
+| | Guardrails | Online Evals |
+|---|---|---|
+| **When** | Before the agent responds | After the agent responds |
+| **Effect** | Slows the agent, blocks bad outputs | Doesn't slow the agent, surfaces failures |
+| **Cost** | Latency on every call | Compute on every call (async) |
+| **Use for** | Preventing known failure modes | Discovering unknown failure modes |
+
+They are complements, not substitutes. Guardrails catch what you already know
+to block; online evals catch what you didn't anticipate.
+
+## Model-Swap Evals: The Diff Shortcut
+
+A specialized eval pattern for answering "can I swap in a new model?" when a
+deprecation is announced, a new model drops, or a cheaper/faster tier might
+suffice (Kevin Gregory, EvolutionIQ).
+
+### The Diff Shortcut
+
+Run the incumbent and candidate models on the same test cases and **diff the
+outputs**. If they agree, no labeling is needed — the candidate matches a model
+already in production. Only the **disagreement cases** need human labeling, and
+those become the most valuable additions to the golden set.
+
+```typescript
+async function modelSwapEval(
+  incumbent: string,
+  candidate: string,
+  benchmark: BenchmarkCase[]
+): Promise<SwapReport> {
+  const incumbentOutputs = await runBatch(incumbent, benchmark);
+  const candidateOutputs = await runBatch(candidate, benchmark);
+
+  const agreements = [];
+  const disagreements = [];
+
+  for (let i = 0; i < benchmark.length; i++) {
+    if (incumbentOutputs[i] === candidateOutputs[i]) {
+      agreements.push(benchmark[i]);
+    } else {
+      disagreements.push({
+        case: benchmark[i],
+        incumbent: incumbentOutputs[i],
+        candidate: candidateOutputs[i],
+        // These get human-labeled and added to the golden set
+      });
+    }
+  }
+
+  return {
+    agreementRate: agreements.length / benchmark.length,
+    disagreements,  // → label these, add to golden set
+    recommendation: disagreements.length === 0 ? "safe-to-swap" : "review-disagreements",
+  };
+}
+```
+
+### Three-Dimension Budget
+
+The harness measures three dimensions against configurable threshold gates:
+
+```typescript
+interface SwapBudget {
+  accuracyFloor: number;   // minimum acceptable accuracy delta (e.g., -0.02)
+  costCeiling: number;     // maximum acceptable cost increase (e.g., 1.5x)
+  latencyCeiling: number;  // maximum acceptable latency increase (e.g., 1.2x)
+}
+```
+
+The hardest part is defining what "good enough" looks like; the thresholds
+should be the easiest thing to change. For unstructured outputs (summaries),
+use either LLM-as-judge or a second extraction layer that pulls structured
+facts from the free text and checks those deterministically.
+
+### Saturated vs. Unsaturated Benchmarks
+
+For model builders, unsaturated benchmarks (10–20% scores, room to improve)
+are valuable. For your own evals, you want **saturated** benchmarks — your
+goal is 99–99.9% accuracy, and a saturated private eval tells you whether
+you're there. Public benchmarks have limited purchase not just because of
+contamination, but because the saturation level useful for model builders is
+the opposite of what you need for production evals.
 
 ## Custom Score Definition (Mastra-style)
 

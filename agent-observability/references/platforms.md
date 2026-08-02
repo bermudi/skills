@@ -12,6 +12,7 @@
 | **Braintrust** | Experiment tracking; eval-focused; good for comparison | Less agent-specific tooling |
 | **Datadog** | Existing infra integration; no new service to manage | Expensive at scale; generic (not agent-aware) |
 | **Honeycomb** | Excellent query language for trace inspection | Generic; no eval features |
+| **BAML** | Compiler-level auto-instrumentation; type-safe tracing; agents as trace consumers | Language-level integration required; not a full platform |
 
 ## Mastra (TypeScript Agent Framework)
 
@@ -77,6 +78,28 @@ Then send OTLP traces to `http://localhost:6006/v1/traces`.
 **Best for**: Teams that want specialized agent trace visualization and
 already have their own eval infrastructure.
 
+## BAML (Compiler-Level Auto-Instrumentation)
+
+BAML takes a different approach: instead of bolting tracing on after the
+fact, the compiler knows which functions call LLMs and automatically captures
+their inputs and outputs. No manual `@trace` decorators, no opt-in span
+creation.
+
+**Key properties:**
+- **Complete coverage by default**: every LLM-calling function is traced
+  automatically — no gaps from forgotten instrumentation
+- **Type-safe traces**: the compiler preserves data shapes, enabling
+  schema-aware queries against trace data (the OTEL type-system limitation
+  doesn't apply)
+- **Security by default**: environment variables and HTTP headers redacted
+  automatically; repeated values deduplicated
+- **Agents as trace consumers**: traces are queryable by agents, not just
+  visualizable for humans
+
+**Best for**: Projects that want complete, type-safe tracing without relying
+on developers (human or agent) to remember instrumentation, and that need
+machine-queryable traces for agent self-introspection.
+
 ## Decision Framework
 
 ```
@@ -91,6 +114,11 @@ Are you already on Datadog/Honeycomb?
 
 Do you need experiment tracking (A/B testing prompts/models)?
   → Use Braintrust for the eval/experiment layer + OTEL for tracing.
+
+Do you want complete auto-instrumentation without opt-in, and type-safe
+queryable traces for agent self-introspection?
+  → Use BAML. The compiler handles instrumentation; traces are typed and
+    machine-queryable.
 ```
 
 ## Self-Hosted vs. Cloud
