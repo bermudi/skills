@@ -83,7 +83,7 @@ The main file you author by hand is `evals/evals.json`. The other JSON files (`g
 
 ### Spawning runs
 
-Each eval run should start with a clean context — no leftover state from previous runs or from the skill development process. This ensures the agent follows only what the `SKILL.md` tells it. In environments that support subagents (Claude Code, for example), this isolation comes naturally: each child task starts fresh. Without subagents, use a separate session for each run.
+Each eval run should start with a clean context — no leftover state from previous runs or from the skill development process. This isn't just hygiene; it prevents a specific failure mode: coding agents are good at *cheating*. If you run inside an existing environment, the agent may look up previous chats, find context from earlier executions, or pull the answer from session history — getting the right result without ever consulting the skill. You'd see a pass that isn't real. In environments that support subagents (Claude Code, for example), this isolation comes naturally: each child task starts fresh. Without subagents, use a separate session for each run.
 
 For each run, provide:
 
@@ -126,6 +126,8 @@ Timing data lets you compare how much time and tokens the skill costs relative t
 
 Assertions are verifiable statements about what the output should contain or achieve. Add them after you see your first round of outputs — you often don't know what "good" looks like until the skill has run.
 
+> **Test outcomes, not paths.** Assert on whether the task was achieved, not whether the skill was loaded. If the agent solves the problem without ever consulting the skill — or loads it after five turns instead of one — that's still a pass. A skill exists to improve outcomes; the eval should measure outcomes. Asserting "the skill was invoked on turn 1" tests the harness, not the skill, and blinds you to cases where the model didn't need the skill at all (see [Retiring a skill](/skill-creation/best-practices#retiring-a-skill)).
+
 Good assertions:
 
 * `"The output file is valid JSON"` — programmatically verifiable.
@@ -165,7 +167,9 @@ Add assertions to each test case in `evals/evals.json`:
 
 Grading means evaluating each assertion against the actual outputs and recording **PASS** or **FAIL** with specific evidence. The evidence should quote or reference the output, not just state an opinion.
 
-The simplest approach is to give the outputs and assertions to an LLM and ask it to evaluate each one. For assertions that can be checked by code (valid JSON, correct row count, file exists with expected dimensions), use a verification script — scripts are more reliable than LLM judgment for mechanical checks and reusable across iterations.
+**Prefer programmatic checks over LLM judgment.** Most skill evals can be simple regex or string assertions — did the output use the correct SDK, the correct model ID, the correct method names, and avoid deprecated patterns? These are cheap, fast, and perfectly repeatable across iterations. Write a verification script for anything mechanical (valid JSON, correct row count, file exists with expected dimensions). Scripts are more reliable than LLM judgment for mechanical checks and reusable across iterations — and they cost nothing to run, so you can rerun the full eval set on every skill change without hesitation.
+
+Reserve LLM-as-judge for assertions that require reading the whole trace or judging holistic qualities (organization, tone, whether the approach was sound). For those, give the outputs and assertions to an LLM with a rubric describing what a pass looks like, and ask for a pass/fail with evidence.
 
 ```json grading.json theme={null}
 {
@@ -241,6 +245,10 @@ The `delta` tells you what the skill costs (more time, more tokens) and what it 
   Standard deviation (`stddev`) is only meaningful with multiple runs per eval. In early iterations with just 2-3 test cases and single runs, focus on the raw pass counts and the delta — the statistical measures become useful as you expand the test set and run each eval multiple times.
 </Note>
 
+### Run multiple trials per case
+
+Models are non-deterministic — the same prompt may pass on the first run and fail on the second. A single run per case can mislead you: a pass might be luck, a failure might be bad luck. Run **2-6 trials per test case** and look at the pass rate across trials, not just a single outcome. Two trials catch the worst variance cheaply; six gives you a reliable reliability measure for cases that matter. This is the output-eval counterpart to the 3-run trigger-rate discipline in [Optimizing skill descriptions](/skill-creation/optimizing-descriptions#running-multiple-times).
+
 ## Analyzing patterns
 
 Aggregate statistics can hide important patterns. After computing the benchmarks:
@@ -294,3 +302,17 @@ Stop when you're satisfied with the results, feedback is consistently empty, or 
 <Tip>
   The [`skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator) Skill automates much of this workflow — running evals, grading assertions, aggregating benchmarks, and presenting results for human review.
 </Tip>
+
+## Evals as a regression gate
+
+Once your eval set is stable, it stops being just a creation-time tool — it becomes a **regression gate** for ongoing changes to the skill. The discipline:
+
+1. **Run the full eval set on every change to the skill.** A diff that looks harmless may break a case you're not thinking about.
+2. **Don't accept a change that regresses the evals** unless it's a deliberate trade-off you can justify. If a change improves some cases but hurts others, weigh them deliberately — don't let the aggregate hide a real regression.
+3. **A change that adds new behaviour should add new evals for it.** If you're extending the skill's scope, the eval set should grow to cover the new scope.
+
+This is how teams at scale (e.g. Google DeepMind's internal skill management) keep skills healthy: every diff triggers the eval suite, and a change is not merged unless the evals pass. You don't need CI infrastructure to do this — just make running the eval set a habit before committing any skill edit.
+
+### Keep evals after retiring a skill
+
+When you retire a skill because the model no longer needs it (see [Retiring a skill](/skill-creation/best-practices#retiring-a-skill)), **don't delete the evals**. They become regression sentinels: keep running them against the bare model (no skill) on a cadence — monthly, or when a new model version drops. If the model starts failing tasks it used to pass, you'll know it's time to reintroduce the skill or find another fix. Retired skills are reversible; deleted evals are not.

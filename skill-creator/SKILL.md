@@ -371,6 +371,9 @@ This catches broken YAML frontmatter (unquoted colons, invalid types, missing fi
 
 - [ ] At least three test cases created
 - [ ] Evaluated against real usage scenarios
+- [ ] Ablation tested — run with and without the skill to confirm it adds value
+- [ ] Multiple trials per case (2-6) to account for non-determinism
+- [ ] Assertions test outcomes (task achieved), not paths (skill was invoked)
 
 ---
 
@@ -392,9 +395,10 @@ This creates a `.skill` file (zip format) that can be installed by any agent cli
 
 | Read when you need... | File |
 |-----------------------|------|
+| Expertise sourcing, context spending, calibrating prescriptiveness, skill vs script, capability vs preference taxonomy, retirement | `references/best-practices.md` |
 | Complete SKILL.md format (all frontmatter fields, naming rules, validation) | `references/specification.md` |
 | Your first end-to-end walkthrough | `references/quickstart.md` |
-| Test case design, assertions, grading, workspace structure | `references/evaluating-skills.md` |
+| Test case design, assertions, grading, workspace structure, regression gate, keeping evals after retirement | `references/evaluating-skills.md` |
 | Trigger optimization, train/validation splits | `references/optimizing-descriptions.md` |
 | Making bundled scripts with inline dependencies | `references/using-scripts.md` |
 | JSON schemas (evals.json, grading.json, benchmark.json) | `references/schemas.md` |

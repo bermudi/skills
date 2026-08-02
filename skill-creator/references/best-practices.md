@@ -41,6 +41,24 @@ Even a single pass of execute-then-revise noticeably improves quality, and compl
 
 For a more structured approach to iteration, including test cases, assertions, and grading, see [Evaluating skill output quality](/skill-creation/evaluating-skills).
 
+## Capability vs preference skills
+
+Not all skills have the same lifespan. Knowing which kind you're writing shapes how you invest in it and when you retire it.
+
+**Capability skills** teach the model something it can't do consistently yet — a new API released after the model's training cutoff, an unfamiliar framework, a domain-specific procedure. These are *temporary*: as models improve, they outgrow the skill. Evals tell you when. Run the skill's evals with and without the skill enabled; when the model passes them unaided, the skill is no longer adding value and can be retired.
+
+**Preference skills** encode conventions the foundation models won't learn on their own — your team's workflows, style decisions, domain-specific rules. These are *durable*: the model won't magically discover your company's deployment process. Protect them with evals so that model upgrades don't silently degrade the behaviour you depend on.
+
+The distinction matters at creation time: a capability skill is an investment you expect to recoup, a preference skill is permanent infrastructure. Both need evals, but for different reasons — one to know when to let go, the other to know nothing broke.
+
+### Retiring a skill
+
+Skills are not permanent. Models improve, behaviours shift, and a skill that was essential six months ago may be dead weight today. The discipline:
+
+1. **Run evals with and without the skill.** If the model achieves the same pass rate unaided, the skill is no longer adding value.
+2. **Keep the evals after retiring the skill.** They become regression sentinels — if a future model upgrade degrades performance on those tasks, the evals catch it and you can reintroduce the skill.
+3. **Retire confidently.** A retired skill still cost context tokens on every turn (if model-invoked); removing it saves that cost and reduces maintenance.
+
 ## Spending context wisely
 
 Once a skill activates, its full `SKILL.md` body loads into the agent's context window alongside conversation history, system context, and other active skills. Every token in your skill competes for the agent's attention with everything else in that window.
@@ -51,6 +69,8 @@ Focus on what the agent *wouldn't* know without your skill: project-specific con
 
 > [!warning] A skill can make things worse
 > If the model already handles a task well, a skill that's too prescriptive can **degrade performance**. WorkOS engineer Nick Nisi discovered through rough evals that his Next.js installer skill was making Claude ~30% less accurate — the model was already competent with Next.js, and his dogmatic instructions were overriding its native knowledge. (Nisi is upfront that these are directional numbers — "I made up" — not rigorous benchmarks. The lesson stands regardless.) Always eval a skill with vs. without to confirm it's adding value, not subtracting it.
+
+The broader evidence backs this up. Skills Bench (which indexed over 50,000 skills) found that almost none had evals and most were AI-written; AI-generated skills can impact performance *negatively*, while human-written skills are the best you can provide. On average, well-crafted skills improve performance by roughly 15% — but that average hides skills that help a lot and skills that hurt. Roughly half of skill failures trace back to the skill never triggering in the first place — a description problem, not a content problem. The takeaway: write skills from real expertise, keep them lean, and always eval with vs. without.
 
 ````markdown theme={null}
 <!-- Too verbose — the agent already knows what PDFs are -->
@@ -162,6 +182,10 @@ Join the `orders` table to `customers` on `customer_id`, filter where
 ```
 
 This doesn't mean skills can't include specific details — output format templates (see [Templates for output format](#templates-for-output-format)), constraints like "never output PII," and tool-specific instructions are all valuable. The point is that the *approach* should generalize even when individual details are specific.
+
+### Skills vs scripts
+
+If a workflow is always the same rigid sequence — step 1, step 2, step 3, every time — don't write a skill. Write a script and tell the model to run it. Skills cost tokens and attention on every invocation; a deterministic script costs nothing when it's not running and produces the same result every time when it is. A skill is for *goals and constraints* — describe what the agent should achieve and the boundaries it must respect, not a fixed step sequence it could just execute. When you catch yourself writing "Step 1: do X. Step 2: do Y. Step 3: do Z" with no branching, extract it to `scripts/` and replace the skill content with a pointer to the script.
 
 ## Patterns for effective instructions
 
