@@ -1,18 +1,4 @@
----
-name: liteparse
-description: Use this skill whenever a task involves a document file (PDF, DOCX, PPTX, XLSX, or image)
-  and you need to read it or pull text, tables, or specific values out of it — to answer a question about
-  its contents, look up a figure, or extract data. Provides fast, local, model-free extraction via the 
-  `lit` CLI with disciplined, low-cost search patterns.
-compatibility: Requires Node 18+ and `@llamaindex/liteparse` (`npm i -g @llamaindex/liteparse`, verify 
-  `lit --version`). LibreOffice for Office files; ImageMagick for images. The bundled search.py helper needs `uv`.
-license: MIT
-metadata:
-  author: LlamaIndex
-  version: "1.0.1"
----
-
-# Effective LiteParse
+# LiteParse — Fast Local Document Extraction
 
 Extract text from documents locally with the `lit` CLI — a fast, model-free parser. This skill is
 about using it **cheaply**: each `lit parse` re-runs full extraction, and every line you dump into
@@ -70,7 +56,7 @@ one turn at a time. Run the bundled BM25 ranker ONCE to surface the most relevan
 single command:
 
 ```bash
-./.claude/skills/effective-liteparse/scripts/search.py /tmp/doc.txt -q "materiality assessment priority topics" -k 8 -e 5
+uv run scripts/search.py /tmp/doc.txt -q "materiality assessment priority topics" -k 8 -e 5
 ```
 
 `-k` = number of matches, `-e` = lines of context around each (so the window comes back inline — no
@@ -116,5 +102,10 @@ larger; still search it, never load it whole.
 
 ## Setup
 
-PDFs work out of the box. If `lit` is missing: `npm i -g @llamaindex/liteparse`. Office docs need
+PDFs work out of the box. If `lit` is missing: `bun add -g @llamaindex/liteparse`. Office docs need
 LibreOffice; images need ImageMagick (both auto-converted to PDF).
+
+
+## Provenance
+
+Adapted from the LlamaIndex LiteParse skill under the MIT license.

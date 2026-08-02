@@ -1,11 +1,4 @@
----
-name: document-ai
-description: >
-  Extract text from documents and pull structured data out of them using
-  Mistral's document AI / OCR API. Use when liteparse is not good enough.
----
-
-# Document AI (Mistral OCR)
+# Mistral Document AI
 
 OCR, structured extraction, and document QnA via Mistral's
 `mistral-ocr-latest` + chat models. Cloud-based, multilingual out of the box
@@ -14,34 +7,43 @@ OCR, structured extraction, and document QnA via Mistral's
 tables, structured field extraction, or document Q&A. Use `liteparse` for
 quick offline text extraction.
 
-## Authenticate
+## Authenticate without exposing the key
 
-The API key lives in Proton Pass. Load it into the environment for the session:
+The API key lives in Proton Pass. Give it only to the child process with
+`pass-cli run`; do not materialize it in command output or source it into the
+agent's shell:
 
 ```bash
-export MISTRAL_API_KEY=$(pass-cli item view 'pass://Keys/Mistral/Api Key')
+export MISTRAL_API_KEY='pass://Keys/Mistral/Api Key'
+PROTON_PASS_AGENT_REASON="OCR the document requested by the user" \
+  pass-cli run -- uv run scripts/mistral_ocr.py report.pdf
 ```
+
+The remaining examples show the underlying `uv run` command for readability.
+When `MISTRAL_API_KEY` is a `pass://` reference rather than an already-resolved
+process environment variable, wrap each command with `pass-cli run --` as
+above.
 
 ## Extract text — the common case
 
-`scripts/ocr.py` handles local files and URLs. It base64-encodes local files,
-picks `document_url` vs `image_url` correctly, and prints extracted Markdown:
+`scripts/mistral_ocr.py` handles local files and URLs. It base64-encodes local
+files, picks `document_url` vs `image_url` correctly, and prints extracted Markdown:
 
 ```bash
-python3 scripts/ocr.py report.pdf                 # -> Markdown to stdout
-python3 scripts/ocr.py scan.png -o scan.md        # -> write to file
-python3 scripts/ocr.py https://example.com/doc.pdf
-python3 scripts/ocr.py book.pdf --pages 0-4       # 0-indexed page subset
+uv run scripts/mistral_ocr.py report.pdf                 # -> Markdown to stdout
+uv run scripts/mistral_ocr.py scan.png -o scan.md        # -> write to file
+uv run scripts/mistral_ocr.py https://example.com/doc.pdf
+uv run scripts/mistral_ocr.py book.pdf --pages 0-4       # 0-indexed page subset
 ```
 
 ### Layout, blocks, tables, confidence, headers/footers
 
 ```bash
-python3 scripts/ocr.py report.pdf --blocks                  # paragraph-level bboxes (OCR 4+)
-python3 scripts/ocr.py report.pdf --table-format html       # tables as HTML separately (OCR 2512+)
-python3 scripts/ocr.py report.pdf --confidence word         # per-word confidence scores
-python3 scripts/ocr.py report.pdf --header --footer         # split out running headers/footers (OCR 2512+)
-python3 scripts/ocr.py report.pdf --images                  # embed figures as base64
+uv run scripts/mistral_ocr.py report.pdf --blocks                  # paragraph-level bboxes (OCR 4+)
+uv run scripts/mistral_ocr.py report.pdf --table-format html       # tables as HTML separately (OCR 2512+)
+uv run scripts/mistral_ocr.py report.pdf --confidence word         # per-word confidence scores
+uv run scripts/mistral_ocr.py report.pdf --header --footer         # split out running headers/footers (OCR 2512+)
+uv run scripts/mistral_ocr.py report.pdf --images                  # embed figures as base64
 ```
 
 ## Understand / analyze — structured extraction
@@ -53,7 +55,7 @@ Two annotation modes from the OCR API:
 
 ```bash
 # invoice.schema.json defines { invoice_number, total, line_items, ... }
-python3 scripts/ocr.py invoice.pdf \
+uv run scripts/mistral_ocr.py invoice.pdf \
   --prompt "Extract invoice number, total, and line items." \
   --schema invoice.schema.json
 # -> { "invoice_number": "...", "total": "...", "line_items": [...] }
@@ -65,7 +67,7 @@ Implies `--images` so the API has figures to annotate. Annotations land in
 
 ```bash
 # chart.schema.json defines { image_type, short_description, summary }
-python3 scripts/ocr.py paper.pdf --bbox chart.schema.json
+uv run scripts/mistral_ocr.py paper.pdf --bbox chart.schema.json
 # -> [ { "image_type": "scatter plot", ... }, ... ]
 ```
 
@@ -76,15 +78,15 @@ schema correctly yourself.
 
 ## Document QnA — natural-language questions
 
-`scripts/qna.py` sends the document as a chat content item and answers a
-question. Defaults to `mistral-small-latest` (cheap, fast); reach for
+`scripts/mistral_qna.py` sends the document as a chat content item and answers
+a question. Defaults to `mistral-small-latest` (cheap, fast); reach for
 `mistral-large-latest` on hard reasoning:
 
 ```bash
-python3 scripts/qna.py report.pdf "What is the last sentence in the document?"
-python3 scripts/qna.py contract.pdf "List the termination clauses." \
+uv run scripts/mistral_qna.py report.pdf "What is the last sentence in the document?"
+uv run scripts/mistral_qna.py contract.pdf "List the termination clauses." \
   --model mistral-large-latest
-python3 scripts/qna.py https://arxiv.org/pdf/1805.04770 "Summarize the abstract."
+uv run scripts/mistral_qna.py https://arxiv.org/pdf/1805.04770 "Summarize the abstract."
 ```
 
 Use OCR (`ocr.py`) when you need **exact text** (transcription, tables,
@@ -99,18 +101,18 @@ per-page `markdown` field (text + layout); `images`, `tables`, `hyperlinks`,
 `blocks`, and `confidence_scores` arrive alongside it when the corresponding
 flags are set.
 
-Read `references/response-structure.md` when parsing the raw JSON response —
+Read `references/documents/mistral-response-structure.md` when parsing the raw JSON response —
 the full per-page field table, the top-level fields (`model`,
 `document_annotation`, `usage_info`), the image/table placeholder mapping, and
 the `--blocks` block-type vocabulary.
 
 ## Large files
 
-Inline `data:` URIs (what `scripts/ocr.py` uses) suit typical documents. For
+Inline `data:` URIs (what `scripts/mistral_ocr.py` uses) suit typical documents. For
 large PDFs, upload via the files API first and feed the signed URL back to the
 OCR endpoint.
 
-Read `references/large-files.md` when OCRing a PDF too large for inline
+Read `references/documents/mistral-large-files.md` when OCRing a PDF too large for inline
 base64. It covers the upload → signed-URL → OCR three-step pattern, signed-URL
 expiry, and the Batch Inference service for large-scale workloads.
 
@@ -142,7 +144,7 @@ expiry, and the Batch Inference service for large-scale workloads.
   `mistral-ocr-latest` tracks the current best — use it unless you need to pin
   a version for reproducibility.
 - **For large-scale OCR**, use Mistral's Batch Inference service rather than
-  looping the OCR API — see `references/large-files.md`.
+  looping the OCR API — see `references/documents/mistral-large-files.md`.
 - **`qna.py` has no `--pages` flag.** The whole document is sent to the chat
   model as one content item; the chat API has no page-slice parameter. For
   large docs where you only need a section, OCR the relevant pages with

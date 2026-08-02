@@ -94,6 +94,8 @@ Use code-search when you need to:
 ## When NOT to Use This
 
 - **Looking for documentation** → Use `tavily_skill` or `context7` instead
+- **Browsing a known repo tree or reading an exact file** → Use `gh repo read-dir`
+  or `gh repo read-file` instead
 - **Searching by concept/keyword** → Use `tavily_search` instead
 - **Understanding a specific repo's architecture** → Use `deepwiki` instead
 - **Web search for information** → Use `tavily_search`

@@ -1,18 +1,4 @@
----
-name: gh-repo-read
-description: >
-  Explore GitHub repositories without cloning using `gh repo read-file` and
-  `gh repo read-dir`. Use when the user asks to inspect, browse, or read files
-  from a remote repo (e.g. "what's in repo X", "read file Y from Z", "show me
-  the structure of ..."), fetch a single file from GitHub, or compare a file
-  across branches/tags/commits. Prefers these commands over cloning when only
-  inspection — not modification — is needed.
-metadata:
-  version: "1.0"
-  topic: repo-exploration
----
-
-# gh-repo-read
+# Read Remote GitHub Repositories Without Cloning
 
 Browse GitHub repositories and read files **without a clone**, using two
 preview commands added in `gh` 2.95.0:
@@ -95,7 +81,7 @@ Available JSON fields: `gitSHA`, `gitType`, `mode`, `modeOctal`, `name`,
 > **The `.entries[]` wrapper matters.** A bare `--jq '.[]'` returns nothing.
 > Always drill into `.entries[]` first.
 
-Read `references/jq-patterns.md` when filtering or projecting `read-dir`
+Read `references/web/github-repo-jq-patterns.md` when filtering or projecting `read-dir`
 output — subdirectory lists, size-sorted files, executable bits, and the
 `mode`/`modeOctal` type trap.
 
@@ -141,7 +127,7 @@ sequences** to a terminal or pipe — a guard against malicious content that
 could manipulate your terminal. It errors rather than emitting them; use
 `--allow-escape-sequences` or `--output` to get the bytes anyway.
 
-Read `references/escape-sequences.md` when `read-file` errors on escape
+Read `references/web/github-repo-escape-sequences.md` when `read-file` errors on escape
 sequences, or before streaming an untrusted file to stdout. It covers the
 `0x1b`-byte guard, the two workarounds, and the safe-by-default `--output`
 pattern.

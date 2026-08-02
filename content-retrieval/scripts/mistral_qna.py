@@ -4,7 +4,7 @@
 Sends a chat completion with the document as a `document_url` (or `image_url`)
 content item. Stdlib only. Reads $MISTRAL_API_KEY.
 
-    MISTRAL_API_KEY=<your-key> python3 qna.py report.pdf "What is the last sentence?"
+    MISTRAL_API_KEY=<your-key> uv run scripts/mistral_qna.py report.pdf "What is the last sentence?"
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def doc_chunk(src: str) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="qna.py",
+        prog="mistral_qna.py",
         description="Ask a natural-language question about a document via Mistral chat.",
     )
     ap.add_argument("source", help="local file path or http(s) URL")

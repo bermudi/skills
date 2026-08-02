@@ -144,7 +144,9 @@ Use `ask_question` with an array of repos and a comparative question.
 
 | Need | Tool |
 |------|------|
+| Browse a remote repo tree or read/compare exact files | **`gh repo read-dir` / `read-file`** |
 | Understand a GitHub repo's architecture | **deepwiki** |
 | Find real code examples of an API | **grep.app** |
+| Search many files, run code, or make changes | **clone the repository** |
 | Look up library documentation | **context7** or **tavily_skill** |
 | Search the web for information | **tavily_search** |

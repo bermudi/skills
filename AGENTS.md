@@ -60,14 +60,16 @@ Some skills are authored here from scratch; others were adapted from upstream so
 | `domain-modeling` | `mattpocock/skills` → `skills/engineering/domain-modeling` | Light local edits |
 | `improve-codebase-architecture` | `mattpocock/skills` → `skills/engineering/improve-codebase-architecture` | Light local edits |
 | `grill-me` | `mattpocock/skills` → `skills/productivity/grill-me` | Local version expands the upstream stub |
-| `liteparse` | `run-llama/llamaparse-agent-skills` → `skills/liteparse` | Heavily rewritten (thinner wrapper) |
+| `content-retrieval` (LiteParse portion) | `run-llama/llamaparse-agent-skills` → former `skills/liteparse` | Consolidated skill is locally authored; only its LiteParse guide/search helper track upstream |
 | `agent-browser` | `vercel-labs/agent-browser` → `skills/agent-browser` | Rewrote description + inlined workflow content |
 | `mcporter` | `steipete/clawdis` → `skills/mcporter` | Condensed upstream into a minimal stub |
 | `skill-creator` | started from `anthropics/skills` → `skills/skill-creator` | **Owned here now** — substantially rewritten with its own eval tooling; no longer tracks upstream |
 
 **Authored here (no upstream):**
 
-`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `gh-repo-read`, `litespec-pipeline`, `media`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`, `web-content`, `youtube-transcript-extraction`.
+`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`, `youtube-transcript-extraction`.
+
+`content-retrieval` also consolidates the locally authored former `document-ai`, `gh-repo-read`, `media`, and `web-content` skills; its LiteParse provenance is recorded above.
 
 ## Validation
 

@@ -1,0 +1,33 @@
+{
+  "skill_name": "content-retrieval",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Read the attached quarterly report and tell me the Q2 revenue and Scope 1 emissions. Give page-level evidence, and don't upload the document unless local extraction fails.",
+      "expected_output": "Reports Q2 revenue as $18.4 million and Scope 1 emissions as 742 metric tons CO2e, cites page 1, parses the PDF locally exactly once, and searches the saved extraction rather than reparsing or using cloud OCR.",
+      "files": [
+        "evals/files/quarterly-report.pdf"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Can you pull the exact error text out of this terminal screenshot? I need to paste it into an issue verbatim.",
+      "expected_output": "Uses local OCR rather than Gemini image analysis and returns the three visible lines verbatim, including db.internal:5432 and the retry count of 5.",
+      "files": [
+        "evals/files/terminal-error.png"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Get the title and main sentence from https://example.com/ and tell me which URL you used. Don't do a broad web search.",
+      "expected_output": "Fetches the known URL directly with curl, returns the Example Domain title and its main explanatory sentence, cites https://example.com/, and does not invoke Tavily search, crawling, or AI research.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Without cloning it, show me the top-level directories in cli/cli and read the module path from its go.mod on the v2.94.0 tag.",
+      "expected_output": "Uses gh repo read-dir and gh repo read-file with --repo cli/cli and --ref v2.94.0, reports the remote top-level directories and the module path from go.mod, and does not use DeepWiki, grep.app, or clone the repository.",
+      "files": []
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 
 Stdlib only. The API key is read from $MISTRAL_API_KEY:
 
-    MISTRAL_API_KEY=<your-key> python3 ocr.py invoice.pdf
+    MISTRAL_API_KEY=<your-key> uv run scripts/mistral_ocr.py invoice.pdf
 
 Defaults to printing extracted markdown. Use --prompt/--schema for whole-document
 structured extraction, --bbox (with a JSON Schema) for per-image annotations,
@@ -81,7 +81,7 @@ def schema_to_format(schema: dict, name_hint: str) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="ocr.py",
+        prog="mistral_ocr.py",
         description="OCR a document (file or URL) with Mistral Document AI.",
     )
     ap.add_argument("source", help="local file path or http(s) URL")

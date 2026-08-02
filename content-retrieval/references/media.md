@@ -1,11 +1,3 @@
----
-name: media
-description: >
-  Transcribe or analyze images, video, and audio. Use when read returned "model
-  does not support X", when you need OCR on a screenshot, or even when you need
-  to verify who said a quote in a YouTube video.
----
-
 # Media
 
 Image, video, and audio understanding via the `gemini-media` MCP, called through
