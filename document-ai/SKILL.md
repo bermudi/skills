@@ -22,8 +22,6 @@ The API key lives in Proton Pass. Load it into the environment for the session:
 export MISTRAL_API_KEY=$(pass-cli item view 'pass://Keys/Mistral/Api Key')
 ```
 
-All commands below assume `$MISTRAL_API_KEY` is set.
-
 ## Extract text — the common case
 
 `scripts/ocr.py` handles local files and URLs. It base64-encodes local files,

@@ -20,10 +20,9 @@ preview commands added in `gh` 2.95.0:
 - `gh repo read-dir` — list directory entries
 - `gh repo read-file` — read a single file
 
-Both hit the GitHub API directly. No checkout, no `.git`, no disk footprint
-unless you ask for one. Great for answering "what does this repo look like?"
-before deciding whether to clone, or for grabbing one config file from a
-dependency.
+Both hit the GitHub API directly. Great for answering "what does this repo
+look like?" before deciding whether to clone, or for grabbing one config file
+from a dependency.
 
 ## Prerequisites
 

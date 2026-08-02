@@ -13,7 +13,7 @@ Before any control command, confirm this agent runs inside a Herdr pane:
 test "${HERDR_ENV:-}" = 1
 ```
 
-If this fails, you are not running inside Herdr. You may still issue control commands if the user names an explicit target — a pane ID (e.g. `w1:p3`) or an agent name. Either removes the targeting hazard. Otherwise stop; without `--current` or an explicit target, a control command lands on whatever pane some other client has focused, which is usually not what the user wants.
+If this fails, you are not running inside Herdr. You may still issue control commands if the user names an explicit target — a pane ID (e.g. `w1:p3`) or an agent name. Otherwise stop; without `--current` or an explicit target, a control command lands on whatever pane some other client has focused, which is usually not what the user wants.
 
 ## Discover the CLI
 

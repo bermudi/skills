@@ -59,15 +59,11 @@ need meaning, description, or OCR-quality is insufficient.
 
 ## Timeouts
 
-| Tool | mcporter `--timeout` | pi bash `timeout` |
-|------|---------------------|-------------------|
-| `ocr` (local) | `15000` (15s) | `30` |
-| Gemini image tools | `120000` (2 min) | `150` (2.5 min) |
-| `analyze_video` | `300000` (5 min) | `330` (5.5 min) |
-| Audio tools (YouTube) | `300000` (5 min) | `330` (5.5 min) |
-
-The rule: pi's bash timeout (seconds) must be > mcporter's timeout (seconds).
-mcporter handles the timeout cleanly; pi's SIGKILL does not.
+Each command example below shows the correct mcporter `--timeout`. For the
+outer pi bash `timeout` (seconds), use `30` for local `ocr`, `150` for Gemini
+image tools, and `330` for video and audio. **Pi's bash timeout must be
+strictly greater than mcporter's timeout in seconds** — mcporter handles its
+timeout cleanly; pi's SIGKILL does not.
 
 ```bash
 # Local OCR — fast
@@ -243,9 +239,8 @@ omitted, Gemini returns generic labels (Speaker 1, Speaker 2, etc.).
 - **gemini-3.1-flash-lite is the default** for speed and low rate-limit
   pressure. Bump to `gemini-3.5-flash` or `gemini-3.5-pro` per call when you
   need stronger reasoning.
-- **Default mcporter timeout (60s) is too short** for Gemini calls.
-  Always pass `--timeout 120000` for images, `--timeout 300000` for video and
-  audio. Local `ocr` only needs `--timeout 15000`.
+- **Default mcporter timeout (60s) is too short** for Gemini calls. Always
+  pass `--timeout` explicitly — see the command examples above.
 - **File paths must exist on disk** or be accessible remote URLs.
 - **Audio tools only accept YouTube URLs.** Not local audio files or other
   platforms. Supported formats: `youtube.com/watch?v=`, `youtu.be/`,
