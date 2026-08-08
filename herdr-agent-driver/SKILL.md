@@ -1,6 +1,7 @@
 ---
 name: herdr-agent-driver
-description: Drive interactive coding-agent harnesses (Claude Code, Codex, OpenCode, Pi, and similar terminal agents) from a parent orchestrator agent using the herdr CLI. Use when starting, prompting, monitoring, waiting on, reading output from, or coordinating one or more coding agents running in herdr panes — including parallel multi-agent setups with git worktrees.
+description: Drive interactive coding-agent harnesses from a parent orchestrator agent using the herdr CLI.
+disable-model-invocation: true
 ---
 
 # Driving coding agents with herdr
@@ -150,4 +151,10 @@ Auto-approval flags (`--dangerously-skip-permissions`, `-a never`, `--auto`, `--
 
 ## Reference
 
-Per-harness launch recipes, resume commands, and unsupported-harness state reporting: **references/harness-recipes.md**.
+- Per-harness launch recipes, resume commands, and unsupported-harness state reporting: **references/harness-recipes.md**.
+- **Synthesized cross-harness view** — slash `/`, bash `!`, file `@`, permission-mode cycling (`Shift+Tab`), session resume, model switching, queuing, paste collapse, and keybindings, plus herdr driving do/don'ts: **references/interactive-patterns.md** (distilled from the four sources below).
+- **Per-CLI deep dives:**
+  - Devin — `devin` / `devin -p` / modes / slash & keys: **references/devin-essential-commands.md** (`docs.devin.ai/cli/essential-commands`)
+  - Pi — TUI layout / slash / queuing / sessions / CLI flags: **references/pi-usage.md** (`pi.dev/docs/latest/usage`)
+  - Codex — global flags / subcommands / 40+ slash commands / `exec` & app-server: **references/codex-developer-commands.md** (`learn.chatgpt.com/docs/developer-commands?surface=cli`)
+  - Command Code — `/`/`!`/`@` surface / model resolution / mode cycle / full keybinding tables: **references/commandcode-interactive.md** (`commandcode.ai/docs/interactive-mode`)
