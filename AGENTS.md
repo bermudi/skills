@@ -67,9 +67,9 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 **Authored here (no upstream):**
 
-`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`, `youtube-transcript-extraction`.
+`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`.
 
-`content-retrieval` also consolidates the locally authored former `document-ai`, `gh-repo-read`, `media`, and `web-content` skills; its LiteParse provenance is recorded above.
+`content-retrieval` also consolidates the locally authored former `document-ai`, `gh-repo-read`, `media`, `web-content`, and `youtube-transcript-extraction` skills; its LiteParse provenance is recorded above.
 
 ## Validation
 

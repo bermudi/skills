@@ -2,16 +2,18 @@
 name: content-retrieval
 description: >
   Use this skill when acquiring, extracting, searching, or understanding
-  external content: documents (PDF, DOCX, PPTX, XLSX), audio, video, known
-  URLs, websites, web search, online research, library documentation, or
-  remote GitHub repositories: browsing trees, reading exact files, finding
-  code examples, and understanding architecture. For an image or screenshot, do
-  not trigger merely because it is attached: use direct model vision first.
-  Trigger only after vision fails or the image is omitted/unsupported, or when
-  the task specifically requires OCR or image comparison.
+  external content: documents (PDF, DOCX, PPTX, XLSX), audio, video, images,
+  known URLs, websites, web search, online research, library documentation, or
+  remote GitHub repositories (browse trees, read exact files, find code,
+  understand architecture). IMAGES — VISION-LESS MODELS NEED THIS: if your read
+  tool returned "image will be omitted" or "model does not support images", you
+  have no vision and this skill is the only way to handle any image, screenshot,
+  or document image — load it and retry through OCR or image analysis instead of
+  retrying the inline read. If you CAN view images, use this skill only for
+  verbatim OCR or image comparison, not ordinary description.
 license: MIT
 metadata:
-  version: "1.0"
+  version: "1.1"
   topic: content-retrieval
 ---
 
@@ -44,9 +46,11 @@ What does the user have?
 │   └── User specifically requests image comparison → image comparison
 │
 ├── Audio or video
-│   ├── Video understanding → video analysis
-│   ├── Verify who said a YouTube quote → speaker verification
-│   └── Need exact words from a YouTube segment → segment transcription
+│   ├── Video understanding (scenes, moments, what happens) → video analysis
+│   ├── YouTube video and you need its words
+│   │   ├── Captions exist → pull them directly via InnerTube (free, deterministic)
+│   │   └── No captions, or need speaker ID on a segment → transcribe_segment
+│   └── Verify who said a specific quote → speaker verification
 │
 ├── Known URL
 │   ├── Direct document/media URL → use the matching route above
@@ -75,11 +79,15 @@ What does the user have?
   insufficient, the document is multilingual/layout-heavy, or typed structured
   extraction is required.
 - **Images:** do not read the media guide for an ordinary attached-image task
-  when the current model can inspect it directly. Read
-  [Media](references/media.md) only after direct vision fails or reports the
-  image omitted/unsupported, or for explicit OCR or image comparison.
-- **Audio and video:** read [Media](references/media.md) before using Gemini
-  media tools.
+  when the current model can inspect it directly. If `read` reported the image
+  omitted/unsupported, you are vision-less for this task — load
+  [Media overview](references/media/overview.md) now and route through OCR or
+  Gemini image analysis; do not retry the inline read. Explicit OCR or image
+  comparison also use this guide.
+- **Audio and video:** read [Media overview](references/media/overview.md)
+  before using Gemini media tools. To pull a YouTube video's existing captions
+  directly (faster, free, no model), read
+  [YouTube captions](references/media/youtube-captions.md) first.
 - **Known URLs, search, crawling, research, code search, GitHub repositories,
   or online docs:** read [Web](references/web/overview.md), then load only the
   tool-specific reference it points to. For surgical remote GitHub inspection,
@@ -100,10 +108,12 @@ needed.
 If the attachment is absent from model context, direct inspection commonly
 returns signals such as `model does not support images`, `image will be
 omitted`, `screenshot was omitted`, or an explicit inability to view the file.
-Treat that observed failure as the trigger to load the media guide and retry
-through OCR or Gemini. Models often assume they have vision before trying, so
-capability must be established by the actual read result rather than confidence
-or model name.
+That signal means you are vision-less for this task. **Do not retry the inline
+read** — it will fail the same way every time. Load the media guide
+([references/media/overview.md](references/media/overview.md)) and route the
+image through OCR or Gemini analysis instead. Models often assume they have
+vision before trying, so capability must be established by the actual read
+result rather than confidence or model name.
 
 Explicit requests for **verbatim OCR** or **image comparison** may use this
 skill immediately because those are specialized operations, not ordinary
@@ -138,9 +148,11 @@ The relevant reference gives concrete values.
 
 ## Common mistakes
 
-- Do not load this skill merely because an image is attached.
+- If `read` returned an image-omitted/unsupported signal, do not keep retrying
+  the inline read — load the media guide and route through OCR or Gemini.
 - Do not trust the model's assumption that it has vision; try direct inspection
-  and react to the observed result.
+  and react to the observed result. But if you already got the omission signal,
+  you have your answer — stop trying and load this skill.
 - Do not use Gemini image understanding when native vision already answered the
   ordinary image question or local OCR can transcribe the text.
 - Do not send a born-digital PDF to cloud OCR before trying its text layer.

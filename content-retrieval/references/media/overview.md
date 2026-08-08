@@ -11,6 +11,11 @@ All image tools accept a local file path or remote URL. **No clipboard support**
 
 Audio tools accept a YouTube URL directly — no download needed.
 
+**Cheaper route for YouTube audio:** pull the video's own captions via
+[youtube-captions.md](youtube-captions.md) — free, instant, no model — before
+reaching for the Gemini `transcribe_segment` below. Gemini is the escalation
+when captions are absent.
+
 ## Decision Guide
 
 ```
@@ -48,6 +53,10 @@ What does the user have?
 **Rule of thumb:** reach for `ocr` first when the goal is *transcription*. It's
 local (~0.1s), free, and never rate-limited. Use `analyze_image` only when you
 need meaning, description, or OCR-quality is insufficient.
+
+For audio/video, the same principle applies: existing YouTube captions
+([youtube-captions.md](youtube-captions.md)) and local pipelines beat a Gemini
+call when they can answer the question.
 
 ## Timeouts
 
