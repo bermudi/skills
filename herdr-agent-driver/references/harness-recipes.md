@@ -64,11 +64,12 @@ Herdr supplies the canonical executable; do not repeat it after `--`. Detection 
 ## Devin (`devin`)
 
 ```bash
-herdr agent start devin-app --kind devin --pane <pane-id> -- --model swe-1.7 --permission-mode accept-edits
+herdr agent start devin-app --kind devin --pane <pane-id> -- --model swe-1.7
 ```
 
+- **herdr v0.8+ note:** the devin integration currently injects `--permission-mode bypass` by default (you'll see `(bypass permissions on)` in the TUI title). Don't pass `--permission-mode` via `herdr agent start` — it fails with `cannot be used multiple times`. To run stricter, switch inside the TUI after startup (`/mode accept-edits`, `/mode normal`, etc. via `herdr agent prompt` when `idle`).
 - Model selection: `--model <name>`; inspect available account models with `devin models`.
-- Permission modes: `auto` (read-only auto-approval), `accept-edits`, `smart`, or `dangerous`. Prefer `accept-edits` for supervised repository work; `dangerous` is sandbox-only.
+- Permission modes: `auto` (read-only auto-approval), `accept-edits`, `smart`, or `dangerous`. Prefer `accept-edits` for supervised repository work when launching standalone; `dangerous` is sandbox-only (via herdr it's already bypass).
 - Initial prompt can be supplied after `--` or via `--prompt-file`, but starting the TUI and using `herdr agent prompt` keeps orchestration consistent.
 - Resume arguments: `-c` for the most recent conversation in the cwd, or `-r <session-id>` for a specific session.
 - Fresh context: submit `/new`, wait for the new prompt, then submit the next task. Use this between implementation phases and between read-only review and review-fixing.

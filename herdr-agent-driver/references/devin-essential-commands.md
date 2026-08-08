@@ -93,7 +93,7 @@ See full list at `https://docs.devin.ai/cli/reference/keyboard-shortcuts`.
 
 ## Herdr driver notes
 
-- Launch: `herdr agent start devin-app --kind devin --pane <pane> -- --model swe-1.7 --permission-mode accept-edits`. For strict boundaries prefer one-turn prompts + `/new` over `/loop` (orchestrator-side loop; let parent enforce phase).
+- Launch: `herdr agent start devin-app --kind devin --pane <pane> -- --model swe-1.7` (herdr v0.8+ devin integration already defaults to `bypass` — don't add `--permission-mode`, it errors `cannot be used multiple times`; switch to `accept-edits`/`normal` later via `/mode` when `idle` if needed). For strict boundaries prefer one-turn prompts + `/new` over `/loop` (orchestrator-side loop; let parent enforce phase).
 - Fresh context between phases: submit `/new`, wait for prompt, then next task. Or exit via `Ctrl+D` and relaunch.
 - Mode `smart` is useful when you want helpful auto-approval without full bypass; verify it's available on the account first (`devin models` / Team Settings).
 - SWE-1.7 is productive on scoped impl/tests but prone to scope expansion and weak self-review — verify claims.

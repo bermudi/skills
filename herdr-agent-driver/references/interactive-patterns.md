@@ -140,7 +140,7 @@ Slash equivalents: `/resume`, `/resume <id>`, `/ls` (alias `/list-sessions`), `/
 | `@` | Mention files |
 | `/help` etc. | Slash palette |
 
-**Herdr tip:** Launch Devin as `herdr agent start devin-app --kind devin --pane <pane_id> -- --model swe-1.7 --permission-mode accept-edits`. For strict phase boundaries, prefer one-turn prompts and fresh context (`/new`) over `/loop`, which is orchestrator-side.
+**Herdr tip:** Launch Devin as `herdr agent start devin-app --kind devin --pane <pane_id> -- --model swe-1.7` (herdr v0.8+ devin integr. already injects `bypass` — don't add `--permission-mode`, or you get `cannot be used multiple times`; switch via `/mode` when `idle` if you need stricter). For strict phase boundaries, prefer one-turn prompts and fresh context (`/new`) over `/loop`, which is orchestrator-side.
 
 ---
 
@@ -485,7 +485,7 @@ What changes when you drive these harnesses from a parent via `herdr`:
 
 - **Launch with least-privilege auto-approval.** Examples:
   ```bash
-  herdr agent start devin-app --kind devin --pane <pane> -- --model swe-1.7 --permission-mode accept-edits
+  herdr agent start devin-app --kind devin --pane <pane> -- --model swe-1.7  # herdr v0.8+ devin = bypass by default; don't add --permission-mode
   herdr agent start pi-app    --kind pi    --pane <pane> -- --model anthropic/claude-sonnet-4-5 --thinking medium
   herdr agent start codex-a   --kind codex --pane <pane> -- -a on-request -s workspace-write
   herdr pane run <pane> "cmd -t --auto-accept"  # unsupported kind via pane run

@@ -67,6 +67,8 @@ herdr agent wait claude-app --until idle --until done --until blocked --timeout 
 | `blocked` | Needs attention: permission prompt, question, error | Read `visible`, answer, or escalate to the human |
 | `unknown` | Detection is unsure | Read `visible` yourself; do not trust blind waits |
 
+> Stale `done`: `done` persists until the next `agent prompt` consumes it — a prior `agent read` may leave the pane `done`, not `idle`. If `herdr agent prompt … --wait` returns instantly on the old `done` (revision/title unchanged, no transition to `working`), re-check with `herdr agent get` / `herdr agent read` and wait again. You matched the previous turn's terminal state, not the new one.
+
 `herdr agent wait <name> --until <idle|working|blocked|done|unknown> [--timeout MS]` blocks until a requested state. Repeat `--until` to accept multiple terminal states. With no `--until`, it matches `idle`, `done`, or `blocked`. The pane-level variant is `herdr wait agent-status <pane_id> --status <state>`.
 
 ## Prompting rules
