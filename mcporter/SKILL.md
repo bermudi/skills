@@ -58,6 +58,36 @@ shifted under you — re-run `mcporter list <server> --schema` and retry with th
 current names. Don't assume a tool list you saw earlier still holds for
 stateful servers.
 
+## MCP 2.0: Bridge, Not Mediator
+
+mcporter speaks MCP 2026-07-28 (MCP 2.0) and every legacy revision back to
+2024-10-07, negotiating each server automatically. Know its limits:
+
+- **Elicitation is user-facing by design.** The spec requires clients to
+  show which server is asking, let the user review/decline, and get consent
+  before URL navigation — servers MUST NOT use form elicitation for secrets.
+  MCP 2.0 servers can pause a call and ask for input (forms, URLs, auth
+  confirmations). mcporter only prompts in a real terminal; from an agent
+  shell — and unconditionally in the daemon and `serve` bridge — it declines
+  immediately, logging `Server requested interactive input; run mcporter in a
+  terminal.` The serve bridge cannot pass elicitation through either. A CLI
+  bridge has no user-interaction surface, so it cannot mediate this: the
+  client must live in the harness itself (in pi, an extension embedding the
+  MCP SDK v2 client with `ctx.ui`).
+- **What you can do through mcporter:** pass complete arguments
+  (`--args '{"...": ...}'`; see `mcporter list <server> --schema`) so servers
+  never need to elicit; pre-authenticate auth-style servers with
+  `mcporter config login <server>` (`--no-browser` prints a URL the user
+  completes in a browser). If a call still declines with that hint, the server
+  wants a human decision — tell the user and have them run it interactively;
+  don't guess.
+- **Pin a broken server to an older protocol.** Auto-negotiation is normally
+  invisible, but a server can misbehave under MCP 2.0 (handshake loops, dropped
+  tools, odd errors). Pin it per-server in config with `protocolVersion`
+  (snake_case alias `protocol_version`): `auto` (default), `legacy`, or a
+  pinned `2026-07-28`. Check the effective value with
+  `mcporter config get <server>`.
+
 ## Colab MCP
 
 The Colab MCP server (`colab-mcp`) has a fragile, single-client connection
