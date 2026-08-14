@@ -174,6 +174,71 @@ class HelperTests(unittest.TestCase):
             event = next(search_session.pi_events(path))
             self.assertEqual(len(event.preview), search_session.MAX_EVENT_CHARS)
 
+    def test_devin_extracts_tool_summary_files_duration_and_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "session-id.json"
+            steps = [
+                {"step_id": 1, "source": "system", "message": "instructions",
+                 "timestamp": "2026-08-14T02:42:30.000000000+00:00"},
+                {"step_id": 2, "source": "user", "message": "build a thing",
+                 "timestamp": "2026-08-14T02:42:30.000000000+00:00"},
+                {"step_id": 3, "source": "agent", "message": "ok",
+                 "timestamp": "2026-08-14T02:43:30.000000000+00:00",
+                 "tool_calls": [
+                     {"function_name": "write", "arguments": {"file_path": "/tmp/a.txt", "content": "A"}, "tool_call_id": "tc1"},
+                     {"function_name": "exec", "arguments": {"command": "ls"}, "tool_call_id": "tc2"},
+                 ]},
+                {"step_id": 4, "source": "agent", "message": "done",
+                 "timestamp": "2026-08-14T02:45:30.000000000+00:00",
+                 "tool_calls": [
+                     {"function_name": "edit", "arguments": {"file_path": "/tmp/a.txt", "content": "B"}, "tool_call_id": "tc3"},
+                     {"function_name": "write", "arguments": {"file_path": "/tmp/b.txt", "content": "C"}, "tool_call_id": "tc4"},
+                 ]},
+            ]
+            path.write_text(json.dumps({
+                "session_id": "session-id",
+                "schema_version": "ATIF-v1.7",
+                "agent": {"name": "devin", "version": "3000.4.16", "model_name": "GLM-5.2 High"},
+                "steps": steps,
+                "final_metrics": {"total_steps": 4, "total_prompt_tokens": 100, "total_completion_tokens": 50, "total_cached_tokens": 10},
+            }))
+            result = inspect_session.inspect_devin(path, 1, 20)
+            self.assertEqual(result["harness"], "devin")
+            self.assertEqual(result["schema_version"], "ATIF-v1.7")
+            self.assertEqual(result["step_counts"], {"system": 1, "user": 1, "agent": 2})
+            self.assertEqual(result["duration"], "3m 0s")
+            self.assertEqual(result["tool_call_summary"], {"exec": 1, "write": 2, "edit": 1})
+            self.assertEqual(result["files_touched"], ["/tmp/a.txt", "/tmp/b.txt"])
+            self.assertEqual(result["total_steps"], 4)
+            self.assertEqual(result["total_prompt_tokens"], 100)
+            self.assertEqual(result["total_completion_tokens"], 50)
+            self.assertEqual(result["user_prompt_previews"], ["build a thing"])
+
+    def test_devin_caps_files_touched_with_note(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "session-id.json"
+            tool_calls = [
+                {"function_name": "write", "arguments": {"file_path": f"/tmp/file-{i:02d}.txt", "content": ""}, "tool_call_id": f"tc{i}"}
+                for i in range(55)
+            ]
+            # Split tool calls across two agent steps so the test still exercises aggregation.
+            steps = [
+                {"step_id": 1, "source": "agent", "message": "", "timestamp": f"2026-08-14T02:42:{i:02d}.000000000+00:00", "tool_calls": tool_calls[:30]}
+                for i in range(1)
+            ] + [
+                {"step_id": 2, "source": "agent", "message": "", "timestamp": "2026-08-14T02:43:00.000000000+00:00", "tool_calls": tool_calls[30:]}
+            ]
+            path.write_text(json.dumps({
+                "session_id": "session-id",
+                "schema_version": "ATIF-v1.7",
+                "agent": {"model_name": "test"},
+                "steps": steps,
+            }))
+            result = inspect_session.inspect_devin(path, 0, 20)
+            self.assertEqual(len(result["files_touched"]), 50)
+            self.assertTrue(result["files_touched"][-1].startswith("... and"))
+            self.assertIn("6 more", result["files_touched"][-1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,10 +3,11 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Inspect one Pi, Command Code, or Freebuff session without dumping it."""
+"""Inspect one Pi, Command Code, Devin, or Freebuff session without dumping it."""
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import shlex
 import sys
@@ -122,11 +123,120 @@ def inspect_freebuff(path: Path, max_prompts: int, preview_chars: int) -> dict[s
             "resume_command": "", "source": str(chat_dir)}
 
 
+def _format_duration(total_seconds: float) -> str:
+    total_seconds = int(total_seconds)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m {seconds}s"
+
+
+def inspect_devin(path: Path, max_prompts: int, preview_chars: int) -> dict[str, object]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"expected a JSON object in {path}")
+    session_id = clean(data.get("session_id"), 200) or path.stem
+    steps = data.get("steps")
+    if not isinstance(steps, list):
+        raise ValueError(f"no steps array in {path}")
+
+    step_counts: dict[str, int] = {"system": 0, "user": 0, "agent": 0}
+    tool_call_summary: dict[str, int] = {}
+    files_seen: dict[str, None] = {}
+    timestamps: list[datetime] = []
+    prompts: list[str] = []
+    messages = 0
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        source = step.get("source")
+        if source in ("user", "agent"):
+            messages += 1
+        if isinstance(source, str):
+            step_counts[source] = step_counts.get(source, 0) + 1
+        if source == "user" and len(prompts) < max_prompts:
+            text = clean(step.get("message"), preview_chars)
+            if text:
+                prompts.append(text)
+
+        raw_timestamp = step.get("timestamp")
+        if isinstance(raw_timestamp, str):
+            try:
+                timestamps.append(datetime.fromisoformat(raw_timestamp))
+            except ValueError:
+                pass
+
+        tool_calls = step.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    continue
+                function_name = tool_call.get("function_name")
+                if not isinstance(function_name, str) or not function_name:
+                    continue
+                tool_call_summary[function_name] = tool_call_summary.get(function_name, 0) + 1
+                if function_name in ("write", "edit"):
+                    arguments = tool_call.get("arguments")
+                    if isinstance(arguments, dict):
+                        file_path = arguments.get("file_path")
+                        if isinstance(file_path, str) and file_path and file_path not in files_seen:
+                            files_seen[file_path] = None
+
+    agent_info = data.get("agent")
+    model = ""
+    if isinstance(agent_info, dict):
+        model = clean(agent_info.get("model_name"), 100)
+
+    duration = ""
+    if len(timestamps) >= 2:
+        delta = max(timestamps) - min(timestamps)
+        duration = _format_duration(delta.total_seconds())
+
+    files_touched: list[str] = list(files_seen.keys())
+    if len(files_touched) > 50:
+        files_touched = files_touched[:49] + [f"... and {len(files_touched) - 49} more"]
+
+    sorted_tools = sorted(tool_call_summary.items(), key=lambda pair: (-pair[1], pair[0]))
+    tool_call_summary = {name: count for name, count in sorted_tools}
+
+    result: dict[str, object] = {
+        "harness": "devin",
+        "id": session_id,
+        "title": "",
+        "project": "",
+        "model": model,
+        "schema_version": clean(data.get("schema_version"), 100),
+        "duration": duration,
+        "message_records": messages,
+        "step_counts": step_counts,
+        "tool_call_summary": tool_call_summary,
+        "files_touched": files_touched,
+    }
+
+    final_metrics = data.get("final_metrics")
+    if isinstance(final_metrics, dict):
+        for key in ("total_steps", "total_prompt_tokens", "total_completion_tokens"):
+            value = final_metrics.get(key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                result[key] = value
+
+    result["user_prompt_previews"] = prompts
+    result["resume_command"] = f"devin -r {shlex.quote(session_id)}"
+    result["source"] = str(path)
+    return result
+
+
 def detect(path: Path) -> str:
     if path.is_dir() and (path / "chat-meta.json").is_file():
         return "freebuff"
     if path.name in ("chat-meta.json", "chat-messages.json"):
         return "freebuff"
+    if path.suffix == ".json" and not path.name.startswith("."):
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(value, dict) and "steps" in value and "session_id" in value:
+            return "devin"
     if path.name.endswith((".checkpoints.jsonl", ".prompts.jsonl")):
         raise ValueError("pass the main Command Code <session-id>.jsonl, not a sidecar")
     first = next(records(path), None)
@@ -142,8 +252,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description="Show bounded metadata and user-prompt previews for one local session.",
         epilog="Example: uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3",
     )
-    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL or Freebuff chat directory/file")
-    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "freebuff"), default="auto")
+    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, or Freebuff chat directory/file")
+    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff"), default="auto")
     parser.add_argument("--max-prompts", type=int, default=3, help="Prompt previews to return (0-20; default: 3)")
     parser.add_argument("--preview-chars", type=int, default=200, help="Characters per preview (20-1000; default: 200)")
     args = parser.parse_args(argv)
@@ -164,6 +274,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = inspect_pi(args.source, args.max_prompts, args.preview_chars)
         elif harness == "commandcode":
             result = inspect_commandcode(args.source, args.max_prompts, args.preview_chars)
+        elif harness == "devin":
+            result = inspect_devin(args.source, args.max_prompts, args.preview_chars)
         else:
             result = inspect_freebuff(args.source, args.max_prompts, args.preview_chars)
     except (OSError, json.JSONDecodeError, ValueError) as error:
