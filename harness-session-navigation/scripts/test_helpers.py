@@ -6,7 +6,9 @@
 """Deterministic tests for the session-navigation helper scripts."""
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import tempfile
@@ -238,6 +240,143 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(len(result["files_touched"]), 50)
             self.assertTrue(result["files_touched"][-1].startswith("... and"))
             self.assertIn("6 more", result["files_touched"][-1])
+
+    def test_devin_disk_extracts_first_user_prompt_and_source_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            transcript_dir = home / ".local/share/devin/cli/transcripts"
+            transcript_dir.mkdir(parents=True)
+            (transcript_dir / "from-file.json").write_text(json.dumps({
+                "schema_version": "ATIF-v1.7",
+                "steps": [
+                    {"step_id": 1, "source": "system", "message": "instructions"},
+                    {"step_id": 2, "source": "user", "message": "  first\nprompt  "},
+                    {"step_id": 3, "source": "user", "message": "second"},
+                ],
+            }))
+            (transcript_dir / "from-field.json").write_text(json.dumps({
+                "session_id": "from-field",
+                "steps": [
+                    {"step_id": 1, "source": "user", "message": "x" * 200},
+                ],
+            }))
+            candidates = find_sessions.find_devin_disk(home)
+            self.assertEqual(len(candidates), 2)
+            by_id = {candidate.id: candidate for candidate in candidates}
+            self.assertEqual(by_id["from-file"].preview, "first prompt")
+            self.assertEqual(by_id["from-field"].preview, "x" * 160)
+            self.assertTrue(by_id["from-file"].source.endswith("from-file.json"))
+            self.assertEqual(by_id["from-field"].source, str(transcript_dir / "from-field.json"))
+
+    def test_devin_cli_uses_transcript_path_and_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            project = home / "project"
+            project.mkdir()
+            transcript_dir = home / ".local/share/devin/cli/transcripts"
+            transcript_dir.mkdir(parents=True)
+            (transcript_dir / "cli-session.json").write_text(json.dumps({
+                "session_id": "cli-session",
+                "steps": [
+                    {"step_id": 1, "source": "system", "message": "instructions"},
+                    {"step_id": 2, "source": "user", "message": "  user prompt  "},
+                ],
+            }))
+            process = subprocess.CompletedProcess([], 0, json.dumps([
+                {"id": "cli-session", "title": "CLI Session", "working_directory": str(project), "last_activity_at": 1},
+            ]), "")
+            original_run = find_sessions.subprocess.run
+            find_sessions.subprocess.run = lambda *args, **kwargs: process
+            try:
+                candidate = find_sessions.find_devin(project, "cli", home)[0]
+            finally:
+                find_sessions.subprocess.run = original_run
+            self.assertEqual(candidate.id, "cli-session")
+            self.assertEqual(candidate.title, "CLI Session")
+            self.assertEqual(candidate.preview, "user prompt")
+            self.assertEqual(candidate.project, str(project))
+            self.assertEqual(candidate.source, str(transcript_dir / "cli-session.json"))
+            self.assertIn("cd --", candidate.resume_command)
+
+    def test_devin_auto_falls_back_to_disk_when_cli_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            project = home / "project"
+            project.mkdir()
+            transcript_dir = home / ".local/share/devin/cli/transcripts"
+            transcript_dir.mkdir(parents=True)
+            (transcript_dir / "fallback.json").write_text(json.dumps({
+                "session_id": "fallback",
+                "steps": [
+                    {"step_id": 1, "source": "user", "message": "fallback prompt"},
+                ],
+            }))
+
+            def fake_run(*args, **kwargs):
+                raise FileNotFoundError("devin")
+
+            original_run = find_sessions.subprocess.run
+            find_sessions.subprocess.run = fake_run
+            try:
+                candidate = find_sessions.find_devin(project, "auto", home)[0]
+            finally:
+                find_sessions.subprocess.run = original_run
+            self.assertEqual(candidate.id, "fallback")
+            self.assertEqual(candidate.preview, "fallback prompt")
+            self.assertEqual(candidate.source, str(transcript_dir / "fallback.json"))
+
+    def test_summarize_tool_call_uses_smart_previews(self) -> None:
+        self.assertEqual(
+            search_session.summarize_tool_call("write", {"file_path": "/tmp/foo", "content": "x" * 1000}),
+            "/tmp/foo",
+        )
+        self.assertEqual(
+            search_session.summarize_tool_call("exec", {"command": "ls", "workdir": "/tmp"}),
+            "ls (workdir: /tmp)",
+        )
+        self.assertEqual(
+            search_session.summarize_tool_call("skill", {"command": "invoke", "skill": "content-retrieval"}),
+            "command: invoke skill: content-retrieval",
+        )
+        self.assertEqual(
+            search_session.summarize_tool_call("todo_write", {"todos": [{"content": "a"}, {"content": "b"}]}),
+            "2 todo(s)",
+        )
+        self.assertTrue(
+            search_session.summarize_tool_call("unknown", {"content": "x" * 1000}).endswith("…"),
+        )
+
+    def test_tool_arg_filter_uses_partial_case_insensitive_match(self) -> None:
+        self.assertTrue(search_session._tool_arg_matches(
+            {"file_path": "/home/daniel/build/skills/html-communication/SKILL.md"},
+            [("file_path", "html-communication")],
+        ))
+        self.assertTrue(search_session._tool_arg_matches(
+            {"login": True}, [("login", "true")],
+        ))
+        self.assertFalse(search_session._tool_arg_matches(
+            {"file_path": "/other/path.md"}, [("file_path", "html-communication")],
+        ))
+
+    def test_extract_and_extract_field_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "session-id.json"
+            path.write_text(json.dumps({
+                "session_id": "session-id",
+                "schema_version": "ATIF-v1.7",
+                "steps": [
+                    {"step_id": 1, "source": "agent", "message": "ok",
+                     "timestamp": "2026-08-14T02:43:30.000000000+00:00",
+                     "tool_calls": [
+                         {"function_name": "write", "arguments": {"file_path": "/tmp/a.md", "content": "A"}, "tool_call_id": "tc1"},
+                     ]},
+                ],
+            }))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_session.main([str(path), "--tool", "write", "--extract", "--extract-field", "file_path"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(out.getvalue().strip(), "/tmp/a.md")
 
 
 if __name__ == "__main__":

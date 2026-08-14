@@ -5,6 +5,9 @@
 # ///
 """Find bounded session candidates for Pi, Devin, Command Code, and Freebuff.
 
+Devin sessions are discovered from ``devin list`` when available and fall back
+to on-disk transcripts otherwise.
+
 Read-only: uses metadata and at most the first user-message preview. It never
 prints complete transcripts or resumes a session.
 """
@@ -184,7 +187,29 @@ def find_freebuff(home: Path) -> list[Candidate]:
     return results
 
 
-def find_devin(project: Path) -> list[Candidate]:
+def devin_transcript_path(session_id: str, home: Path | None = None) -> Path:
+    return (home or Path.home()) / ".local/share/devin/cli/transcripts" / f"{session_id}.json"
+
+
+def devin_preview_from_transcript(path: Path) -> str:
+    data = read_json(path)
+    if data is None:
+        return ""
+    steps = data.get("steps")
+    if not isinstance(steps, list):
+        return ""
+    for step in steps:
+        if not isinstance(step, dict) or step.get("source") != "user":
+            continue
+        message = step.get("message")
+        if isinstance(message, str):
+            preview = clean_text(message, 160)
+            if preview:
+                return preview
+    return ""
+
+
+def find_devin_cli(project: Path, home: Path | None = None) -> list[Candidate]:
     try:
         process = subprocess.run(
             ["devin", "list", "--format", "json"], cwd=project,
@@ -212,25 +237,78 @@ def find_devin(project: Path) -> list[Candidate]:
         updated = ""
         if isinstance(timestamp, (int, float)):
             updated = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+        transcript_path = devin_transcript_path(session_id, home)
+        if transcript_path.is_file():
+            preview = devin_preview_from_transcript(transcript_path)
+            source = str(transcript_path)
+        else:
+            preview = ""
+            source = str(transcript_path)
         resume = f"(cd -- {shlex.quote(str(project))} && {shell_command('devin', '-r', session_id)})"
         results.append(Candidate(
-            "devin", session_id, clean_text(row.get("title")), "",
+            "devin", session_id, clean_text(row.get("title")), preview,
             clean_text(row.get("working_directory"), 500), updated,
-            resume, shell_command("devin", "list", "--format", "json"),
+            resume, source,
         ))
     return results
+
+
+def find_devin_disk(home: Path | None = None) -> list[Candidate]:
+    root = (home or Path.home()) / ".local/share/devin/cli/transcripts"
+    results: list[Candidate] = []
+    if not root.is_dir():
+        return results
+    for path in root.glob("*.json"):
+        if path.name.startswith("."):
+            continue
+        data = read_json(path)
+        if data is None:
+            continue
+        session_id = clean_text(data.get("session_id"), 100) or path.stem
+        preview = ""
+        steps = data.get("steps")
+        if isinstance(steps, list):
+            for step in steps:
+                if not isinstance(step, dict) or step.get("source") != "user":
+                    continue
+                message = step.get("message")
+                if isinstance(message, str):
+                    preview = clean_text(message, 160)
+                    if preview:
+                        break
+        results.append(Candidate(
+            "devin", session_id, "", preview, "", iso_mtime(path),
+            shell_command("devin", "-r", session_id), str(path),
+        ))
+    return results
+
+
+def find_devin(project: Path, devin_source: str = "auto", home: Path | None = None) -> list[Candidate]:
+    if devin_source == "disk":
+        return find_devin_disk(home)
+    if devin_source == "cli":
+        return find_devin_cli(project, home)
+    try:
+        return find_devin_cli(project, home)
+    except DiscoveryError as error:
+        warn(f"{error}; falling back to Devin transcript scan")
+        return find_devin_disk(home)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Find session candidates without printing full transcripts or resuming them.",
-        epilog=("Examples:\n  uv run scripts/find_sessions.py --harness pi --query webhook\n"
-                "  uv run scripts/find_sessions.py --harness devin --project . --format tsv"),
+        epilog=("Examples:\n"
+                "  uv run scripts/find_sessions.py --harness pi --query webhook\n"
+                "  uv run scripts/find_sessions.py --harness devin --project . --format tsv\n"
+                "  uv run scripts/find_sessions.py --harness devin --devin-source disk --limit 5"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--harness", choices=("all", *HARNESSES), default="all")
     parser.add_argument("--query", default="", help="Case-insensitive title, preview, ID, or project filter")
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Project used for Devin listing")
+    parser.add_argument("--devin-source", choices=("auto", "cli", "disk"), default="auto",
+                        help="Devin discovery: auto (CLI, then disk fallback), cli, or disk (default: auto)")
     parser.add_argument("--limit", type=int, default=20, help="Maximum results (1-500; default: 20)")
     parser.add_argument("--format", choices=("json", "jsonl", "tsv"), default="json")
     args = parser.parse_args(argv)
@@ -251,7 +329,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if harness == "pi":
                 candidates.extend(find_pi(home))
             elif harness == "devin":
-                candidates.extend(find_devin(args.project.resolve()))
+                candidates.extend(find_devin(args.project.resolve(), args.devin_source, home))
             elif harness == "commandcode":
                 candidates.extend(find_commandcode(home))
             elif harness == "freebuff":

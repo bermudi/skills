@@ -56,34 +56,52 @@ The helpers are read-only, emit bounded structured output, and never resume or
 delete sessions:
 
 - `scripts/find_sessions.py` — list/filter candidates across harnesses. It uses
-  metadata and first-prompt previews; for Devin it calls the official
-  `devin list --format json` interface.
-- `scripts/inspect_session.py` — inspect one Pi/Command Code transcript or
-  Freebuff chat directory, returning metadata and a limited number of user
-  prompt previews.
+  metadata and first-prompt previews. For Devin, `--devin-source` controls
+  discovery: `auto` (default) tries `devin list --format json`, then falls back
+  to scanning `~/.local/share/devin/cli/transcripts/*.json`; `cli` forces the
+  CLI only; `disk` forces the transcript scan only. When a transcript exists on
+  disk, the `source` field is the transcript path and `preview` is the first
+  user prompt.
+- `scripts/inspect_session.py` — inspect one Pi, Command Code, Devin, or
+  Freebuff session, returning metadata and a limited number of user prompt
+  previews. For Devin, pass the transcript file from
+  `~/.local/share/devin/cli/transcripts/<session-id>.json`. Devin output also
+  includes `tool_call_summary` (counts by tool name), `files_touched` (paths
+  from write/edit calls, capped at 50), `duration`, `step_counts`, and
+  `final_metrics` when present.
 - `scripts/search_session.py` — normalize and filter one local transcript by
   `user`, `assistant`, `thinking`, `tool`, `tool_call`, or `tool_result`;
-  optionally filter exact tool names and preview text. It supports Pi, Command
-  Code, and Freebuff. Devin has no local transcript/export interface in this
-  skill, so do not scrape its private database for message bodies.
+  optionally filter exact tool names and preview text. Supports Pi, Command
+  Code, Devin, and Freebuff. Tool-call previews are smart summaries (file
+  paths for write/edit, commands for exec, queries for web_search, etc.)
+  instead of raw argument dumps. `--tool-arg key=value` filters by argument
+  content (case-insensitive partial match). `--extract` with
+  `--extract-field <name>` pulls plain-text values from tool-call arguments —
+  e.g., recovering all file paths written by a session.
 
 Run them from the skill directory with `uv`:
 
 ```bash
 uv run scripts/find_sessions.py --harness pi --query 'webhook retries'
+uv run scripts/find_sessions.py --harness devin --devin-source disk --limit 10
 uv run scripts/find_sessions.py --harness devin --project /path/to/repo --format tsv
 uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3
+uv run scripts/inspect_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json
 uv run scripts/search_session.py /path/to/session.jsonl --type user --query migration
 uv run scripts/search_session.py /path/to/session.jsonl --type tool --tool bash --limit 20
+uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --type tool_call --tool write
+uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --tool write --extract --extract-field file_path
+uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --type tool_call --tool-arg file_path=html-communication
 ```
 
 Tool calls and tool results are separate records; `--type tool` includes both.
-Repeat `--type` or `--tool` to combine filters. Use `--offset` for pagination
-and `--preview-chars` to adjust bounded snippets. Exit code `3` means no
-candidates/events matched. Exit code `2` means discovery or parsing failed;
-when cross-harness discovery cannot query Devin, it fails rather than returning
-an incomplete result. Diagnostics go to stderr; JSON/JSONL/TSV data stays clean
-on stdout.
+Repeat `--type`, `--tool`, or `--tool-arg` to combine filters. Use `--offset`
+for pagination and `--preview-chars` to adjust bounded snippets. With
+`--extract`, `--preview-chars` can be raised up to 100000 to retrieve full
+tool-call arguments. Exit code `3` means no candidates/events matched. Exit
+code `2` means discovery or parsing failed; when cross-harness discovery
+cannot query Devin via CLI, it falls back to disk rather than failing.
+Diagnostics go to stderr; JSON/JSONL/TSV data stays clean on stdout.
 Use the native interactive picker instead when the user is present and a picker
 can answer the question more directly.
 
