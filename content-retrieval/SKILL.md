@@ -2,15 +2,13 @@
 name: content-retrieval
 description: >
   Use this skill when acquiring, extracting, searching, or understanding
-  external content: documents (PDF, DOCX, PPTX, XLSX), audio, video, images,
-  known URLs, websites, web search, online research, library documentation, or
-  remote GitHub repositories (browse trees, read exact files, find code,
-  understand architecture). IMAGES — VISION-LESS MODELS NEED THIS: if your read
-  tool returned "image will be omitted" or "model does not support images", you
-  have no vision and this skill is the only way to handle any image, screenshot,
-  or document image — load it and retry through OCR or image analysis instead of
-  retrying the inline read. If you CAN view images, use this skill only for
-  verbatim OCR or image comparison, not ordinary description.
+  external content: documents, audio, video, images, URLs, websites, web
+  search, online research, library documentation, or even remote GitHub
+  repos.
+  IMAGES — VISION-LESS MODELS NEED THIS: if your read tool returns "image
+  will be omitted" or "model does not support images", you have no vision
+  and this skill is the only way to handle any visuals — load it and retry
+  through OCR or image analysis instead of retrying the inline read.
 license: MIT
 metadata:
   version: "1.1"
