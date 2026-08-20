@@ -85,8 +85,8 @@ No official integration → state detection may be `unknown`. Two options:
 ```bash
 # Unsupported harnesses cannot use `herdr agent start`; run them in an existing pane.
 herdr pane run <pane_id> "cmd -t --auto-accept"  # or --yolo (full bypass)
-herdr wait output <pane_id> --match "Press Esc twice" --timeout 120000
-herdr wait output <pane_id> --match "some completion marker" --regex --timeout 1800000
+herdr pane wait-output <pane_id> --match "Press Esc twice" --timeout 120000
+herdr pane wait-output <pane_id> --match "some completion marker" --regex --timeout 1800000
 ```
 
 **2. Report state from harness hooks** using the pane's own environment (`HERDR_PANE_ID` is set inside herdr panes):

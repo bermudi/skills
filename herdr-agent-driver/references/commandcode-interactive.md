@@ -1,7 +1,7 @@
 # Command Code — Interactive Mode (Driver Distillation)
 
 > **Distilled from** <https://commandcode.ai/docs/interactive-mode> — 2026-05-13. Covers TUI surface, model/mode handling, keybindings.
-> Herdr kind is unintegrated (`cmd`/`commandcode`) — drive via `herdr pane run` + `herdr wait output` or hook-reported state; see **references/harness-recipes.md** and **references/interactive-patterns.md**.
+> Herdr kind is unintegrated (`cmd`/`commandcode`) — drive via `herdr pane run` + `herdr pane wait-output` or hook-reported state; see **references/harness-recipes.md** and **references/interactive-patterns.md**.
 
 ## Surface (whole screen, three prefixes + five keys)
 
@@ -142,6 +142,6 @@ Inside VS Code/Cursor/Windsurf terminals, `Ctrl+E` is claimed by IDE, so `cmd` u
 
 ## Herdr driver notes
 
-- No official `herdr agent start` kind — use `herdr pane run <pane> "cmd -t --auto-accept"` (or `--yolo` in sandbox) and `herdr wait output` for a completion marker, or report state via `herdr pane report-agent "$HERDR_PANE_ID" --source cmd-hook --agent cmd --state idle --seq N`.
+- No official `herdr agent start` kind — use `herdr pane run <pane> "cmd -t --auto-accept"` (or `--yolo` in sandbox) and `herdr pane wait-output` for a completion marker, or report state via `herdr pane report-agent "$HERDR_PANE_ID" --source cmd-hook --agent cmd --state idle --seq N`.
 - Don't send multi-line pastes raw — write to file, then prompt with `Read task.md`. Collapsed `[Text#N]` is display-only; model still gets full text, but driver shouldn't rely on it.
 - Reset context with `Esc Esc` (`/rewind`) or new session; `/tree` browser is driver-visible via `agent read --source visible`.

@@ -320,7 +320,7 @@ Codex ships 40+ in-TUI slashes. While working, `Tab` queues a slash for next tur
 | `/plan [prompt]` | Enter plan mode, propose execution plan | Use before implementation when you want a plan artifact |
 | `/goal <obj>` / `/goal edit|pause|resume|clear|view` | Persistent task goal ≤4000 chars | Goal stays attached across turns |
 | `/personality` | Style: `friendly`/`pragmatic`/`none` | Only if model supports |
-| `/ps`, `/stop` (`/clean` alias) | Show/stop background terminals (when `unified_exec` in use) | Prefer `herdr pane read` + `herdr wait output` for background cmds |
+| `/ps`, `/stop` (`/clean` alias) | Show/stop background terminals (when `unified_exec` in use) | Prefer `herdr pane read` + `herdr pane wait-output` for background cmds |
 | `/fork` | Fork current chat into new ID | Alternative to `codex fork` CLI |
 | `/app` | Continue session in ChatGPT desktop app (macOS/Windows) | Not for herdr |
 | `/side`, `/btw` | Ephemeral side chat (focused detour; parent status still shown) | Avoid in strictly bounded driving |
@@ -520,7 +520,7 @@ What changes when you drive these harnesses from a parent via `herdr`:
 2. Choose minimally: `herdr agent send-keys <name> enter` (accept default) / `down enter` / answer text via `herdr agent prompt <name> "yes, proceed"` .
 3. If irresolvable, escalate: `herdr notification show "… blocked" --body "…" --sound request`.
 
-For harnesses without integration (`unknown` state), either launch with `--auto-accept`/`--yolo` and `herdr wait output --match` on a completion marker, or have the pane report state via `herdr pane report-agent "$HERDR_PANE_ID" --source hook --agent <kind> --state <idle|working|blocked> --seq N`.
+For harnesses without integration (`unknown` state), either launch with `--auto-accept`/`--yolo` and `herdr pane wait-output --match` on a completion marker, or have the pane report state via `herdr pane report-agent "$HERDR_PANE_ID" --source hook --agent <kind> --state <idle|working|blocked> --seq N`.
 
 ---
 

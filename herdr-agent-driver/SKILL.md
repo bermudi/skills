@@ -19,10 +19,10 @@ disable-model-invocation: true
 ```bash
 herdr status                     # is the server up?
 herdr integration status         # installed/outdated integrations
-herdr integration install claude # run once per harness: claude, codex, opencode, pi, omp, copilot, devin, droid, kimi, kilo, hermes, qodercli, cursor, mastracode
+herdr integration install claude # run once per harness: claude, codex, opencode, pi, omp, copilot, devin, droid, kimi, kilo, hermes, qodercli, qwen, cursor, mastracode, antigravity-cli, grok
 ```
 
-If the harness has no official integration, state detection may stay `unknown`. Then either (a) launch it with no-prompt/auto-approve flags and use `herdr wait output` on its pane, or (b) report state from harness hooks via `herdr pane report-agent` (see references/harness-recipes.md).
+If the harness has no official integration, state detection may stay `unknown`. Then either (a) launch it with no-prompt/auto-approve flags and use `herdr pane wait-output` on its pane, or (b) report state from harness hooks via `herdr pane report-agent` (see references/harness-recipes.md).
 
 ## Core driving loop
 
@@ -69,7 +69,7 @@ herdr agent wait claude-app --until idle --until done --until blocked --timeout 
 
 > Stale `done`: `done` persists until the next `agent prompt` consumes it — a prior `agent read` may leave the pane `done`, not `idle`. If `herdr agent prompt … --wait` returns instantly on the old `done` (revision/title unchanged, no transition to `working`), re-check with `herdr agent get` / `herdr agent read` and wait again. You matched the previous turn's terminal state, not the new one.
 
-`herdr agent wait <name> --until <idle|working|blocked|done|unknown> [--timeout MS]` blocks until a requested state. Repeat `--until` to accept multiple terminal states. With no `--until`, it matches `idle`, `done`, or `blocked`. The pane-level variant is `herdr wait agent-status <pane_id> --status <state>`.
+`herdr agent wait <name> --until <idle|working|blocked|done|unknown> [--timeout MS]` blocks until a requested state. Repeat `--until` to accept multiple terminal states. With no `--until`, it matches `idle`, `done`, or `blocked`. It accepts both unique agent names and pane IDs that currently host an agent.
 
 ## Prompting rules
 
@@ -115,7 +115,7 @@ A useful stopping prompt is: `Implement only <unit>; run <checks>; commit only s
 | `recent-unwrapped` | Logs and results — best default for parsing |
 | `detection` | Exactly what the state classifier sees (debugging) |
 
-`herdr agent read <name> --source recent-unwrapped --lines 300` (`--ansi` / `--format ansi` if you need colors). For non-agent panes (builds, servers, tests): `herdr wait output <pane_id> --match <text> [--regex] [--timeout MS]`.
+`herdr agent read <name> --source recent-unwrapped --lines 300` (`--ansi` / `--format ansi` if you need colors). For non-agent panes (builds, servers, tests): `herdr pane wait-output <pane_id> --match <text> [--regex] [--timeout MS]`.
 
 ## Parallel agents
 

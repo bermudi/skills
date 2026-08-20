@@ -122,5 +122,5 @@ codex exec resume --last "Follow-up: address review comments"
 ## Herdr driver notes
 
 - Prefer `herdr agent start codex-app --kind codex --pane <pane> -- -a on-request -s workspace-write` over `--yolo`. Add `--add-dir` for extra writable roots.
-- Use `codex exec --json` only for CI outside herdr; inside herdr drive the TUI and use `herdr wait`/`agent read`.
+- Use `codex exec --json` only for CI outside herdr; inside herdr drive the TUI and use `herdr pane wait-output`/`herdr agent read`.
 - For unattended cloud, `codex cloud exec --env ENV_ID --attempts 2 "task"` then `codex apply <TASK_ID>` to apply diff.
