@@ -93,6 +93,8 @@ For trigger accuracy testing (spawns `claude -p` subprocesses):
 uv run python skill-creator/scripts/run_eval.py ./skill-name
 ```
 
+> **Ignore locally:** `disable-model-invocation: true` is intentional (pending [agentskills#105](https://github.com/agentskills/agentskills/issues/105)). `skills-ref` 0.1.0 reports it as `Unexpected fields` — ignore that error locally. CI patches `validator.py` to allow it. Do not remove the flag to make local validation pass.
+
 ## Research Artifacts
 
 When building a skill, you'll often produce one-off research files — API probes, benchmark scripts, raw result JSON, investigation reports. These are **not** part of the published skill and should live in a gitignored `research/` directory:
