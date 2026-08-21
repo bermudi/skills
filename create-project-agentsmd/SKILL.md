@@ -9,7 +9,6 @@ license: Apache-2.0
 metadata:
   version: "1.0"
   topic: agent-configuration
-disable-model-invocation: true
 ---
 
 # Create Project AGENTS.md
@@ -58,7 +57,7 @@ These don't rot — CDN URLs and schemas change far less often than file locatio
 | Component inventories | Discoverable from file tree; current structure is temporary |
 | "Currently implemented in X" notes | Will be wrong tomorrow |
 
-**The litmus test:** Could the agent discover this from code alone? If yes, cut it. If no — or if discovery would be expensive enough that documenting it saves real time — keep it.
+**The litmus test:** Could the agent discover this from code alone? If yes, cut it. If no — or if discovery would be expensive enough that documenting it saves real time — keep it. For the full placement decision, see [Decide Where Knowledge Belongs](#decide-where-knowledge-belongs).
 
 ## File It, Don't Delete It
 
@@ -68,24 +67,46 @@ Cutting from AGENTS.md doesn't mean the knowledge should vanish. If something to
 - The context is useful but too niche for the root file (e.g., a specific subsystem's conventions)
 - It's an explanation of *why* a decision was made, not a rule the agent needs to follow
 - It documents a complex workflow that only matters in certain tasks
-- It's a gotcha that's real but rare — worth knowing about, not worth taxing every interaction
+- It's a gotcha that only matters inside one subsystem/task — and the root file tells the agent exactly when to read the scoped doc (see below)
 
 **Where to file it:**
 - `docs/adr/` (or `docs/decisions/`) for investigations and tradeoff analysis
 - Subdirectory `AGENTS.md` (or `CLAUDE.md`) for per-directory rules
 - `docs/agent-context/` or project `docs/` for anything the agent reads on demand
 
-Reference the file from AGENTS.md with a one-liner. Most agents have a `read` tool — a path mention is enough to prompt them to load it.
+Reference the file from AGENTS.md with an actionable trigger, not a passive mention. A bare path like "See `docs/foo.md` for details" is often ignored. Say *when* the agent must read it.
 
 ```markdown
 # AGENTS.md
 ## Architecture
 Monorepo with event-driven backend. See `docs/adr/003-event-sourcing.md` for the rationale.
+
+## Debug Logging
+Before changing debug logging, frontmatter preservation, or upstream-sync behavior, read `docs/fork-changes.md`.
 ```
 
-**The refined litmus test:** Two questions, not one:
-1. Could the agent discover this from code alone? → If yes, cut it.
-2. Would rediscovering it from scratch cost real time or risk getting it wrong? → If yes, file it — just not in the root AGENTS.md.
+A reference must say when the document is required. Do not use passive wording such as "See docs/foo.md for details."
+
+## Decide Where Knowledge Belongs
+
+For each item, choose one destination:
+
+1. **Omit it** when it is cheap and safe to rediscover from code or tooling.
+2. **Keep it in the root AGENTS.md** when an agent needs it before deciding what to inspect, or missing it could cause incorrect behavior, compatibility breakage, data loss, or substantial wasted work.
+3. **Move it to scoped documentation** when it matters only for an identifiable subsystem or uncommon task.
+
+Frequency is not the only consideration. A rare but high-consequence gotcha belongs in the root file.
+
+**Keep a gotcha in the root file when** an agent could encounter it without knowing which subsystem doc to read, or when getting it wrong could cause damage or a compatibility regression. **File it elsewhere only when** the task itself clearly signals which document to read and the root file provides an explicit "before changing X, read Y" trigger.
+
+**Example — fork-specific section:**
+
+- Exact source files and function names → omit or scoped documentation
+- Current test counts and instrumented call sites → omit
+- Warning that apparently-dead plumbing is retained for upstream compatibility → root AGENTS.md
+- Known limitations that can change implementation decisions → root AGENTS.md
+- Configuration contract such as env-var precedence and redaction guarantees → root AGENTS.md, or mandatory subsystem doc referenced by an explicit "before changing..." instruction
+- Historical investigation details → scoped documentation
 
 ## Before Writing
 
@@ -113,7 +134,7 @@ Don't ask questions the code already answers.
 
 ## Structure
 
-Use this skeleton, omitting sections that don't apply. Keep the whole file under **200 lines**. Every line costs tokens on every request — be ruthless.
+Use this skeleton, omitting sections that don't apply. Aim for a focused file, commonly 50–150 lines. Treat 200 lines as a review signal, not a correctness requirement. Never remove or relocate important contracts, warnings, or compatibility knowledge merely to meet a line count.
 
 ```markdown
 # AGENTS.md
@@ -205,12 +226,22 @@ If the user doesn't specify, produce `AGENTS.md` and note alternatives.
 1. **Scan** the project (or accept user-provided context)
 2. **Fill** the structure above, omitting empty sections
 3. **Review** every line: "Would the agent get this wrong without being told?" If no, cut it.
-4. **Count** — if over 200 lines, cut more. Every line is a tax on every interaction.
+4. **Count** — if the file exceeds roughly 200 lines, review it for duplication, discoverable inventories, and material that has a clear task-specific home. Size alone is not a reason to remove required guidance.
 5. **Write** the file to the project root (or wherever the target tool expects it)
 
 ## Maintaining the File
 
 - **Update when patterns change, not when files move.** If you switch from REST to GraphQL, update the architecture section. If you rename a file, don't bother.
+
+### Revising an Existing Instruction File
+
+Before removing or relocating anything, classify each substantive item as:
+
+- **Keep in root** — required to decide what to inspect, or risky to miss
+- **Move to scoped documentation** — relevant only to one subsystem/task
+- **Omit** — cheaply discoverable or duplicated
+
+Preserve non-obvious contracts, warnings, historical compatibility constraints, and known limitations by default. Do not infer that existing material is unimportant merely because it is detailed. When in doubt, keep it in the root and add an actionable reference to the scoped detail.
 
 ## Gotchas
 
