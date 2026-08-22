@@ -18,21 +18,34 @@ jobs:
       - name: Install skills-ref
         run: uv tool install git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref
 
+      - name: Patch skills-ref to allow disable-model-invocation (pending spec #105)
+        run: |
+          # skills-ref 0.1.0 rejects disable-model-invocation as "Unexpected fields";
+          # loaders tolerate it and it's pending in agentskills#105. Patch the validator
+          # in the uv tool venv so CI stays green until upstream allows the field.
+          python - << 'PY'
+          import pathlib, glob, os
+          roots = glob.glob(os.path.expanduser("~/.local/share/uv/tools/skills-ref/lib/python*/site-packages"))
+          for root in roots:
+              p = pathlib.Path(root) / "skills_ref" / "validator.py"
+              if p.exists():
+                  text = p.read_text()
+                  if '"disable-model-invocation"' not in text:
+                      text = text.replace('"compatibility",', '"compatibility",\n    "disable-model-invocation",')
+                      p.write_text(text)
+                      print(f"patched {p}")
+                  else:
+                      print(f"already patched {p}")
+          PY
+
       - name: Validate all skills
         run: |
           # Find all directories containing SKILL.md and validate them
-          # Note: skills-ref doesn't recognize 'disable-model-invocation' yet;
-          # it's a valid spec field. Filter out that false positive.
           failed=0
           for dir in */; do
             if [ -f "${dir}SKILL.md" ]; then
               echo "::group::Validating ${dir%/}"
-              output=$(skills-ref validate "${dir}" 2>&1) || true
-              echo "$output"
-              # Check for real errors: filter lines about the known field,
-              # then look for any remaining Unexpected fields lines
-              real_errors=$(echo "$output" | grep 'Unexpected fields' | grep -v 'disable-model-invocation' || true)
-              if [ -n "$real_errors" ]; then
+              if ! skills-ref validate "${dir}"; then
                 failed=1
               fi
               echo "::endgroup::"
