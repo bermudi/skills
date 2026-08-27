@@ -2,7 +2,8 @@
 name: pass-cli
 description: >
   Safely retrieve Proton Pass secrets or inject them into a command or protected
-  config file with pass-cli, including scoped Agent-token session recovery.
+  config file with pass-cli, always through a scoped, audited Agent-token
+  session.
 disable-model-invocation: false
 ---
 
@@ -12,6 +13,9 @@ Use Proton Pass secrets by the least-exposing route. This skill covers finding
 an accessible secret, passing it to a process, or rendering a requested local
 config file. It does **not** administer vaults, shares, agents, or access
 permissions: those are owner actions with a larger blast radius.
+
+All `pass-cli` usage runs as a scoped, audited Agent token in an isolated
+session directory—never as the account owner's logged-in session.
 
 ## Choose the route before reading anything
 
@@ -25,42 +29,56 @@ Never use `pass-cli run --no-masking`. Do not read a full item merely to pass a
 secret to another command. Do not put a resolved value in a shell command,
 source file, commit, ticket, or final response.
 
-## Session health and recovery
+## Agent session is mandatory
 
-Run the intended command first; do not preflight it. Recover **only** for a
-clear authentication error such as `not authenticated`, `session expired`,
-`invalid session`, or `401`. Item-not-found, vault-not-found, and permission
-errors need discovery or an owner access change—not re-authentication.
+Agents never use the account owner's session. The default session directory
+belongs to the logged-in human account: an unguarded `pass-cli` call executes
+with the owner's full access—every vault, no reason prompt, no audit trail—and
+silently defeats the point of Agent tokens.
 
-The owner must have already created a private environment file containing the
-Agent PAT. Never create, print, inspect, or change that file. On authentication
-failure, run this recovery and the original command in the **same shell** so
-that the isolated session directory applies to both:
+Every `pass-cli` invocation runs behind this guard, in the same shell as the
+command it precedes (separate shell or tool calls do not retain exports):
 
 ```bash
-if [ ! -r "$HOME/.pass-cli-env" ]; then
-  printf '%s\n' 'FATAL: pass-cli Agent credentials are not configured for this user.' >&2
-  exit 1
-fi
-
-# The file is owner-managed and must not be printed.
-. "$HOME/.pass-cli-env"
-: "${PROTON_PASS_PAT:?FATAL: PROTON_PASS_PAT is not configured}"
-
+# --- pass-cli Agent session guard ---
 export PROTON_PASS_SESSION_DIR="${PASS_CLI_AGENT_SESSION_DIR:-$HOME/.local/share/pass-cli-agent}"
+
+# Tripwire: never let the Agent session resolve to the owner's default directory.
+case "$PROTON_PASS_SESSION_DIR" in
+  "$HOME/.local/share/proton-pass-cli")
+    printf '%s\n' 'FATAL: refusing to use the owner session directory' >&2
+    exit 1 ;;
+esac
+
 (umask 077; mkdir -p "$PROTON_PASS_SESSION_DIR")
 
-# This isolated session may safely be discarded without affecting a human session.
-pass-cli logout --force || printf '%s\n' 'No reusable Agent session to discard; continuing with login.' >&2
-PROTON_PASS_PERSONAL_ACCESS_TOKEN="$PROTON_PASS_PAT" pass-cli login
-pass-cli info
+# A valid Agent session identifies itself as an access-token session.
+if ! pass-cli info 2>/dev/null | grep -q 'Personal Access Token'; then
+  [ -r "$HOME/.pass-cli-env" ] || {
+    printf '%s\n' 'FATAL: Agent credentials not provisioned; ask the owner for ~/.pass-cli-env.' >&2
+    exit 1
+  }
+  . "$HOME/.pass-cli-env"   # owner-managed; never print, edit, or inspect it
+  : "${PROTON_PASS_PAT:?FATAL: PROTON_PASS_PAT is not configured}"
+  pass-cli logout --force 2>/dev/null || true   # discards a stale Agent session only
+  PROTON_PASS_PERSONAL_ACCESS_TOKEN="$PROTON_PASS_PAT" pass-cli login || exit 1
+  unset PROTON_PASS_PAT PROTON_PASS_PERSONAL_ACCESS_TOKEN
+fi
 
-# Retry the original command here, with its required reason if it reads an item.
+# --- the actual pass-cli command runs here, in this same shell ---
 ```
 
-Do not echo `$PROTON_PASS_PAT` or pass it by a command-line flag. Keep
-`PROTON_PASS_SESSION_DIR` set for every later `pass-cli` invocation; separate
-shell/tool calls do not retain an earlier `export`.
+The `info` check is authentication, not discovery: Agent sessions expire after
+two hours, so re-login is a routine path, and the grep fails closed—a session
+that would run as the owner's account stops the guard instead of proceeding.
+Item-not-found, vault-not-found, and permission errors still need discovery or
+an owner access change, not re-authentication.
+
+If login fails with `invalid, expired or has been deleted`, the Agent token
+itself is dead. Stop and ask the owner to renew it and update the env file;
+never fall back to the owner session. Do not echo `$PROTON_PASS_PAT` or pass
+it by a command-line flag, and never skip the guard because it seems like
+overhead—an unguarded call silently runs as the owner.
 
 If login fails because secure key storage is unavailable (common in a headless
 container), stop and explain the error. The owner may deliberately choose the
@@ -148,11 +166,14 @@ The account owner can inspect Agent accesses with:
 pass-cli agent monitor "agent-name" --output json
 ```
 
-Do not create, renew, delete, grant, or revoke Agents/PATs as part of a secret
-retrieval task. Ask the owner to provision the narrowest possible, expiring
+`agent monitor` requires the owner's session, so agents do not run it—ask the
+owner to inspect the trail. Do not create, renew, delete, grant, or revoke
+Agents/PATs as part of a secret retrieval task. Ask the owner to provision the narrowest possible, expiring
 viewer access—ideally to the single required item—when access is missing.
 
 ## Quick reference
+
+Every invocation below runs behind the Agent session guard.
 
 ```bash
 pass-cli vault list --output json
