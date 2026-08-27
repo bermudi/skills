@@ -11,7 +11,7 @@ description: >
   through OCR or image analysis instead of retrying the inline read.
 license: MIT
 metadata:
-  version: "1.1"
+  version: "1.2"
   topic: content-retrieval
 ---
 

@@ -21,6 +21,7 @@ Don't escalate blindly — confirm the failure before moving up, so you don't pa
 - **Tier 2 failure**: the response body is HTML (look for `<html` or `<body`), or it's a challenge/interstitial page ("Just a moment...", "Checking your browser") rather than clean markdown. Escalate to Tier 3.
 - **Tier 3 failure**: output is empty, garbled mojibake, or a login/challenge page. The page likely needs real browser rendering or auth. Escalate to Tier 4 with `extract_depth=advanced`.
 - **Tier 4 failure**: the content is genuinely unreachable. Fall back to `tavily_search` for a cached/summarized version, or tell the user the page can't be extracted.
+- **401/403 or a 200 empty shell from curl**: before escalating tiers, check the User-Agent (see below). A blocked UA is a Tier 1 problem, not a tier problem.
 
 ## Decision criteria
 
@@ -32,6 +33,32 @@ Don't escalate blindly — confirm the failure before moving up, so you don't pa
 | Batch of URLs | 4 | Tavily batches; curl/Jina don't |
 | Need relevance filtering (long page, specific topic) | 4 | Pass `query=` to rerank chunks |
 | Unknown / not sure | 1 → 2 → 3 → 4 | Escalate on confirmed failure |
+
+## Fix the User-Agent before escalating tiers
+
+A 401/403 from `curl` — or a 200 whose body is an empty shell — is often a **User-Agent block**, not a sign the content needs a heavier tool. Sites aggressively block known bot UAs (`curl/8.x`, `ClaudeBot`, `GPTBot`, `PerplexityBot`) but serve a plain browser UA. Always send one with curl:
+
+```bash
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+curl -sL -A "$UA" "https://example.com/article"
+```
+
+Empirical patterns from broad site testing (points shift as sites tune their blockers, so re-probe when a fetch fails):
+
+| Pattern | Examples | What works |
+|---|---|---|
+| Blocks AI-bot UAs, serves browsers | NYT, New Yorker, The Atlantic, The Athletic, IMDb | Browser UA is enough |
+| Blocks plain curl too | Bloomberg, LinkedIn (interstitial wall) | Browser UA required; LinkedIn content still needs Tier 4 |
+| Blocks everything (paywall/login) | WSJ, FT, Medium, Quora, StackOverflow, Washington Post | No UA helps — Tier 3/4, or `tavily_search` for a cached copy |
+| 200 but shell only — JS-rendered | Reddit, TikTok, X profiles, Goodreads | No UA helps — Tier 4 `extract_depth=advanced` |
+| Punishes Googlebot spoofing | Wikipedia (403), X (404) | Don't spoof Googlebot; a browser UA does better |
+
+Rules of thumb:
+
+- **Never send AI-vendor UAs** (ClaudeBot, GPTBot, PerplexityBot, etc.) — they are the most-blocked class of user agent on the web.
+- A **Chrome/browser UA beats the default curl UA everywhere they differ**; there is no downside to always sending it.
+- **Don't spoof Googlebot** — it buys nothing and is actively blocked on some sites that serve browsers.
+- If the browser UA still gets blocked or an empty shell, stop retrying UAs and escalate tiers.
 
 ## Tier 1: `curl -sL` — Raw Files
 
