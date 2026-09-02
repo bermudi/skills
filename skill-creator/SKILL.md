@@ -29,6 +29,13 @@ After the skill is done, offer to run the description optimizer for better trigg
 
 ---
 
+## Skills locations
+
+- **Global install** : lives in `~/.agents/skills/<name>/`, user-level, available to every project. 
+- **Project install** : lives in `<project>/.agents/skills/<name>/`, tracked in that project's `skills-lock.json`, visible only there.
+
+Check what's installed where with `skills ls -g` and `skills ls`. 
+
 ## Creating a skill
 
 ### Capture Intent
@@ -377,18 +384,6 @@ This catches broken YAML frontmatter (unquoted colons, invalid types, missing fi
 
 ---
 
-## Packaging
-
-Package the skill for distribution:
-
-```bash
-python -m scripts.package_skill <path/to/skill-folder>
-```
-
-This creates a `.skill` file (zip format) that can be installed by any agent client supporting the Agent Skills format.
-
----
-
 ## Reference files
 
 **When to read each reference:**
@@ -406,5 +401,3 @@ This creates a `.skill` file (zip format) that can be installed by any agent cli
 | Blind A/B comparison between outputs | `references/comparison-subagent.md` |
 | Analyzing why one version beat another | `references/analysis-subagent.md` |
 | Diagnostic rubric: invocation, hierarchy, leading words, completion criteria, pruning | `references/writing-skills.md` |
-
-
