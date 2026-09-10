@@ -3,7 +3,7 @@ name: agent-browser
 description: Browser automation with agent-browser CLI. Use for any task needing a real browser — open pages, click, fill forms, screenshot, scrape, or test a web app. Also for Electron, Slack, and Vercel Sandbox.
 license: Apache-2.0
 metadata:
-  version: "1.0"
+  version: "1.1"
   topic: browser-automation
 compatibility: Requires agent-browser CLI (npm install -g agent-browser) and Chrome/Chromium
 allowed-tools:
@@ -29,6 +29,18 @@ agent-browser skills get core --full      # include full command reference and t
 The CLI serves skill content that always matches the installed version, so instructions never go stale. The content in this stub cannot change between releases, which is why it just points at `skills get core`.
 
 If `skills get` is unavailable (older CLI), fall back to `agent-browser --help` and `agent-browser snapshot --help`.
+
+## Launch preferences on this machine
+
+Non-negotiable launch flags here — the managed Chrome for Testing build trips Cloudflare bot protection even headed:
+
+```bash
+AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium agent-browser --headed <command>
+```
+
+- Headed mode is expected; this is a real Wayland desktop and a visible window is fine.
+- For Cloudflare-protected sites (e.g. luma.com), use a persistent profile (`--profile ~/.agent-browser-profiles/<site>`). Have the human clear the challenge once by hand in that window; the stored cookie state carries future sessions.
+- Never attach to the user's already-running browser (`--auto-connect`, `--cdp <port>`) without asking first — it exposes their logged-in session to the agent.
 
 ## Specialized skills
 
