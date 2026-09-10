@@ -18,7 +18,7 @@ skill-name/
 └── research/         # Optional: gitignored research artifacts (probes, raw data, etc.)
 ```
 
-**DO NOT touch the skills inside .agents/skills/, .pi/skills/ or any other skill outside of this repository!!**
+**DO NOT touch the skills inside .agents/skills/, .pi/skills/ or any other skill outside of this repository!!** Exception: entries under `~/.agents/skills/` that are symlinks back into this repo resolve here — but edit them via the repo path, never through the installed path, so the change shows up in `git status`.
 
 ## SKILL.md Format
 
@@ -44,7 +44,17 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 ## Deploying Skills
 
-This repo is the **source of truth** for skills. Skills are installed with `skills add -g <name>` and reside in `~/.agents/skills/`.
+This repo is the **source of truth** for skills. Other machines install with `skills add -g <name>` into `~/.agents/skills/`.
+
+**On this machine, our installed skills are symlinks into this checkout** (the repo-sourced entries; external ones like `terminal-browser` and local-only ones like `filing-supervisor` stay tool-managed). The installed copy IS the working tree, so edits appear in `git status` immediately with no install/update ceremony:
+
+```bash
+./scripts/link-local-skills                 # dry run
+./scripts/link-local-skills --apply         # (re)link; displaced copies go through `trash`
+./scripts/link-local-skills --apply --skill <name>
+```
+
+After `skills update -g`, re-run with `--apply` — an update can replace a symlink with a fresh directory copy, and the script detects and repairs that. New repo skills are NOT linked automatically (every install adds every-turn description cost); link deliberately.
 
 **`skills` detects changes via git state, not filesystem mtime.** `git add && git commit` your edits — uncommitted changes don't register. Pushing keeps remote mirrors in sync.
 
