@@ -56,6 +56,8 @@ This repo is the **source of truth** for skills. Other machines install with `sk
 
 After `skills update -g`, re-run with `--apply` — an update can replace a symlink with a fresh directory copy, and the script detects and repairs that. New repo skills are NOT linked automatically (every install adds every-turn description cost); link deliberately.
 
+`pi-docs` is scoped to pi, not installed globally: a symlink at `~/.pi/agent/skills/pi-docs` pointing at this repo.
+
 **`skills` detects changes via git state, not filesystem mtime.** `git add && git commit` your edits — uncommitted changes don't register. Pushing keeps remote mirrors in sync.
 
 ## Skill Provenance
