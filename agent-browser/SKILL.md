@@ -3,7 +3,7 @@ name: agent-browser
 description: Browser automation with agent-browser CLI. Use for any task needing a real browser — open pages, click, fill forms, screenshot, scrape, or test a web app. Also for Electron, Slack, and Vercel Sandbox.
 license: Apache-2.0
 metadata:
-  version: "1.1"
+  version: "1.2"
   topic: browser-automation
 compatibility: Requires agent-browser CLI (npm install -g agent-browser) and Chrome/Chromium
 allowed-tools:
@@ -32,15 +32,20 @@ If `skills get` is unavailable (older CLI), fall back to `agent-browser --help` 
 
 ## Launch preferences on this machine
 
-Non-negotiable launch flags here — the managed Chrome for Testing build trips Cloudflare bot protection even headed:
+Two modes — pick by task nature and say which one you're running:
+
+**Testing & development (default): managed Chrome.** Plain `agent-browser <command>` is fine. Don't use it against bermudi's personal accounts — Cloudflare trips on the Chrome for Testing build even headed.
+
+**Personal (bermudi's accounts, real services like luma.com): installed Chromium, default profile.**
 
 ```bash
-AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium agent-browser --headed <command>
+AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium agent-browser --headed --profile ~/.config/chromium <command>
 ```
 
-- Headed mode is expected; this is a real Wayland desktop and a visible window is fine.
-- For Cloudflare-protected sites (e.g. luma.com), use a persistent profile (`--profile ~/.agent-browser-profiles/<site>`). Have the human clear the challenge once by hand in that window; the stored cookie state carries future sessions.
-- Never attach to the user's already-running browser (`--auto-connect`, `--cdp <port>`) without asking first — it exposes their logged-in session to the agent.
+- The default profile's real cookies and fingerprint are what get past Cloudflare; managed Chrome fails there regardless of flags.
+- RED LINE: that profile holds Proton Pass. Never read passwords — not from the vault UI, not from filled login fields (not even to "verify" a fill), never via eval or screenshots. Logins happen through the extension's own autofill; the agent may click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
+- Headed is the norm here — real Wayland desktop, visible windows are fine.
+- If Chromium is already running on the default profile, a second launch fails on the profile lock. Ask bermudi, then attach with `--auto-connect` instead of launching.
 
 ## Specialized skills
 
