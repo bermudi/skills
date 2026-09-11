@@ -3,7 +3,7 @@ name: agent-browser
 description: Browser automation with agent-browser CLI. Use for any task needing a real browser — open pages, click, fill forms, screenshot, scrape, or test a web app. Also for Electron, Slack, and Vercel Sandbox.
 license: Apache-2.0
 metadata:
-  version: "1.2"
+  version: "1.3"
   topic: browser-automation
 compatibility: Requires agent-browser CLI (npm install -g agent-browser) and Chrome/Chromium
 allowed-tools:
@@ -32,20 +32,33 @@ If `skills get` is unavailable (older CLI), fall back to `agent-browser --help` 
 
 ## Launch preferences on this machine
 
-Two modes — pick by task nature and say which one you're running:
+Two modes — pick by task nature, say which one you're running, and never escalate without asking:
 
-**Testing & development (default): managed Chrome.** Plain `agent-browser <command>` is fine. Don't use it against bermudi's personal accounts — Cloudflare trips on the Chrome for Testing build even headed.
+**Mode 1 — headless managed Chrome (default).** Anything that doesn't need bermudi's session or auth: testing, dev, scraping public pages. Plain `agent-browser <command>`; the CLI manages its own Chrome. Always headless — never pass `--headed`; if a task seems to need a visible window, ask bermudi. Managed Chrome trips Cloudflare regardless of flags, so never point it at his personal accounts.
 
-**Personal (bermudi's accounts, real services like luma.com): installed Chromium, default profile.**
+**Mode 2 — bermudi's browser, attach-only.** Anything needing his real session or auth (personal accounts, Cloudflare-protected services like luma.com) — his profile's real cookies and fingerprint are the only thing that passes. The browser is his: **he launches it, he closes it.** Agents attach, work in their own tab, clean up, and get out.
+
+He launches Chromium with remote debugging:
 
 ```bash
-AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium agent-browser --headed --profile ~/.config/chromium <command>
+/usr/bin/chromium --remote-debugging-port=9222
 ```
 
-- The default profile's real cookies and fingerprint are what get past Cloudflare; managed Chrome fails there regardless of flags.
-- RED LINE: that profile holds Proton Pass. Never read passwords — not from the vault UI, not from filled login fields (not even to "verify" a fill), never via eval or screenshots. Logins happen through the extension's own autofill; the agent may click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
-- Headed is the norm here — real Wayland desktop, visible windows are fine.
-- If Chromium is already running on the default profile, a second launch fails on the profile lock. Ask bermudi, then attach with `--auto-connect` instead of launching.
+If Chromium is already running without that flag, the launch is absorbed by the running instance and no CDP port opens — he must quit Chromium fully first. Agents never launch it themselves, and never pass `--profile` or `AGENT_BROWSER_EXECUTABLE_PATH`.
+
+Attach before the first command, then work normally:
+
+```bash
+export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix task)"
+export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
+```
+
+- `--pin-tab` is not optional: it makes attach open a **fresh tab** instead of adopting his active one, and a lost binding fails with `tab_gone` instead of silently acting on his other tabs.
+- Do all work in that tab. Cleanup = `tab close` on every tab you opened, then stop issuing commands. Never close, navigate, reload, or sign out of tabs you didn't open; never change settings or clear data.
+- Never run `close`, `quit`, or `close --all` in this mode — that's his browser, not yours. (Attached browsers are exempt from the daemon's idle shutdown anyway.)
+- Nothing listening on 9222? Don't launch, don't retry forever — tell bermudi and wait.
+- RED LINE: his profile holds Proton Pass. Never read passwords — not from the vault UI, not from filled login fields (not even to "verify" a fill), never via eval or screenshots. Logins happen through the extension's own autofill; the agent may click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
+- An open CDP port lets any local process drive his browser — accepted on this machine, which is exactly why the port exists only when he launches it.
 
 ## Specialized skills
 
