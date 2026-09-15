@@ -3,10 +3,8 @@
 Image, video, and audio understanding via the `gemini-media` MCP, called through
 mcporter: `mcporter call gemini-media.<tool> key=value`.
 
-**If `read` returned "model does not support images" or "image will be omitted"**
-— you're in the right place. Use the appropriate tool below for the image instead.
-
-All image tools accept a local file path or remote URL. **No clipboard support**
+**All media tools are Gemini calls — there is no local OCR.** All image tools
+accept a local file path or remote URL. **No clipboard support**
 — save the image to disk first (e.g. `grim > /tmp/x.png`).
 
 Audio tools accept a YouTube URL directly — no download needed.
@@ -23,10 +21,9 @@ What does the user have?
 │
 ├── An image, and they want the TEXT out of it
 │   (code, terminal output, a document, log lines, an error message)
-│   → ocr  (local tesseract: instant, free, no rate limits)
-│       └─ only reach for analyze_image if OCR fails (handwriting,
-│          low-contrast/stylized text, mixed text+graphics where
-│          meaning matters more than verbatim text)
+│   → analyze_image with a verbatim-transcription prompt
+│     ("Transcribe the text exactly, preserving line breaks"),
+│     MINIMAL/LOW thinking unless meaning matters
 │
 ├── An image, and they want UNDERSTANDING or DESCRIPTION
 │   (what's in this photo, read this diagram, describe this UI,
@@ -50,9 +47,10 @@ What does the user have?
     → transcribe_segment
 ```
 
-**Rule of thumb:** reach for `ocr` first when the goal is *transcription*. It's
-local (~0.1s), free, and never rate-limited. Use `analyze_image` only when you
-need meaning, description, or OCR-quality is insufficient.
+**Rule of thumb:** for transcription, use `analyze_image` with an explicit
+verbatim-transcription prompt and low thinking — cheapest call that gets text
+out of an image. Reserve higher thinking for when meaning, not just text, is
+the goal.
 
 For audio/video, the same principle applies: existing YouTube captions
 ([youtube-captions.md](youtube-captions.md)) and local pipelines beat a Gemini
@@ -61,16 +59,12 @@ call when they can answer the question.
 ## Timeouts
 
 Each command example below shows the correct mcporter `--timeout`. For the
-outer pi bash `timeout` (seconds), use `30` for local `ocr`, `150` for Gemini
-image tools, and `330` for video and audio. **Pi's bash timeout must be
+outer pi bash `timeout` (seconds), use `150` for image tools and `330` for
+video and audio. **Pi's bash timeout must be
 strictly greater than mcporter's timeout in seconds** — mcporter handles its
 timeout cleanly; pi's SIGKILL does not.
 
 ```bash
-# Local OCR — fast
-mcporter call gemini-media.ocr --timeout 15000 \
-  image_source="path/to/terminal.png"
-
 # Gemini image analysis
 mcporter call gemini-media.analyze_image --timeout 120000 \
   image_source="path/to/img.png" prompt="Describe this diagram's data flow"
@@ -101,24 +95,22 @@ mcporter call gemini-media.transcribe_segment --timeout 300000 \
 
 ## Quick Reference
 
-| Tool | Engine | What it does | Key params |
-|------|--------|--------------|------------|
-| `ocr` | local tesseract | Verbatim text transcription (fast, free) | `image_source` |
-| `analyze_image` | Gemini | Single-image understanding/description | `image_source`, `prompt`, `model?`, `thinking?` |
-| `compare_images` | Gemini | Two-image diff (expected vs actual) | `expected_image_source`, `actual_image_source`, `prompt`, `model?`, `thinking?` |
-| `analyze_video` | Gemini (File API) | Video scenes, moments, entities | `video_source`, `prompt`, `model?`, `thinking?` |
-| `verify_speaker` | Gemini (YouTube URL) | Who said a quote? → structured verdict | `youtube_url`, `quote_to_locate`, `claimed_speaker`, `known_speakers`, `model?`, `thinking?` |
-| `transcribe_segment` | Gemini (YouTube URL) | Verbatim segment + speaker ID | `youtube_url`, `start_time?`, `end_time?`, `quote_to_locate?`, `known_speakers?`, `model?`, `thinking?` |
+| Tool | What it does | Key params |
+|------|--------------|------------|
+| `analyze_image` | Single-image understanding/description/transcription | `image_source`, `prompt`, `thinking?` |
+| `compare_images` | Two-image diff (expected vs actual) | `expected_image_source`, `actual_image_source`, `prompt`, `thinking?` |
+| `analyze_video` | Video scenes, moments, entities | `video_source`, `prompt`, `thinking?` |
+| `verify_speaker` | Who said a quote? → structured verdict | `youtube_url`, `quote_to_locate`, `claimed_speaker`, `known_speakers`, `thinking?` |
+| `transcribe_segment` | Verbatim segment + speaker ID | `youtube_url`, `start_time?`, `end_time?`, `quote_to_locate?`, `known_speakers?`, `thinking?` |
 
-Default model: **`gemini-3.1-flash-lite`**. Override per call with `model=`
-(e.g. `model="gemini-3.5-flash"` for harder reasoning, `model="gemini-3.5-pro"`
-for the strongest model).
+Model is fixed server-side (**`gemini-3.5-flash-lite`**) — there is no `model=`
+override.
 
-Default thinking: **`MEDIUM`**. Every Gemini tool reasons before responding and
+Default thinking: **`MEDIUM`**. Every tool reasons before responding and
 accepts an optional `thinking=` override — `MINIMAL`/`LOW` for simple perception
-(fast, cheap: "what color is this", "is there a button"), `MEDIUM` default for
-general analysis, `HIGH` for diagnosis, codegen from a mockup, or complex
-multi-step reasoning from a diagram. Lower thinking = lower latency + cost.
+and verbatim transcription (fast, cheap), `MEDIUM` default for general analysis,
+`HIGH` for diagnosis, codegen from a mockup, or complex multi-step reasoning
+from a diagram. Lower thinking = lower latency + cost.
 
 ```bash
 # Simple perception — minimal thinking, fastest/cheapest
@@ -132,24 +124,13 @@ mcporter call gemini-media.analyze_image --timeout 120000 \
 
 ## Tool Details
 
-### ocr — fast local transcription
-
-`tesseract` on the image. Use as the **default** for extracting text/code/
-terminal output/documents. ~0.1s, free, offline, no rate limits.
-
-```bash
-mcporter call gemini-media.ocr --timeout 15000 \
-  image_source="path/to/error.png"
-```
-
-Falls short on handwriting, low-contrast/stylized text, and mixed
-text+graphics where meaning matters — for those use `analyze_image`.
-
-### analyze_image — understanding & description
+### analyze_image — understanding, description, transcription
 
 Single image → Gemini. Describe contents, answer questions, extract meaning,
-identify objects/diagrams/charts. Use when you need *understanding*, not just
-transcription.
+identify objects/diagrams/charts, or transcribe text verbatim with a prompt
+like "Transcribe the text exactly, preserving line breaks" (use `thinking="LOW"`
+for plain transcription; higher only if the text is stylized or the layout
+matters).
 
 ```bash
 mcporter call gemini-media.analyze_image --timeout 120000 \
@@ -234,12 +215,8 @@ omitted, Gemini returns generic labels (Speaker 1, Speaker 2, etc.).
 
 - **No clipboard input.** Save the image to disk first (`grim`, `spectacle`,
   `curl`, etc.). KDE's clipboard manager makes "current clipboard" unreliable.
-- **Pick ocr vs analyze_image deliberately.** `ocr` transcribes verbatim and is
-  free/instant; `analyze_image` understands and costs a Gemini call. For "get
-  this text off my screen", `ocr` is almost always right.
-- **gemini-3.1-flash-lite is the default** for speed and low rate-limit
-  pressure. Bump to `gemini-3.5-flash` or `gemini-3.5-pro` per call when you
-  need stronger reasoning.
+- **The model is fixed to gemini-3.5-flash-lite** — you cannot swap models per
+  call. Tune difficulty with `thinking=` instead.
 - **Default mcporter timeout (60s) is too short** for Gemini calls. Always
   pass `--timeout` explicitly — see the command examples above.
 - **File paths must exist on disk** or be accessible remote URLs.
@@ -248,5 +225,5 @@ omitted, Gemini returns generic labels (Speaker 1, Speaker 2, etc.).
   `m.youtube.com`, `/embed/`, `/shorts/`, `/live/`, `music.youtube.com`.
 - **YouTube URL input is a Gemini preview feature.** Pricing/rate limits may
   change. Audio tools use structured JSON output, which requires a model that
-  supports `responseSchema` (Flash/Pro family). Don't override `model=` to one
-  without structured output support.
+  supports `responseSchema` (Flash/Pro family) — satisfied by the fixed default
+  model.

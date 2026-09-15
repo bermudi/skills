@@ -5,13 +5,9 @@ description: >
   external content: documents, audio, video, images, URLs, websites, web
   search, online research, library documentation, or even remote GitHub
   repos.
-  IMAGES — VISION-LESS MODELS NEED THIS: if your read tool returns "image
-  will be omitted" or "model does not support images", you have no vision
-  and this skill is the only way to handle any visuals — load it and retry
-  through OCR or image analysis instead of retrying the inline read.
 license: MIT
 metadata:
-  version: "1.2"
+  version: "1.3"
   topic: content-retrieval
 ---
 
@@ -37,10 +33,8 @@ What does the user have?
 ├── Image or screenshot
 │   ├── Ordinary description/question and model can see it → answer directly;
 │   │   do not load or use this skill
-│   ├── Direct read says unsupported/omitted, or vision otherwise fails
-│   │   ├── Need verbatim text/code/error output → local OCR
-│   │   └── Need meaning, chart/diagram/UI understanding → image analysis
-│   ├── User specifically requests exact OCR/transcription → local OCR
+│   ├── User specifically requests exact transcription → image analysis
+│   │   with a verbatim-transcription prompt
 │   └── User specifically requests image comparison → image comparison
 │
 ├── Audio or video
@@ -77,11 +71,9 @@ What does the user have?
   insufficient, the document is multilingual/layout-heavy, or typed structured
   extraction is required.
 - **Images:** do not read the media guide for an ordinary attached-image task
-  when the current model can inspect it directly. If `read` reported the image
-  omitted/unsupported, you are vision-less for this task — load
-  [Media overview](references/media/overview.md) now and route through OCR or
-  Gemini image analysis; do not retry the inline read. Explicit OCR or image
-  comparison also use this guide.
+  when the current model can inspect it directly. Explicit transcription or
+  image comparison requests read
+  [Media overview](references/media/overview.md).
 - **Audio and video:** read [Media overview](references/media/overview.md)
   before using Gemini media tools. To pull a YouTube video's existing captions
   directly (faster, free, no model), read
@@ -93,35 +85,13 @@ What does the user have?
 
 For a document URL, classify by the content itself rather than leaving it in
 the web lane. Downloading a PDF does not turn it into an HTML-extraction task.
-For an image of a document, choose based on the requested result: local OCR for
-verbatim text, Mistral for document structure, Gemini for visual meaning.
-
-## Vision capability is observed, not assumed
-
-Do not guess whether the current model has vision. For an ordinary request such
-as “read this screenshot” or “what is in this photo,” let the model inspect the
-attachment directly first. If it succeeds, stop: no skill or external tool is
-needed.
-
-If the attachment is absent from model context, direct inspection commonly
-returns signals such as `model does not support images`, `image will be
-omitted`, `screenshot was omitted`, or an explicit inability to view the file.
-That signal means you are vision-less for this task. **Do not retry the inline
-read** — it will fail the same way every time. Load the media guide
-([references/media/overview.md](references/media/overview.md)) and route the
-image through OCR or Gemini analysis instead. Models often assume they have
-vision before trying, so capability must be established by the actual read
-result rather than confidence or model name.
-
-Explicit requests for **verbatim OCR** or **image comparison** may use this
-skill immediately because those are specialized operations, not ordinary
-vision.
+For an image of a document, choose based on the requested result: image
+analysis for verbatim text or visual meaning, Mistral for document structure.
 
 ## Cost and escalation rules
 
-1. **Use direct/local methods first:** native model vision, existing text layer,
-   `curl`, LiteParse,
-   local OCR, and shell search.
+1. **Use direct/local methods first:** the model's own vision, existing text
+   layer, `curl`, LiteParse, and shell search.
 2. **Parse or fetch once, then save and search locally.** Repeated extraction
    wastes latency, money, and context.
 3. **Escalate on a concrete failure signal:** absent text, broken reading
@@ -146,13 +116,8 @@ The relevant reference gives concrete values.
 
 ## Common mistakes
 
-- If `read` returned an image-omitted/unsupported signal, do not keep retrying
-  the inline read — load the media guide and route through OCR or Gemini.
-- Do not trust the model's assumption that it has vision; try direct inspection
-  and react to the observed result. But if you already got the omission signal,
-  you have your answer — stop trying and load this skill.
-- Do not use Gemini image understanding when native vision already answered the
-  ordinary image question or local OCR can transcribe the text.
+- Do not use Gemini image understanding when the model's own vision already
+  answered the ordinary image question.
 - Do not send a born-digital PDF to cloud OCR before trying its text layer.
 - Do not repeatedly parse a document for each search term.
 - Do not use natural-language prose with grep.app; search literal code patterns.
