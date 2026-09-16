@@ -44,9 +44,11 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 ## Deploying Skills
 
-This repo is the **source of truth** for skills. Other machines install with `skills add -g <name>` into `~/.agents/skills/`.
+This repo is the **source of truth** for skills. We do NOT use the `skills` CLI to manage this repo's installs — installed copies are **plain symlinks** into this checkout (`~/.agents/skills/*`; `pi-docs` scoped to pi at `~/.pi/agent/skills/pi-docs`; external ones like `terminal-browser` and local-only ones like `filing-supervisor` stay tool-managed). The installed copy IS the working tree: **edits are live immediately**, no install/update step, nothing needs to "register" anywhere.
 
-**On this machine, our installed skills are symlinks into this checkout** (the repo-sourced entries; external ones like `terminal-browser` and local-only ones like `filing-supervisor` stay tool-managed). The installed copy IS the working tree, so edits appear in `git status` immediately with no install/update ceremony:
+Git is history and CI only (skills-ref validation runs on push). Commit often; do not push without explicit permission.
+
+New repo skills are NOT linked automatically (every install adds every-turn description cost); link deliberately:
 
 ```bash
 ./scripts/link-local-skills                 # dry run
@@ -54,15 +56,11 @@ This repo is the **source of truth** for skills. Other machines install with `sk
 ./scripts/link-local-skills --apply --skill <name>
 ```
 
-After `skills update -g`, re-run with `--apply` — an update can replace a symlink with a fresh directory copy, and the script detects and repairs that. New repo skills are NOT linked automatically (every install adds every-turn description cost); link deliberately.
-
-`pi-docs` is scoped to pi, not installed globally: a symlink at `~/.pi/agent/skills/pi-docs` pointing at this repo.
-
-**`skills` detects changes via git state, not filesystem mtime.** `git add && git commit` your edits — uncommitted changes don't register. Pushing keeps remote mirrors in sync.
+Warning: running `skills update -g` anyway can replace a symlink with a fresh directory copy — re-run `link-local-skills --apply` to repair, it detects and trashes displaced copies.
 
 ## Skill Provenance
 
-Some skills are authored here from scratch; others were adapted from upstream sources and should be checked periodically for updates. Verify candidates with `skills find <name>`, then compare the local copy against the upstream `SKILL.md` before merging changes — local versions have diverged.
+Some skills are authored here from scratch; others were adapted from upstream sources and should be checked periodically for updates. `scripts/check-upstream.sh` body-diffs tracked skills against their upstream repos; local versions have diverged, so review diffs before merging anything upstream.
 
 **Derived from upstream (track for updates):**
 
