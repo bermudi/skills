@@ -1,6 +1,10 @@
 ---
 name: agent-browser
-description: Browser automation with agent-browser CLI. Use for any task needing a real browser — open pages, click, fill forms, screenshot, scrape, or test a web app. Also for Electron, Slack, and Vercel Sandbox.
+description: >
+  Browser automation with agent-browser CLI for unattended work — open pages,
+  click, fill forms, screenshot, scrape, test web apps; also Electron, Slack,
+  and Vercel Sandbox. If the human should watch the page in a terminal pane,
+  or the browser is already open in one, that's terminal-browser, not this.
 license: Apache-2.0
 metadata:
   version: "1.3"
