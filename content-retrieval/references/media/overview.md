@@ -3,9 +3,9 @@
 Image, video, and audio understanding via the `gemini-media` MCP, called through
 mcporter: `mcporter call gemini-media.<tool> key=value`.
 
-**All media tools are Gemini calls — there is no local OCR.** All image tools
-accept a local file path or remote URL. **No clipboard support**
-— save the image to disk first (e.g. `grim > /tmp/x.png`).
+All media tools are Gemini calls. Image tools accept a local file path or
+remote URL. **No clipboard support** — save the image to disk first
+(e.g. `grim > /tmp/x.png`).
 
 Audio tools accept a YouTube URL directly — no download needed.
 
