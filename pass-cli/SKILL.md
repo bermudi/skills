@@ -23,10 +23,16 @@ session directory—never as the account owner's logged-in session.
 | --- | --- |
 | A program needs a secret, but the agent does not | `pass-cli run` with a `pass://` reference. This is the default. |
 | A requested config artifact needs a secret | `pass-cli inject` to an explicit file path. This writes secret material to disk. |
-| The task genuinely requires the value in context | `pass-cli item view --field`. Retrieve one field only. |
+| An interactive login needs a TOTP code | `pass-cli item totp`. The only value allowed into context — it expires in seconds. |
 
-Never use `pass-cli run --no-masking`. Do not read a full item merely to pass a
-secret to another command. Do not put a resolved value in a shell command,
+Agents never read secret values. If a task seems to require the value in
+context, that is a design smell: restructure it so the consuming process reads
+the secret itself (`pass-cli run` / `inject`). If no restructuring avoids it,
+stop and ask bermudi to retrieve the value himself, outside agent context.
+
+Never use `pass-cli run --no-masking`. Never use `pass-cli item view` — it
+prints the value (or whole item) to stdout, and once a secret has entered
+context it has already leaked. Do not put a resolved value in a shell command,
 source file, commit, ticket, or final response.
 
 ## Agent session is mandatory
@@ -53,6 +59,8 @@ esac
 (umask 077; mkdir -p "$PROTON_PASS_SESSION_DIR")
 
 # A valid Agent session identifies itself as an access-token session.
+# (Marker string below matches `pass-cli info` output in an Agent session;
+# verify once from a live Agent session if info's wording changes.)
 if ! pass-cli info 2>/dev/null | grep -q 'Personal Access Token'; then
   [ -r "$HOME/.pass-cli-env" ] || {
     printf '%s\n' 'FATAL: Agent credentials not provisioned; ask the owner for ~/.pass-cli-env.' >&2
@@ -143,20 +151,27 @@ pass-cli inject \
 Do not use `--force` unless the user has explicitly approved overwriting that
 specific file. Treat the generated file as secret material: do not commit it.
 
-## Read one field only when its value is necessary
+## Discover structure without reading values
 
-An Agent-token operation that views an item requires a non-empty reason (at
-most 300 characters). State the concrete task purpose; never include a secret
-in the reason.
+Field names, item types, and identifiers come from metadata, which never
+contains secrets:
 
 ```bash
-PROTON_PASS_AGENT_REASON="Use the deploy token for the requested release" \
-  pass-cli item view --share-id "SHARE_ID" --item-id "ITEM_ID" --field token
+pass-cli item list --output json --vault-name "Vault Name"
 ```
 
-If you need to discover field names, a full item view is allowed only when the
-field cannot be identified otherwise. Give it the same reason and do not repeat
-the resulting values in your response.
+The JSON payload carries only `title`, `item_type`, IDs, and timestamps.
+`--show-secrets` would embed full item content, but pass-cli refuses it in
+Agent sessions — do not try to work around that guard (e.g. via the owner's
+session).
+
+For an interactive login that needs a one-time code, `pass-cli item totp`
+prints the current TOTP value. This is the one sanctioned read: the code
+dies within seconds. Use it immediately, never log, store, or repeat it.
+
+An Agent-token `item totp` call requires a non-empty reason (at most 300
+characters). State the concrete task purpose; never include a secret in the
+reason.
 
 ## Audit boundary
 
@@ -180,7 +195,7 @@ pass-cli vault list --output json
 pass-cli item list --vault-name "Vault Name" --output json
 pass-cli run --env-file .env.secrets -- ./command
 pass-cli inject --in-file template --out-file .runtime/config
-PROTON_PASS_AGENT_REASON="..." pass-cli item view --share-id ID --item-id ID --field field
+PROTON_PASS_AGENT_REASON="..." pass-cli item totp --share-id ID --item-id ID
 pass-cli info
 pass-cli test
 ```
