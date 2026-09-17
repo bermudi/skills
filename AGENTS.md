@@ -94,7 +94,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 **Authored here (no upstream):**
 
-`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `plannotator` (adopted from a standalone install — upstream unknown, owned here; re-check after CLI updates), `poe-provider`, `pty-handling`, `terminal-sessions`.
+`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `plannotator` (adopted from a standalone install, then rewritten from the official docs at docs.plannotator.ai — owned here; docs can lag or lead the installed binary, trust `plannotator <cmd> --help` when they disagree), `poe-provider`, `pty-handling`, `terminal-sessions`.
 
 `content-retrieval` also consolidates the locally authored former `document-ai`, `gh-repo-read`, `media`, `web-content`, and `youtube-transcript-extraction` skills; its LiteParse provenance is recorded above.
 
