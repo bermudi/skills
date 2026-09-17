@@ -58,6 +58,22 @@ New repo skills are NOT linked automatically (every install adds every-turn desc
 
 Warning: running `skills update -g` anyway can replace a symlink with a fresh directory copy — re-run `link-local-skills --apply` to repair, it detects and trashes displaced copies.
 
+## Adopting a Skill
+
+"Adopt" = bring an externally-installed skill under this repo as source of truth:
+
+1. Copy the skill directory in (usually just its `SKILL.md`).
+2. Validate: `skills-ref validate ./<name>`
+3. Commit here.
+4. Link it into `~/.agents/skills` — `./scripts/link-local-skills --apply --skill <name>`
+   only relinks installs stamped with our `github-repo` marker; foreign installs
+   (no marker, e.g. tool-shipped) link manually:
+   `trash ~/.agents/skills/<name> && ln -s "$PWD/<name>" ~/.agents/skills/<name>`
+5. Add it to the Provenance table — including upstream, if any.
+
+Adopt anything you expect to edit more than once. Leave one-off tool-managed
+skills (e.g. `terminal-browser`) alone.
+
 ## Skill Provenance
 
 Some skills are authored here from scratch; others were adapted from upstream sources and should be checked periodically for updates. `scripts/check-upstream.sh` body-diffs tracked skills against their upstream repos; local versions have diverged, so review diffs before merging anything upstream.
@@ -78,7 +94,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 **Authored here (no upstream):**
 
-`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`.
+`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-project-agentsmd`, `create-subagents`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `plannotator` (adopted from a standalone install — upstream unknown, owned here; re-check after CLI updates), `poe-provider`, `pty-handling`, `terminal-sessions`.
 
 `content-retrieval` also consolidates the locally authored former `document-ai`, `gh-repo-read`, `media`, `web-content`, and `youtube-transcript-extraction` skills; its LiteParse provenance is recorded above.
 
