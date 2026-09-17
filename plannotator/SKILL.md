@@ -19,6 +19,19 @@ Plannotator opens plans, diffs, documents, and pages in a local browser annotati
 - `plannotator <command> --help` is authoritative for the installed binary. The docs site can lag or lead it (e.g. newer builds accept `--base`, `--diff-type`, `guide` subcommands that the reference no longer documents). Verify before relying on undocumented flags.
 - **Never run bare `plannotator` or `plannotator improve-context`.** They are hook entry points that expect hook JSON on stdin. Plan-mode review is handled automatically by the installed host hooks/extension — don't launch it yourself.
 
+## Browser choice
+
+Plannotator does not control the browser: it serves the session on `http://localhost:<random port>`, launches one browser at that URL, and waits for the decision over HTTP. Resolution order: `--browser` flag → `PLANNOTATOR_BROWSER` (app name/path on macOS, executable on Linux) → `BROWSER` (fallback command) → the OS web-browser default. Values `none`, `false`, `0`, `:` launch nothing and print the URL instead.
+
+On Linux the OS default is the *web browser* (URL scheme handler), which can differ from the `text/html` file association — that's why a session may open in a different browser than `xdg-open file.html` does.
+
+To show sessions in terminal-browser (a pane beside the conversation, reusing a running browser when there is one), point `PLANNOTATOR_BROWSER` at the bundled wrapper:
+
+```bash
+PLANNOTATOR_BROWSER="$HOME/.agents/skills/plannotator/scripts/open-in-terminal-browser" \
+  plannotator annotate plan.md --gate --json
+```
+
 ## Choose the command
 
 | The user wants | Run |

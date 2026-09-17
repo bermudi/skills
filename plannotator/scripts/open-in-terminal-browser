@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Launch a Plannotator session in terminal-browser instead of the system browser.
+#
+# Plannotator calls its resolved browser with one argument: the localhost
+# session URL. Point PLANNOTATOR_BROWSER at this script to get review panes
+# in the terminal instead of a separate browser window:
+#
+#   PLANNOTATOR_BROWSER="$HOME/.agents/skills/plannotator/scripts/open-in-terminal-browser" \
+#     plannotator annotate plan.md --gate --json
+#
+# Behavior: reuse an already-running terminal-browser in this terminal tab
+# (new-tab); if none is running, split the terminal and open a pane there.
+set -euo pipefail
+
+url="${1:?usage: open-in-terminal-browser <url>}"
+
+command -v terminal-browser >/dev/null 2>&1 || {
+  echo "open-in-terminal-browser: terminal-browser not found in PATH" >&2
+  exit 1
+}
+
+if ! terminal-browser new-tab "$url" 2>/dev/null; then
+  # No browser running here (or several, without a key) — open a split pane.
+  exec terminal-browser open "$url" --split right
+fi
