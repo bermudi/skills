@@ -88,6 +88,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 | `grill-me` | `mattpocock/skills` → `skills/productivity/grill-me` | Local version expands the upstream stub |
 | `content-retrieval` (LiteParse portion) | `run-llama/llamaparse-agent-skills` → former `skills/liteparse` | Consolidated skill is locally authored; only its LiteParse guide/search helper track upstream |
 | `agent-browser` | `vercel-labs/agent-browser` → `skills/agent-browser` | Rewrote description + inlined workflow content |
+| `frontend-design` | `anthropics/skills` → `skills/frontend-design` | Adopted near-verbatim (Apache-2.0 LICENSE.txt included); license field set to SPDX identifier |
 | `mcporter` | `steipete/clawdis` → `skills/mcporter` | Condensed upstream into a minimal stub |
 | `skill-creator` | started from `anthropics/skills` → `skills/skill-creator` | **Owned here now** — substantially rewritten with its own eval tooling; no longer tracks upstream |
 | `html-communication` | `plannotator/effective-html` → `skills/html` + sibling specialists | Consolidated the 6-skill collection (router + `design-artifact`, `html-wireframe`, `html-prototype`, `html-plan`, `html-diagram`) into one skill with specialized references; merged `design-artifact`+`creative-direction` and `html-diagram`+`diagrams` |
