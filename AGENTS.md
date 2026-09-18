@@ -56,20 +56,25 @@ New repo skills are NOT linked automatically (every install adds every-turn desc
 ./scripts/link-local-skills --apply --skill <name>
 ```
 
+`link-local-skills` only relinks installs stamped with our `github-repo` marker;
+foreign installs (no marker, e.g. tool-shipped) link manually:
+`trash ~/.agents/skills/<name> && ln -s "$PWD/<name>" ~/.agents/skills/<name>`
+
 Warning: running `skills update -g` anyway can replace a symlink with a fresh directory copy — re-run `link-local-skills --apply` to repair, it detects and trashes displaced copies.
 
 ## Adopting a Skill
 
-"Adopt" = bring an externally-installed skill under this repo as source of truth:
+Two separate operations: **adopt** = move a skill into this repo as source of
+truth (inert until installed — no context cost); **install** = link it into
+`~/.agents/skills` so it works (see Deploying Skills above). Adopting does
+NOT install. Install separately, deliberately, only when you want it live.
+
+To adopt an upstream skill or standalone install:
 
 1. Copy the skill directory in (usually just its `SKILL.md`).
 2. Validate: `skills-ref validate ./<name>`
 3. Commit here.
-4. Link it into `~/.agents/skills` — `./scripts/link-local-skills --apply --skill <name>`
-   only relinks installs stamped with our `github-repo` marker; foreign installs
-   (no marker, e.g. tool-shipped) link manually:
-   `trash ~/.agents/skills/<name> && ln -s "$PWD/<name>" ~/.agents/skills/<name>`
-5. Add it to the Provenance table — including upstream, if any.
+4. Add it to the Provenance table — including upstream, if any.
 
 Adopt anything you expect to edit more than once. Leave one-off tool-managed
 skills (e.g. `terminal-browser`) alone.
