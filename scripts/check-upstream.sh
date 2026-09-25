@@ -9,7 +9,7 @@
 #
 # Usage:
 #   SKILLS_DIR=/path/to/skills ./check-upstream.sh          # all tracked skills
-#   ./check-upstream.sh domain-modeling                     # substring filter
+#   ./check-upstream.sh html-communication                 # substring filter
 #
 # Env:
 #   BRANCH       upstream branch to compare against (default: main)
@@ -22,8 +22,6 @@ SKILLS_DIR="${SKILLS_DIR:-/home/daniel/build/skills}"
 
 # local_rel_path | upstream_repo | upstream_path
 CHECKS=(
-  "codebase-design/SKILL.md|mattpocock/skills|skills/engineering/codebase-design/SKILL.md"
-  "domain-modeling/SKILL.md|mattpocock/skills|skills/engineering/domain-modeling/SKILL.md"
   "agent-browser/SKILL.md|vercel-labs/agent-browser|skills/agent-browser/SKILL.md"
   "mcporter/SKILL.md|steipete/clawdis|skills/mcporter/SKILL.md"
   "content-retrieval/references/documents/liteparse.md|run-llama/llamaparse-agent-skills|skills/liteparse/SKILL.md"
