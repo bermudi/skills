@@ -25,7 +25,6 @@ CHECKS=(
   "codebase-design/SKILL.md|mattpocock/skills|skills/engineering/codebase-design/SKILL.md"
   "domain-modeling/SKILL.md|mattpocock/skills|skills/engineering/domain-modeling/SKILL.md"
   "improve-codebase-architecture/SKILL.md|mattpocock/skills|skills/engineering/improve-codebase-architecture/SKILL.md"
-  "grill-me/SKILL.md|mattpocock/skills|skills/productivity/grill-me/SKILL.md"
   "agent-browser/SKILL.md|vercel-labs/agent-browser|skills/agent-browser/SKILL.md"
   "mcporter/SKILL.md|steipete/clawdis|skills/mcporter/SKILL.md"
   "content-retrieval/references/documents/liteparse.md|run-llama/llamaparse-agent-skills|skills/liteparse/SKILL.md"
