@@ -107,9 +107,16 @@ printf '%s' "$message" | plannotator annotate-last --stdin
 
 `plannotator setup-goal <interview|facts> <bundle.json | -` `> [--json]` belongs to the installed `/goal` workflow: `interview` opens goal questions, `facts` opens facts acceptance. `-` reads the bundle JSON from stdin. Don't invoke it outside that workflow.
 
+## Install, update, uninstall
+
+- Full installer — binary plus host hooks, core skills, command files, optional `sem` sidecar and agent-terminal runtime (needs Git): `curl -fsSL https://plannotator.ai/install.sh | bash` (Windows: `irm https://plannotator.ai/install.ps1 | iex`). Rerun the same installer to update; data under `~/.plannotator/` survives.
+- Binary only — `bash -s -- --minimal` (`--binary-only` alias, or `PLANNOTATOR_MINIMAL=1`): no hooks/skills/runtimes, Git not required. Pin with `--version vX.Y.Z`; add `--verify-attestation` for SLSA provenance via `gh`.
+- Pi hosts integrate through the `@plannotator/pi-extension` package instead of the installer.
+- This machine runs binary-only: single ELF at `~/.local/bin/plannotator`, no installer-managed files in any host.
+- To remove: `plannotator uninstall --dry-run` first; `--purge` also deletes local data under `~/.plannotator/`.
+
 ## Gotchas
 
 - Classify outcomes only by the `decision` field, never by message text. **Approval with notes is guidance, not a change request** — an `approved` decision with `feedback` means proceed, treating the notes as preferences.
 - Plain `annotate` shows only **Close** — no Approve button. When the user asks to review/approve/accept/gate a generated plan or doc, add `--gate --json`. Never tell the user they can approve a non-gate session.
 - Never use `--hook` for interactive runs: a close reads as hook-pass (empty output), i.e. silent success.
-- If you do remove the tool, `plannotator uninstall --dry-run` first; `--purge` also deletes local data under `~/.plannotator/`.
