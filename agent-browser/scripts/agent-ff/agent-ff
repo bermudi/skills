@@ -1,0 +1,433 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["selenium>=4.49"]
+# ///
+"""agent-ff — stealth Firefox automation daemon + CLI.
+
+A resident daemon holds the Selenium/geckodriver session; the CLI talks to it
+over a Unix socket (newline-JSON, 0600). Firefox Dev Edition, navigator.webdriver
+hidden via BiDi preload unless --plain. Docs: README.md beside this script
+(agent-browser skill, scripts/agent-ff/).
+
+usage: agent-ff <command> [args]
+  open <url> [--plain] [--headless]   launch (or navigate existing), stealth default
+  eval <js>                           run JS (expression or statements)
+  snapshot                            interactive elements as @N refs
+  click|fill|type <@N|css> [text]     act on refs from the last snapshot
+  get <url|title|text>                read page info
+  screenshot [path]                   save PNG
+  status                              daemon/browser state
+  close                               quit browser + daemon
+"""
+
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+import signal
+import socket
+import socketserver
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime, timezone
+from typing import Any
+
+SOCK = os.path.expanduser("~/.cache/agent-ff/daemon.sock")
+LOG = os.path.expanduser("~/.cache/agent-ff/daemon.log")
+FF_BIN = "/usr/lib/firefox-developer-edition/firefox"
+
+STEALTH_JS = """() => {
+  Object.defineProperty(navigator, 'webdriver', {get: () => undefined, configurable: true});
+}"""
+
+# Body script (explicit return): collect visible interactive elements with a
+# resolvable CSS path for each, so @N refs survive without re-querying.
+SNAPSHOT_JS = """return (() => {
+  const path = (e) => {
+    const parts = [];
+    let cur = e;
+    while (cur && cur.tagName !== 'HTML') {
+      if (cur.id) { parts.unshift('#' + CSS.escape(cur.id)); break; }
+      let sel = cur.tagName.toLowerCase();
+      const parent = cur.parentElement;
+      if (parent) {
+        const sibs = [...parent.children].filter(c => c.tagName === cur.tagName);
+        if (sibs.length > 1) sel += ':nth-of-type(' + (sibs.indexOf(cur) + 1) + ')';
+      }
+      parts.unshift(sel);
+      cur = cur.parentElement;
+    }
+    return parts.join(' > ');
+  };
+  const sel = 'a[href], button, input, textarea, select, summary, [role=button], [onclick]';
+  const els = [...document.querySelectorAll(sel)].filter(e =>
+    e.getClientRects().length > 0 && !e.disabled);
+  return els.slice(0, 200).map((e, i) => ({
+    ref: i + 1,
+    tag: e.tagName.toLowerCase(),
+    text: (e.innerText || e.value || e.placeholder || '').trim().slice(0, 60),
+    href: e.href || null,
+    type: e.type || null,
+    sel: path(e),
+  }));
+})();"""
+
+
+def log(msg: str) -> None:
+    line = f"{datetime.now(timezone.utc).strftime('%H:%M:%S')} {msg}"
+    try:
+        with open(LOG, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+
+
+# ---------------------------------------------------------------- daemon
+
+class Browser:
+    """Holds the WebDriver session; every access goes through self.lock."""
+
+    def __init__(self) -> None:
+        self.driver: Any = None
+        self.stealth = False
+        self.started_at = 0.0
+        self.lock = threading.Lock()
+        self.refs: dict[int, str] = {}
+        self.exit_after_reply = False
+
+    def launch(self, url: str, plain: bool, headless: bool) -> dict[str, Any]:
+        from selenium import webdriver
+        from selenium.webdriver.firefox.options import Options
+
+        opts = Options()
+        opts.binary_location = FF_BIN
+        opts.web_socket_url = True
+        if headless:
+            opts.add_argument("-headless")
+        self.driver = webdriver.Firefox(options=opts)
+        self.stealth = not plain
+        self.started_at = time.time()
+        if self.stealth:
+            from selenium.webdriver.common._bidi.script import Script
+            Script(self.driver).add_preload_script(STEALTH_JS)
+        self.driver.get(url)
+        return self.status()
+
+    def status(self) -> dict[str, Any]:
+        d = self.driver
+        return {
+            "running": d is not None,
+            "url": d.current_url if d else None,
+            "title": d.title if d else None,
+            "stealth": self.stealth,
+            "browser": d.capabilities.get("browserVersion") if d else None,
+            "uptime_s": round(time.time() - self.started_at) if d else 0,
+        }
+
+    def watch(self) -> None:
+        """Exit the whole daemon when the browser window goes away."""
+        while True:
+            time.sleep(5)
+            with self.lock:
+                if self.driver is None:
+                    continue
+                try:
+                    self.driver.current_url
+                except Exception:
+                    log("browser window gone -> daemon exiting")
+                    self.shutdown()
+                    return
+
+    def shutdown(self) -> None:
+        if self.driver:
+            try:
+                self.driver.quit()
+            except Exception:
+                pass  # browser already gone — still stop the service below
+            try:
+                self.driver.service.stop()  # os._exit skips atexit/GC cleanup
+            except Exception:
+                pass
+        self.driver = None
+        try:
+            os.unlink(SOCK)
+        except OSError:
+            pass
+        log("daemon stopped")
+        os._exit(0)
+
+
+class Handler(socketserver.StreamRequestHandler):
+    def handle(self) -> None:
+        browser: Browser = self.server.browser  # type: ignore[attr-defined]
+        try:
+            line = self.rfile.readline()
+            req = json.loads(line)
+            t0 = time.time()
+            with browser.lock:
+                ok, data = dispatch(browser, req)
+            log(f"{req.get('cmd')} ok={ok} {round((time.time() - t0) * 1000)}ms")
+            resp = {"ok": ok, **({"data": data} if ok else {"error": data})}
+        except Exception as e:
+            log(f"protocol error: {e}")
+            resp = {"ok": False, "error": str(e)}
+        self.wfile.write((json.dumps(resp, default=str) + "\n").encode())
+        self.wfile.flush()
+        if browser.exit_after_reply:
+            threading.Timer(0.3, browser.shutdown).start()
+
+
+def _interact(d: Any, cmd: str, el: Any, text: str) -> None:
+    d.execute_script("arguments[0].scrollIntoView({block:'center'})", el)
+    if cmd == "click":
+        el.click()
+    elif cmd == "fill":
+        el.clear()
+        el.send_keys(text)
+    else:
+        el.send_keys(text)
+
+
+def dispatch(b: Browser, req: dict[str, Any]) -> tuple[bool, Any]:
+    cmd, args = req.get("cmd"), req.get("args", {})
+    d = b.driver
+
+    if cmd == "status":
+        return True, b.status()
+
+    if cmd == "close":
+        b.exit_after_reply = True  # handler shuts down after flushing the reply
+        return True, {"closing": True}
+
+    if cmd == "open":
+        url = args.get("url") or "about:blank"
+        if d is None:
+            return True, b.launch(url, args.get("plain", False), args.get("headless", False))
+        d.get(url)
+        return True, b.status()
+
+    if d is None:
+        return False, "no browser — run: agent-ff open <url>"
+
+    if cmd == "eval":
+        js = args.get("js", "").strip()
+        if js.startswith("return"):
+            return True, d.execute_script(js)
+        try:  # eval() completion value covers both expressions and statements
+            return True, d.execute_script(f"return eval({json.dumps(js)})")
+        except Exception:
+            return True, d.execute_script(f"return (() => {{ {js} }})()")
+
+    if cmd == "snapshot":
+        els = d.execute_script(SNAPSHOT_JS)
+        b.refs = {e["ref"]: e["sel"] for e in els}
+        return True, els
+
+    if cmd in ("click", "fill", "type"):
+        target = args.get("target", "")
+        if target.startswith("@"):
+            if not target[1:].isdigit():
+                return False, f"bad ref {target} — expected @N from a snapshot"
+            sel = b.refs.get(int(target[1:]))
+            if sel is None:
+                return False, f"unknown ref {target} — run: agent-ff snapshot"
+        else:
+            sel = target
+        try:
+            el = d.find_element("css selector", sel)
+        except Exception:
+            return False, (f"element not found: {sel} — "
+                           "page changed since snapshot? re-run: agent-ff snapshot")
+        try:
+            _interact(d, cmd, el, args.get("text", ""))
+        except Exception:
+            # collapsed <details> ancestors make elements unscrollable; open and retry
+            d.execute_script(
+                "arguments[0].closest('details') && (arguments[0].closest('details').open = true);"
+                "arguments[0].scrollIntoView({block:'center'})", el)
+            time.sleep(0.3)
+            _interact(d, cmd, el, args.get("text", ""))
+        return True, {"target": sel}
+
+    if cmd == "get":
+        what = args.get("what", "url")
+        if what == "url":
+            return True, d.current_url
+        if what == "title":
+            return True, d.title
+        if what == "text":
+            return True, d.find_element("css selector", "body").get_attribute("innerText")
+        return False, f"unknown 'what': {what}"
+
+    if cmd == "screenshot":
+        path = args.get("path") or os.path.expanduser(
+            f"~/.cache/agent-ff/shots/{datetime.now().strftime('%Y%m%d-%H%M%S')}.png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        d.get_screenshot_as_file(path)
+        return True, {"saved": path}
+
+    return False, f"unknown cmd: {cmd}"
+
+
+class Srv(socketserver.ThreadingUnixStreamServer):
+    daemon_threads = True
+    allow_reuse_address = True
+    browser: Browser
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        log(f"client error: {sys.exc_info()[1]}")
+
+
+_DAEMON_LOCK: Any = None  # module-level so the fd (and its flock) lives on
+
+
+def run_daemon() -> None:
+    global _DAEMON_LOCK
+    os.makedirs(os.path.dirname(SOCK), exist_ok=True)
+    # Single-daemon guard: two racing `open` calls can both spawn daemons;
+    # flock decides the winner atomically. The loser exits without touching
+    # the socket, so it can never unlink the winner's.
+    _DAEMON_LOCK = open(SOCK + ".lock", "w")
+    try:
+        fcntl.flock(_DAEMON_LOCK, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log("another daemon already holds the lock — exiting")
+        return
+    _DAEMON_LOCK.write(str(os.getpid()))
+    _DAEMON_LOCK.flush()
+    try:
+        os.unlink(SOCK)
+    except OSError:
+        pass
+    log(f"daemon starting pid={os.getpid()}")
+
+    srv = Srv(SOCK, Handler)
+    srv.browser = Browser()
+    os.chmod(SOCK, 0o600)
+    threading.Thread(target=srv.browser.watch, daemon=True).start()
+
+    def bye(_sig: int, _frm: Any) -> None:
+        srv.browser.shutdown()
+
+    signal.signal(signal.SIGTERM, bye)
+    srv.serve_forever()
+
+
+# ---------------------------------------------------------------- client
+
+def send(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(90)
+            s.connect(SOCK)
+            s.sendall((json.dumps({"cmd": cmd, "args": args}) + "\n").encode())
+            buf = b""
+            while not buf.endswith(b"\n"):
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+    except (ConnectionRefusedError, FileNotFoundError):
+        print("daemon not running — start one: agent-ff open <url>", file=sys.stderr)
+        sys.exit(1)
+    except OSError as e:  # timeout / reset: daemon may still be mid-command
+        print(f"no reply from daemon ({e}) — it may still be working; see {LOG}",
+              file=sys.stderr)
+        sys.exit(1)
+    if not buf:
+        print(f"daemon closed the connection — see {LOG}", file=sys.stderr)
+        sys.exit(1)
+    return json.loads(buf)
+
+
+def spawn_daemon() -> bool:
+    """Start the daemon detached; return once its socket accepts."""
+    script = os.path.realpath(sys.argv[0])
+    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    with open(LOG, "a") as lf:
+        subprocess.Popen(
+            [sys.executable, script, "_daemon"],
+            stdout=lf, stderr=lf, stdin=subprocess.DEVNULL,
+            start_new_session=True)
+    for _ in range(50):
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                s.connect(SOCK)
+            return True
+        except OSError:
+            time.sleep(0.2)
+    return False
+
+
+def main() -> None:
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("help", "--help", "-h"):
+        print(__doc__.strip())
+        return
+    if argv[0] == "_daemon":
+        run_daemon()
+        return
+
+    cmd, rest = argv[0], argv[1:]
+    args: dict[str, Any] = {}
+
+    if cmd == "open":
+        args["url"] = next((a for a in rest if not a.startswith("-")), "about:blank")
+        args["plain"] = "--plain" in rest
+        args["headless"] = "--headless" in rest
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                s.connect(SOCK)
+        except FileNotFoundError:
+            if not spawn_daemon():
+                print("daemon failed to start — see " + LOG, file=sys.stderr)
+                sys.exit(1)
+        except ConnectionRefusedError:
+            os.unlink(SOCK)  # stale socket from a dead daemon
+            if not spawn_daemon():
+                print("daemon failed to start — see " + LOG, file=sys.stderr)
+                sys.exit(1)
+    elif cmd == "eval":
+        args["js"] = " ".join(rest)
+    elif cmd in ("click", "fill", "type"):
+        if not rest:
+            print(f"{cmd} needs a target (@N or css selector)", file=sys.stderr)
+            sys.exit(1)
+        args["target"] = rest[0]
+        if cmd != "click":
+            args["text"] = " ".join(rest[1:])
+    elif cmd == "get":
+        args["what"] = rest[0] if rest else "url"
+    elif cmd == "snapshot":
+        pass
+    elif cmd == "screenshot":
+        if rest:
+            args["path"] = rest[0]
+    elif cmd not in ("status", "close"):
+        print(f"unknown command: {cmd}", file=sys.stderr)
+        sys.exit(1)
+
+    resp = send(cmd, args)
+    if not resp["ok"]:
+        print(f"error: {resp['error']}", file=sys.stderr)
+        sys.exit(1)
+
+    data = resp.get("data")
+    if cmd == "snapshot" and isinstance(data, list):
+        for e in data:
+            extra = f"  {e['href']}" if e.get("href") else ""
+            print(f"@{e['ref']:<3} {e['tag']:9} {e['text']}{extra}")
+    elif cmd == "open" and isinstance(data, dict):
+        print(f"ok  {data.get('url')}  (stealth={'on' if data.get('stealth') else 'OFF'})")
+    elif data is not None or cmd == "eval":
+        print(data if isinstance(data, str) else json.dumps(data, indent=1, default=str))
+
+
+if __name__ == "__main__":
+    main()
