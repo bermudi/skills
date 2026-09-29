@@ -112,7 +112,7 @@ printf '%s' "$message" | plannotator annotate-last --stdin
 - Full installer — binary plus host hooks, core skills, command files, optional `sem` sidecar and agent-terminal runtime (needs Git): `curl -fsSL https://plannotator.ai/install.sh | bash` (Windows: `irm https://plannotator.ai/install.ps1 | iex`). Rerun the same installer to update; data under `~/.plannotator/` survives.
 - Binary only — `bash -s -- --minimal` (`--binary-only` alias, or `PLANNOTATOR_MINIMAL=1`): no hooks/skills/runtimes, Git not required. Pin with `--version vX.Y.Z`; add `--verify-attestation` for SLSA provenance via `gh`.
 - Pi hosts integrate through the `@plannotator/pi-extension` package instead of the installer.
-- This machine runs binary-only: single ELF at `~/.local/bin/plannotator`, no installer-managed files in any host.
+- This machine runs the binary-only CLI, no installer-managed files and no @plannotator extensions. Last-message review runs through the herdr keybinding `prefix+shift+o` → `~/.config/herdr/scripts/plannotator-last.sh`, which extracts the last assistant reply from the pane agent's own transcript store (pi jsonl, Devin `~/.local/share/devin/cli/transcripts/*.json`, OpenCode `storage/message`+`storage/part`) and pipes it to `annotate-last --stdin` in a herdr side pane; `PLANNOTATOR_BROWSER` (dots zshrc) points at the side-pane wrapper.
 - To remove: `plannotator uninstall --dry-run` first; `--purge` also deletes local data under `~/.plannotator/`.
 
 ## Gotchas
