@@ -3,18 +3,16 @@ name: agent-browser
 description: >
   Browser automation with agent-browser CLI for unattended work — open pages,
   click, fill forms, screenshot, scrape, test web apps; also Electron, Slack,
-  and Vercel Sandbox. Firefox (incl. stealth via the bundled agent-ff CLI)
-  lives here too. If the human should watch the page in a terminal pane, or
+  and Vercel Sandbox. If the human should watch the page in a terminal pane, or
   the browser is already open in one, that's terminal-browser, not this.
 license: Apache-2.0
 metadata:
-  version: "1.4"
+  version: "1.5"
   topic: browser-automation
-compatibility: agent-browser CLI (npm i -g agent-browser) + Chrome/Chromium; Firefox via bundled agent-ff (uv, Selenium/geckodriver auto-fetched)
+compatibility: agent-browser CLI (npm i -g agent-browser) + Chrome/Chromium
 allowed-tools:
   - Bash(agent-browser:*)
   - Bash(npx agent-browser:*)
-  - Bash(agent-ff:*)
 ---
 
 # agent-browser
@@ -65,32 +63,6 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 - Nothing listening on 9222? Don't launch, don't retry forever — tell bermudi and wait.
 - RED LINE: his profile holds Proton Pass. Never read passwords — not from the vault UI, not from filled login fields (not even to "verify" a fill), never via eval or screenshots. Logins happen through the extension's own autofill; the agent may click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
 - An open CDP port lets any local process drive his browser — accepted on this machine, which is exactly why the port exists only when he launches it.
-
-## Firefox: agent-ff (stealth daemon)
-
-agent-browser is Chromium/CDP only. For Firefox — or sites that gate on
-`navigator.webdriver`, which managed Chrome trips — use the bundled
-`agent-ff` CLI: a resident daemon driving Firefox Developer Edition via
-Selenium/geckodriver, sessions persist across CLI calls:
-
-```bash
-agent-ff open https://example.com     # spawn daemon + stealth browser (default)
-agent-ff snapshot                     # interactive elements as @N refs
-agent-ff click @3                     # fill @7 "text" / type @7 "text"
-agent-ff eval "navigator.webdriver"   # JS — prints null while stealth holds
-agent-ff get text                     # url | title | text
-agent-ff screenshot /tmp/shot.png
-agent-ff close                        # browser + daemon down, no orphans
-```
-
-- Stealth = `navigator.webdriver` hidden by a WebDriver BiDi preload script
-  (verified `likely_human` on amiabot.app). Profile-pref tricks are dead —
-  Marionette force-sets the flag. Not a general anti-fingerprinting suit;
-  limits and the full scoring story in `scripts/agent-ff/README.md` here.
-- `open` reuses a running daemon (navigates its tab); flags: `--plain` (no
-  stealth patch), `--headless`. Closing the window exits the daemon cleanly.
-- Deps resolve via uv from the script's PEP 723 header; geckodriver is
-  auto-fetched by Selenium Manager on first run. Nothing to install.
 
 ## Specialized skills
 
