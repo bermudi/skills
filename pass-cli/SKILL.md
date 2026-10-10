@@ -127,8 +127,8 @@ stop and have the owner align the directories—never silently switch sessions.
 
 Bootstrap PATs are encrypted Secret Service records selected by `patKey`.
 Never read, print, or parse those records, write a new JWT/keyring parser, or
-source `~/.pass-cli-env`. That legacy file is retained only pending the owner's
-explicit deletion approval; it is not a login dependency. Inherited
+source `~/.pass-cli-env`. The legacy plaintext PAT files were deleted with
+the owner's approval on 2026-10-10; do not recreate them. Inherited
 `PROTON_PASS_*` variables are stripped, not sourced from another file.
 
 Warm's authentication/network failures are reported by the core as public-safe
