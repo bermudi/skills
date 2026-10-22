@@ -25,7 +25,7 @@ After the skill is done, offer to run the description optimizer for better trigg
 
 ## Best practices
 
-**Read `references/best-practices.md` at the start of every skill creation session.** It covers expertise sourcing, context spending, calibrating prescriptiveness, and reusable instruction patterns. Don't summarize it here — the agent will read the full file.
+**Read `references/best-practices.md` at the start of every skill creation session.** It covers expertise sourcing, context spending, calibrating prescriptiveness, and reusable instruction patterns. 
 
 ---
 

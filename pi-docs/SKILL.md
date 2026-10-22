@@ -8,9 +8,12 @@ description: >
 
 Pi documentation:
 
-- Pi is installed as a global npm package. Resolve its install root dynamically
-  with `npm root -g` and append `@earendil-works/pi-coding-agent`. (On this
-  machine that is `/home/daniel/.local/lib/node_modules/@earendil-works/pi-coding-agent`.)
+- Pi uses a managed installation (migrated from npm on 2026-10-03; the npm
+  package is gone). Install root:
+  `~/.pi/agent/install/releases/<version>/node_modules/@earendil-works/pi-coding-agent`.
+  Resolve `<version>` dynamically, e.g. `ls ~/.pi/agent/install/releases` or
+  `pi --version`. (Currently `~/.pi/agent/install/releases/1.0.2/node_modules/@earendil-works/pi-coding-agent`.)
+  Launcher: `~/.pi/agent/bin/pi`, symlinked from `~/bin/pi`. Updates via `pi update`.
 - Main documentation: `…/README.md`
 - Additional docs: `…/docs/`
 - Examples: `…/examples/` (extensions, custom tools, SDK)

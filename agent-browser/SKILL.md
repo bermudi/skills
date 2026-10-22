@@ -42,6 +42,8 @@ Two modes — pick by task nature, say which one you're running, and never escal
 
 **Mode 2 — bermudi's browser, attach-only.** Anything needing his real session or auth (personal accounts, Cloudflare-protected services like luma.com) — his profile's real cookies and fingerprint are the only thing that passes. The browser is his: **he launches it, he closes it.** Agents attach, work in their own tab, clean up, and get out.
 
+> **Update 2026-10-10:** bermudi ruled that when a task genuinely needs his session and the port is closed, agents MAY launch it themselves (`/usr/bin/chromium --remote-debugging-port=9222`, background) instead of asking — the "he launches it" default applies only when nobody asked for the work. Everything else stands: never `close`/`quit`/`--all` on his browser, close only your own tabs, never read credentials.
+
 He launches Chromium with remote debugging:
 
 ```bash
