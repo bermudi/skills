@@ -51,16 +51,16 @@ Git is history and CI only (skills-ref validation runs on push). Commit often; d
 New repo skills are NOT linked automatically (every install adds every-turn description cost); link deliberately:
 
 ```bash
-./scripts/link-local-skills                 # dry run
-./scripts/link-local-skills --apply         # (re)link; displaced copies go through `trash`
-./scripts/link-local-skills --apply --skill <name>
+ln -s "$PWD/<name>" ~/.agents/skills/<name>
 ```
 
-`link-local-skills` only relinks installs stamped with our `github-repo` marker;
-foreign installs (no marker, e.g. tool-shipped) link manually:
+If `skills update -g` (or a fresh `skills add`) replaces a symlink with a
+directory copy, `./scripts/link-local-skills [--skill=<name>]` repairs it:
+trashes the displaced copy (via `trash`, never `rm`) and relinks — but only for
+installs stamped with our `github-repo` marker (the `skills` CLI adds it to the
+installed copy; it is not in the source SKILL.md). Foreign installs (no marker,
+e.g. tool-shipped) link manually:
 `trash ~/.agents/skills/<name> && ln -s "$PWD/<name>" ~/.agents/skills/<name>`
-
-Warning: running `skills update -g` anyway can replace a symlink with a fresh directory copy — re-run `link-local-skills --apply` to repair, it detects and trashes displaced copies.
 
 ## Adopting a Skill
 

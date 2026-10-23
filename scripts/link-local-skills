@@ -1,51 +1,35 @@
 #!/usr/bin/env bash
 #
 # link-local-skills
-# Symlink this repo's skills into the global skills dir so the installed
-# copy IS the working tree: edits show up in `git status` immediately,
-# with no install/update ceremony during development.
-#
-# Only touches entries the `skills` tool installed from this repo (their
-# SKILL.md frontmatter carries our github-repo marker). Everything else —
-# external skills, bare symlinks like terminal-browser, local-only
-# installs like filing-supervisor — is left alone and reported as SKIP.
-#
-# Replaced directories go through `trash`, never `rm`, so a botched run
-# is recoverable. Re-running after `skills update -g` repairs any links
-# an update replaced with fresh directory copies.
+# Repair repo symlinks in ~/.agents/skills that `skills update -g` (or a fresh
+# `skills add`) replaced with directory copies: trash the copy, link the repo
+# dir. Only touches installs stamped with our github-repo marker (added by the
+# `skills` CLI at install time, not present in the source SKILL.md); foreign
+# installs and symlinks are left alone. Displaced copies go through `trash`,
+# never `rm`. Silent when everything already points here.
 #
 # Usage:
-#   ./scripts/link-local-skills                   # dry run: print the plan
-#   ./scripts/link-local-skills --apply           # trash managed copies, link repo dirs
-#   ./scripts/link-local-skills --apply --skill agent-browser
+#   ./scripts/link-local-skills                 # repair all
+#   ./scripts/link-local-skills --skill=<name>  # repair one
 #
-# Env:
-#   REPO_DIR    path to this skills repo (default: repo root)
-#   TARGET_DIR  global skills dir (default: ~/.agents/skills)
-#   OUR_REPO    github-repo marker identifying our installs
-#               (default: https://github.com/bermudi/skills)
+# Env: REPO_DIR, TARGET_DIR, OUR_REPO (defaults: this repo, ~/.agents/skills,
+#      https://github.com/bermudi/skills)
 
-set -uo pipefail
+set -u
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TARGET_DIR="${TARGET_DIR:-$HOME/.agents/skills}"
 OUR_REPO="${OUR_REPO:-https://github.com/bermudi/skills}"
 
-APPLY=0
 ONLY=""
 for arg in "$@"; do
   case "$arg" in
-    --apply) APPLY=1 ;;
     --skill=*) ONLY="${arg#--skill=}" ;;
-    -h|--help)
-      sed -n '2,/^$/p' "$0"
-      echo "Usage: $(basename "$0") [--apply] [--skill=<name>]"
-      exit 0 ;;
+    -h|--help) sed -n '2,/^$/p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg (try --help)" >&2; exit 2 ;;
   esac
 done
 
-linked=0; skipped=0; would=0
 for repo_skill in "$REPO_DIR"/*/; do
   [[ -f "${repo_skill}SKILL.md" ]] || continue
   name="$(basename "$repo_skill")"
@@ -53,33 +37,15 @@ for repo_skill in "$REPO_DIR"/*/; do
   target="$TARGET_DIR/$name"
 
   if [[ -L "$target" ]]; then
-    if [[ "$(readlink "$target")" == "$REPO_DIR/$name" ]]; then
-      echo "LINKED  $name (already points here)"
-      linked=$((linked+1))
-    else
-      echo "SKIP    $name (symlink points elsewhere: $(readlink "$target"))"
-      skipped=$((skipped+1))
-    fi
+    [[ "$(readlink "$target")" == "$REPO_DIR/$name" ]] \
+      || echo "SKIP    $name (symlink points elsewhere: $(readlink "$target"))"
+  elif [[ -d "$target" ]] && grep -qF "github-repo: $OUR_REPO" "$target/SKILL.md" 2>/dev/null; then
+    trash "$target" && ln -s "$REPO_DIR/$name" "$target" \
+      && echo "LINKED  $name (previous copy trashed)" \
+      || echo "FAILED  $name" >&2
   elif [[ -d "$target" ]]; then
-    if [[ -f "$target/SKILL.md" ]] && grep -qF "github-repo: $OUR_REPO" "$target/SKILL.md"; then
-      if (( APPLY )); then
-        trash "$target" && ln -s "$REPO_DIR/$name" "$target" \
-          && echo "LINKED  $name (previous copy trashed)" \
-          && linked=$((linked+1)) \
-          || { echo "FAILED  $name" >&2; skipped=$((skipped+1)); }
-      else
-        echo "WOULD   $name (trash installed copy, link repo dir)"
-        would=$((would+1))
-      fi
-    else
-      echo "SKIP    $name (installed copy is not from our repo)"
-      skipped=$((skipped+1))
-    fi
+    echo "SKIP    $name (installed copy is not from our repo)"
   else
-    echo "SKIP    $name (not installed; use \`skills add -g $name\` if you want it)"
-    skipped=$((skipped+1))
+    echo "SKIP    $name (not installed)"
   fi
 done
-
-echo "--- linked=$linked skipped=$skipped$(((APPLY==0)) && echo " would-link=$would" || echo "")"
-(( APPLY )) || echo "(dry run — pass --apply to execute)"
