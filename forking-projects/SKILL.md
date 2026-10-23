@@ -2,9 +2,7 @@
 name: forking-projects
 description: >
   Use when creating, organizing, maintaining, or syncing a fork, cleaning up
-  downstream patches, or turning a fork into an independent project. Applies
-  consistent fork documentation, branch conventions, patch tracking, and
-  maintenance rules without silently rewriting existing repositories.
+  downstream patches, or turning a fork into an independent project. 
 ---
 
 # Forking projects
