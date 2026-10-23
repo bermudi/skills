@@ -12,6 +12,7 @@ import io
 import json
 import subprocess
 import tempfile
+import time
 import unittest
 import sys
 from pathlib import Path
@@ -32,6 +33,8 @@ def load(name: str) -> ModuleType:
 find_sessions = load("find_sessions")
 inspect_session = load("inspect_session")
 search_session = load("search_session")
+search_sessions = load("search_sessions")
+session_cache = load("session_cache")
 
 
 class HelperTests(unittest.TestCase):
@@ -171,10 +174,14 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pi.jsonl"
             path.write_text(json.dumps({
-                "type": "message", "message": {"role": "bashExecution", "output": "x" * 20_000},
+                "type": "message", "message": {"role": "bashExecution", "output": "x" * 1_100_000},
             }) + "\n")
             event = next(search_session.pi_events(path))
-            self.assertEqual(len(event.preview), search_session.MAX_EVENT_CHARS)
+            # Payloads are still bounded (pathological sizes), but the bound is
+            # high enough that ordinary messages are never cut mid-message —
+            # matching must see full content.
+            self.assertEqual(len(event.preview), search_session.MAX_MATCH_CHARS)
+            self.assertLess(search_session.MAX_MATCH_CHARS, 1_100_000)
 
     def test_devin_extracts_tool_summary_files_duration_and_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -377,6 +384,227 @@ class HelperTests(unittest.TestCase):
                 rc = search_session.main([str(path), "--tool", "write", "--extract", "--extract-field", "file_path"])
             self.assertEqual(rc, 0)
             self.assertEqual(out.getvalue().strip(), "/tmp/a.md")
+
+    def test_query_matches_full_text_beyond_old_truncation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pi.jsonl"
+            filler = "x" * 20_000
+            path.write_text(json.dumps({
+                "type": "message", "id": "u1",
+                "message": {"role": "user", "timestamp": 1,
+                            "content": f"{filler} the needle is here {filler}"},
+            }) + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_session.main([str(path), "--harness", "pi", "--type", "user", "--query", "needle is here"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["total_matches"], 1)
+            self.assertIn("needle is here", payload["events"][0]["preview"])
+
+    def test_query_matches_tool_call_arguments_not_just_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pi.jsonl"
+            path.write_text(json.dumps({
+                "type": "message", "id": "a1",
+                "message": {"role": "assistant", "timestamp": 2, "provider": "p", "model": "m1",
+                            "content": [
+                                {"type": "toolCall", "id": "tc1", "name": "edit",
+                                 "arguments": {"path": "/tmp/AGENTS.md",
+                                                "edits": [{"oldText": "a", "newText": "the needle patch"}]}},
+                            ]},
+            }) + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_session.main([str(path), "--harness", "pi", "--type", "tool_call", "--query", "needle patch"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["total_matches"], 1)
+            event = payload["events"][0]
+            # Display falls back to the arguments so the hit is visible evidence.
+            self.assertIn("needle patch", event["preview"])
+            self.assertEqual(event["model"], "m1")
+            self.assertEqual(event["provider"], "p")
+            self.assertTrue(event["source_ref"].startswith("line "))
+
+    def test_cache_round_trip_and_invalidation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "data.txt"
+            source.write_text("v1")
+            path = Path(tmp) / "nested" / "sessions.json"
+            cache = session_cache.Cache.load(path)
+            stat = source.stat()
+            cache.put("key", {str(source): (stat.st_mtime, stat.st_size)}, {"preview": "v1"})
+            cache.save()
+            self.assertTrue(path.exists())
+            reloaded = session_cache.Cache.load(path)
+            self.assertEqual(reloaded.get("key"), {"preview": "v1"})
+            # Same mtime+size -> hit; changed mtime -> miss.
+            self.assertEqual(reloaded.entries["key"]["deps"][0][0], str(source))
+            time.sleep(0.01)
+            source.write_text("v2")
+            reloaded = session_cache.Cache.load(path)
+            self.assertIsNone(reloaded.get("key"))
+            # Missing source -> pruned on save.
+            source.unlink()
+            reloaded.save()
+            self.assertNotIn("key", reloaded.entries)
+
+    def test_find_sessions_cache_reuses_and_refreshes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            session_dir = home / ".pi/agent/sessions/--work-repo--"
+            session_dir.mkdir(parents=True)
+            path = session_dir / "2026-01-01T00-00-00Z_deadbeef.jsonl"
+
+            def write_session(prompt: str) -> None:
+                rows = [
+                    {"type": "session", "id": "deadbeef", "cwd": "/work/repo"},
+                    {"type": "message", "message": {"role": "user", "content": prompt}},
+                ]
+                path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+
+            write_session("first prompt")
+            cache = session_cache.Cache.load(find_sessions.cache_path(home))
+            first = find_sessions.find_pi(home, cache)
+            self.assertEqual(first[0].preview, "first prompt")
+            # Second run: served from cache even when extraction would fail.
+            original = find_sessions.read_pi_candidate
+            find_sessions.read_pi_candidate = lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not extract"))
+            try:
+                second = find_sessions.find_pi(home, cache)
+            finally:
+                find_sessions.read_pi_candidate = original
+            self.assertEqual(second[0].preview, "first prompt")
+            # Changed file -> cache miss -> re-extraction picks up new content.
+            time.sleep(0.01)
+            write_session("updated prompt")
+            third = find_sessions.find_pi(home, cache)
+            self.assertEqual(third[0].preview, "updated prompt")
+
+    def _write_cross_harness_fixtures(self, home: Path) -> None:
+        pi_dir = home / ".pi/agent/sessions/--work-alpha--"
+        pi_dir.mkdir(parents=True)
+        pi_hit = pi_dir / "2026-10-01T00-00-00Z_ffff0001.jsonl"
+        pi_hit.write_text(json.dumps({
+            "type": "session", "id": "ffff0001", "cwd": "/work/alpha",
+        }) + "\n" + json.dumps({
+            "type": "message", "id": "u1", "message": {"role": "user", "timestamp": 1790000000000,
+                                                          "content": "please fix the needle bug"},
+        }) + "\n" + json.dumps({
+            "type": "message", "id": "a1", "message": {"role": "assistant", "timestamp": 1790000001000,
+                                                          "provider": "prov", "model": "model-x", "content": [
+                {"type": "toolCall", "id": "tc1", "name": "edit",
+                 "arguments": {"path": "/work/alpha/AGENTS.md", "edits": [{"oldText": "a", "newText": "b"}]}},
+            ]},
+        }) + "\n")
+        pi_miss = pi_dir / "2026-10-01T00-00-00Z_ffff0002.jsonl"
+        pi_miss.write_text(json.dumps({
+            "type": "session", "id": "ffff0002", "cwd": "/work/alpha",
+        }) + "\n" + json.dumps({
+            "type": "message", "message": {"role": "user", "content": "nothing relevant"},
+        }) + "\n")
+        devin_dir = home / ".local/share/devin/cli/transcripts"
+        devin_dir.mkdir(parents=True)
+        (devin_dir / "devin-needle.json").write_text(json.dumps({
+            "session_id": "devin-needle", "steps": [
+                {"step_id": 1, "source": "user", "message": "plan around the needle",
+                 "timestamp": "2026-10-01T00:00:00+00:00"},
+            ],
+        }))
+        cmd_dir = home / ".commandcode/projects/work-beta"
+        cmd_dir.mkdir(parents=True)
+        (cmd_dir / "cmd-1.jsonl").write_text(json.dumps({
+            "sessionId": "cmd-1", "role": "user", "id": "u1", "timestamp": "2026-10-01T00:00:00Z",
+            "content": "totally different topic",
+        }) + "\n")
+        fb_dir = home / ".config/manicode/projects/work-gamma/chats/chat-1"
+        fb_dir.mkdir(parents=True)
+        (fb_dir / "chat-messages.json").write_text(json.dumps([
+            {"id": "m1", "variant": "user", "timestamp": "2026-10-01T00:00:00Z",
+             "content": "the needle appears here too"},
+        ]))
+        # Make fixtures old enough that --since 30d excludes them deterministically,
+        # but keep relative order: pi_hit newest.
+        import os as os_module
+        old = time.time() - 90 * 86_400
+        for path in (pi_hit, pi_miss, cmd_dir / "cmd-1.jsonl", fb_dir / "chat-messages.json"):
+            os_module.utime(path, (old, old))
+        newer = old + 86_400
+        os_module.utime(pi_hit, (newer, newer))
+        os_module.utime(devin_dir / "devin-needle.json", (old, old))
+
+    def test_search_sessions_finds_matches_across_harnesses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_cross_harness_fixtures(home)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_sessions.run(search_sessions.parse_args(["--query", "needle", "--format", "json"]), home)
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            by_harness = {session["harness"]: session for session in payload["sessions"]}
+            self.assertIn("pi", by_harness)
+            self.assertIn("devin", by_harness)
+            self.assertIn("freebuff", by_harness)
+            self.assertNotIn("commandcode", by_harness)
+            pi_session = by_harness["pi"]
+            self.assertEqual(pi_session["session_id"], "ffff0001")
+            self.assertEqual(pi_session["project"], "/work/alpha")
+            self.assertTrue(pi_session["resume_command"].startswith("pi --session"))
+            kinds = {hit["kind"] for hit in pi_session["hits"]}
+            self.assertIn("user", kinds)
+            devin_session = by_harness["devin"]
+            self.assertTrue(devin_session["resume_command"].startswith("devin -r devin-needle"))
+            freebuff_session = by_harness["freebuff"]
+            self.assertEqual(freebuff_session["resume_command"], "")
+
+    def test_search_sessions_action_search_attributes_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_cross_harness_fixtures(home)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_sessions.run(search_sessions.parse_args([
+                    "--harness", "pi", "--tool", "edit", "--tool-arg", "path=AGENTS.md",
+                    "--format", "json",
+                ]), home)
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(len(payload["sessions"]), 1)
+            session = payload["sessions"][0]
+            hit = session["hits"][0]
+            self.assertEqual(hit["tool"], "edit")
+            self.assertEqual(hit["model"], "model-x")
+            self.assertEqual(hit["provider"], "prov")
+            self.assertIn("line ", hit["source_ref"])
+
+    def test_search_sessions_since_and_project_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_cross_harness_fixtures(home)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_sessions.run(search_sessions.parse_args(["--query", "needle", "--since", "30d", "--format", "json"]), home)
+            self.assertEqual(rc, 3)
+            self.assertEqual(json.loads(out.getvalue())["sessions"], [])
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = search_sessions.run(search_sessions.parse_args(["--query", "needle", "--project", "work-gamma", "--format", "json"]), home)
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(len(payload["sessions"]), 1)
+            self.assertEqual(payload["sessions"][0]["harness"], "freebuff")
+
+    def test_search_sessions_no_match_exits_three(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_cross_harness_fixtures(home)
+            err = io.StringIO()
+            out = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                rc = search_sessions.run(search_sessions.parse_args(["--query", "definitely-not-there-xyz", "--format", "json"]), home)
+            self.assertEqual(rc, 3)
 
 
 if __name__ == "__main__":

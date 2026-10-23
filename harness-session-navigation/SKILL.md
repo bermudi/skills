@@ -3,9 +3,11 @@ name: harness-session-navigation
 description: >
   Use this skill when finding, identifying, resuming, switching, branching, or
   navigating sessions in Pi, Devin CLI, Command Code (`cmd`/`commandcode`), or
-  Freebuff, or when identifying which of those harnesses owns an unknown coding
-  session. Covers project scoping, IDs, transcript locations, pickers, trees,
-  forks, and safe read-only recovery when the normal picker cannot find it.
+  Freebuff, when identifying which of those harnesses owns an unknown coding
+  session, or when searching session history — by content, tool actions, or
+  file edits — across one or all of them. Covers project scoping, IDs,
+  transcript locations, pickers, trees, forks, and safe read-only recovery
+  when the normal picker cannot find it.
 license: Apache-2.0
 metadata:
   version: "1.0"
@@ -55,8 +57,25 @@ Read only the matching reference before giving commands or inspecting storage:
 The helpers are read-only, emit bounded structured output, and never resume or
 delete sessions:
 
-- `scripts/find_sessions.py` — list/filter candidates across harnesses. It uses
-  metadata and first-prompt previews. For Devin, `--devin-source` controls
+- `scripts/search_sessions.py` — search message and tool content across
+  **all** local sessions at once (Pi, Devin, Command Code, Freebuff): the
+  one-place search. Byte-prefilters each transcript, parses only what could
+  match, and returns per-session grouped hits with bounded excerpts,
+  provenance (model/provider/source position), and a resume command where
+  safe. Use it before running `search_session.py` over individual files.
+  - `--query` matches full event text, tool names, and full tool-call
+    arguments; `--tool edit --tool-arg path=AGENTS.md` answers "which
+    sessions — and which models — changed a file"
+  - scope with `--harness` (repeatable), `--since 30d`, `--project
+    <path-substring>`; a full-history scan over gigabytes can take a minute,
+    so prefer `--since` when recency bounds the question
+  - exit 3 means no matches; zero-hit searches still emit valid empty JSON
+- `scripts/find_sessions.py` — list/filter candidate sessions across
+  harnesses by metadata and first-prompt previews (no content search).
+  `--cache` memoizes extraction in
+  `${XDG_CACHE_HOME:-~/.cache}/session-navigation/` keyed by file
+  mtime/size: a cold scan of thousands of transcripts drops to a warm rerun
+  in well under a second. For Devin, `--devin-source` controls
   discovery: `auto` (default) tries `devin list --format json`, then falls back
   to scanning `~/.local/share/devin/cli/transcripts/*.json`; `cli` forces the
   CLI only; `disk` forces the transcript scan only. When a transcript exists on
@@ -72,9 +91,15 @@ delete sessions:
 - `scripts/search_session.py` — normalize and filter one local transcript by
   `user`, `assistant`, `thinking`, `tool`, `tool_call`, or `tool_result`;
   optionally filter exact tool names and preview text. Supports Pi, Command
-  Code, Devin, and Freebuff. Tool-call previews are smart summaries (file
+  Code, Devin, and Freebuff. `--query` matches full event text and full
+  tool-call arguments before any display truncation, so matches deep inside
+  long messages or `edit`/`write` payloads are found. Output rows carry
+  `model`, `provider`, and `source_ref` (line/step position) for
+  attribution. Tool-call previews are smart summaries (file
   paths for write/edit, commands for exec, queries for web_search, etc.)
-  instead of raw argument dumps. `--tool-arg key=value` filters by argument
+  instead of raw argument dumps; when the query matches the arguments but
+  not the summary, the excerpt falls back to the arguments so the hit stays
+  visible. `--tool-arg key=value` filters by argument
   content (case-insensitive partial match). `--extract` with
   `--extract-field <name>` pulls plain-text values from tool-call arguments —
   e.g., recovering all file paths written by a session.
@@ -82,7 +107,10 @@ delete sessions:
 Run them from the skill directory with `uv`:
 
 ```bash
-uv run scripts/find_sessions.py --harness pi --query 'webhook retries'
+uv run scripts/search_sessions.py --query 'webhook retries' --harness pi --harness devin --since 30d
+uv run scripts/search_sessions.py --tool edit --tool-arg path=src/api/auth.py --since 90d
+uv run scripts/search_sessions.py --query kwin --project skills --format tsv
+uv run scripts/find_sessions.py --harness pi --query webhook --cache
 uv run scripts/find_sessions.py --harness devin --devin-source disk --limit 10
 uv run scripts/find_sessions.py --harness devin --project /path/to/repo --format tsv
 uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3
@@ -125,13 +153,18 @@ activates that project's latest chat.
 
 ### When only a phrase, date, or task is known
 
-1. Search the built-in picker/list first; prefer titles and first-prompt
-   previews over transcript content.
-2. Widen to other projects only if no match appears.
-3. If disk search is necessary, run `scripts/find_sessions.py` before writing
-   ad-hoc shell pipelines. Search metadata or filenames before full transcripts.
-   Session transcripts can contain private prompts, source code, tool output,
-   and credentials.
+1. Search content across all sessions first:
+   `scripts/search_sessions.py --query <phrase>` — scope with `--since` or
+   `--harness` when a full-history scan is more than the question needs. For
+   "which sessions changed file X", use the action form
+   `--tool edit --tool-arg path=<file>`. Session transcripts can contain
+   private prompts, source code, tool output, and credentials; the helpers
+   return bounded excerpts, never whole transcripts.
+2. If content search is the wrong tool (title/ID/project lookup), use the
+   built-in picker/list; prefer titles and first-prompt previews.
+3. `scripts/find_sessions.py --cache` lists candidates by metadata cheaply;
+   the harness's own picker may still be more direct when the user is
+   present.
 4. Return a small candidate table: harness, title/preview, ID, project, last
    activity, and a resume command only when the required project context is
    verified. Freebuff's on-disk key contains only a project basename, so its

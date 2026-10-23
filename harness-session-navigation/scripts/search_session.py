@@ -5,8 +5,10 @@
 # ///
 """Search normalized messages, thinking, and tool activity in one session.
 
-Supports Pi, Command Code, Devin, and Freebuff local transcripts. Output is
-bounded; complete message and tool payloads are never emitted.
+Supports Pi, Command Code, Devin, and Freebuff local transcripts. ``--query``
+matches against full message text and full tool-call arguments before any
+display truncation; output excerpts are bounded. Complete payloads are never
+emitted wholesale.
 """
 from __future__ import annotations
 
@@ -19,11 +21,15 @@ from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 
 KINDS = ("user", "assistant", "thinking", "tool", "tool_call", "tool_result")
-MAX_EVENT_CHARS = 10_000
-OUTPUT_FIELDS = ("index", "kind", "timestamp", "message_id", "tool", "preview")
 MAX_NORMAL_PREVIEW = 2_000
 MAX_EXTRACT_PREVIEW = 100_000
 MAX_EXTRACT_SOURCE = 200_000
+# Retained per-event content bound. Matching happens against this text, so it
+# must be large enough that ordinary messages are never truncated mid-message;
+# pathological payloads are still bounded.
+MAX_MATCH_CHARS = 1_000_000
+OUTPUT_FIELDS = ("index", "kind", "timestamp", "message_id", "tool", "preview",
+                 "model", "provider", "source_ref")
 
 
 @dataclass(frozen=True)
@@ -35,6 +41,14 @@ class Event:
     tool: str
     preview: str
     arguments: object | None = None
+    model: str = ""
+    provider: str = ""
+    source_ref: str = ""
+
+
+# One normalized event before it gets an index and a source reference.
+# (kind, event_id, tool, text, arguments, timestamp, model, provider)
+RawEvent = tuple[str, object, object, object, object | None, object, object, object]
 
 
 def compact(value: object) -> str:
@@ -69,7 +83,7 @@ def content_text(content: object) -> str:
     return clean(" ".join(block_text(block) for block in content if isinstance(block, dict) and block.get("type") == "text"))
 
 
-def jsonl(path: Path) -> Iterable[dict[str, object]]:
+def jsonl(path: Path) -> Iterable[tuple[int, dict[str, object]]]:
     with path.open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             try:
@@ -78,14 +92,17 @@ def jsonl(path: Path) -> Iterable[dict[str, object]]:
                 print(f"warning: skipped invalid JSON at {path}:{line_number}: {error}", file=sys.stderr)
                 continue
             if isinstance(value, dict):
-                yield value
+                yield line_number, value
 
 
 def make_event(index: int, kind: str, timestamp: object, message_id: object,
-               tool: object, text: object, arguments: object | None = None) -> Event:
+               tool: object, text: object, arguments: object | None = None,
+               model: object = "", provider: object = "",
+               source_ref: str = "") -> Event:
     # Bound retained payloads during parsing, not merely when rendering output.
     return Event(index, kind, compact(timestamp)[:100], compact(message_id)[:200],
-                 compact(tool)[:100], compact(text)[:MAX_EVENT_CHARS], arguments)
+                 compact(tool)[:100], compact(text)[:MAX_MATCH_CHARS], arguments,
+                 compact(model)[:200], compact(provider)[:100], source_ref)
 
 
 def _ellipsize(text: str, max_len: int) -> str:
@@ -309,74 +326,161 @@ def excerpt(text: str, query: str, limit: int) -> str:
     return prefix + text[start : start + body_limit] + suffix
 
 
-def pi_events(path: Path) -> Iterator[Event]:
-    index = 0
-    for record in jsonl(path):
-        if record.get("type") != "message":
-            continue
-        message = record.get("message")
-        if not isinstance(message, dict):
-            continue
-        role = message.get("role")
-        timestamp = message.get("timestamp") or record.get("timestamp")
-        message_id = record.get("id")
-        content = message.get("content")
-        pending: list[tuple[str, object, object, object, object | None]] = []
-        if role == "user":
-            pending.append(("user", message_id, "", content_text(content), None))
-        elif role == "assistant" and isinstance(content, list):
-            for block in content:
+# --- Per-record projectors -------------------------------------------------
+# Shared by this script's event streams and by search_sessions.py, which scans
+# many files and only parses lines that pass a cheap byte-level prefilter.
+
+def pi_record_events(record: dict[str, object]) -> list[RawEvent]:
+    if record.get("type") != "message":
+        return []
+    message = record.get("message")
+    if not isinstance(message, dict):
+        return []
+    role = message.get("role")
+    timestamp = message.get("timestamp") or record.get("timestamp")
+    message_id = record.get("id")
+    model = message.get("model")
+    provider = message.get("provider")
+    content = message.get("content")
+    events: list[RawEvent] = []
+    if role == "user":
+        events.append(("user", message_id, "", content_text(content), None, timestamp, model, provider))
+    elif role == "assistant" and isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                events.append(("assistant", message_id, "", block.get("text"), None, timestamp, model, provider))
+            elif block.get("type") == "thinking":
+                events.append(("thinking", message_id, "", block.get("thinking"), None, timestamp, model, provider))
+            elif block.get("type") == "toolCall":
+                tool_name = block.get("name")
+                arguments = block.get("arguments")
+                events.append(("tool_call", block.get("id") or message_id, tool_name,
+                               summarize_tool_call(tool_name, arguments), arguments, timestamp, model, provider))
+    elif role == "toolResult":
+        events.append(("tool_result", message.get("toolCallId") or message_id,
+                       message.get("toolName"), content_text(content), None, timestamp, model, provider))
+    elif role == "bashExecution":
+        events.append(("tool_result", message_id, "bash", message.get("output"), None, timestamp, model, provider))
+    return events
+
+
+def commandcode_record_events(record: dict[str, object]) -> list[RawEvent]:
+    role = record.get("role")
+    content = record.get("content")
+    timestamp = record.get("timestamp")
+    message_id = record.get("id")
+    events: list[RawEvent] = []
+    if role == "user":
+        events.append(("user", message_id, "", content_text(content), None, timestamp, None, None))
+    elif role == "assistant" and isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                events.append(("assistant", message_id, "", block.get("text"), None, timestamp, None, None))
+            elif block.get("type") == "reasoning":
+                events.append(("thinking", message_id, "", block.get("text"), None, timestamp, None, None))
+            elif block.get("type") == "tool-call":
+                tool_name = block.get("toolName")
+                arguments = block.get("input")
+                events.append(("tool_call", block.get("toolCallId") or message_id, tool_name,
+                               summarize_tool_call(tool_name, arguments), arguments, timestamp, None, None))
+    elif role == "tool" and isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool-result":
+                events.append(("tool_result", block.get("toolCallId") or message_id,
+                               block.get("toolName"), block.get("output"), None, timestamp, None, None))
+    return events
+
+
+def freebuff_message_events(message: dict[str, object]) -> list[RawEvent]:
+    variant = message.get("variant")
+    timestamp = message.get("timestamp")
+    message_id = message.get("id")
+    events: list[RawEvent] = []
+    if variant == "user":
+        events.append(("user", message_id, "", message.get("content"), None, timestamp, None, None))
+    elif variant == "ai":
+        blocks = message.get("blocks")
+        if not isinstance(blocks, list):
+            text = compact(message.get("content"))
+            if text:
+                events.append(("assistant", message_id, "", text, None, timestamp, None, None))
+        else:
+            for block in blocks:
                 if not isinstance(block, dict):
                     continue
-                if block.get("type") == "text":
-                    pending.append(("assistant", message_id, "", block.get("text"), None))
-                elif block.get("type") == "thinking":
-                    pending.append(("thinking", message_id, "", block.get("thinking"), None))
-                elif block.get("type") == "toolCall":
-                    tool_name = block.get("name")
-                    arguments = block.get("arguments")
-                    pending.append(("tool_call", block.get("id") or message_id,
-                                    tool_name, summarize_tool_call(tool_name, arguments), arguments))
-        elif role == "toolResult":
-            pending.append(("tool_result", message.get("toolCallId") or message_id,
-                            message.get("toolName"), content_text(content), None))
-        elif role == "bashExecution":
-            pending.append(("tool_result", message_id, "bash", message.get("output"), None))
-        for kind, event_id, tool, text, arguments in pending:
-            yield make_event(index, kind, timestamp, event_id, tool, text, arguments)
+                kind = block.get("type")
+                if kind == "text":
+                    event_kind = "thinking" if block.get("textType") == "reasoning" else "assistant"
+                    events.append((event_kind, message_id, "", block.get("content"), None, timestamp, None, None))
+                elif kind == "tool":
+                    tool_id = block.get("toolCallId") or message_id
+                    tool_name = block.get("toolName")
+                    arguments = block.get("input")
+                    events.append(("tool_call", tool_id, tool_name,
+                                   summarize_tool_call(tool_name, arguments), arguments, timestamp, None, None))
+                    if "output" in block and block.get("output") is not None:
+                        events.append(("tool_result", tool_id, tool_name, block.get("output"), None, timestamp, None, None))
+    return events
+
+
+def devin_step_events(step: dict[str, object]) -> list[RawEvent]:
+    source = step.get("source")
+    timestamp = step.get("timestamp")
+    step_id = step.get("step_id")
+    message = step.get("message")
+    model = step.get("model_name")
+    events: list[RawEvent] = []
+    if source == "user" and isinstance(message, str) and message.strip():
+        events.append(("user", step_id, "", message, None, timestamp, model, "devin"))
+    elif source == "agent":
+        if isinstance(message, str) and message.strip():
+            events.append(("assistant", step_id, "", message, None, timestamp, model, "devin"))
+        reasoning = step.get("reasoning_content")
+        if isinstance(reasoning, str) and reasoning.strip():
+            events.append(("thinking", step_id, "", reasoning, None, timestamp, model, "devin"))
+        tool_calls = step.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for call in tool_calls:
+                if not isinstance(call, dict):
+                    continue
+                tool_name = call.get("function_name", "")
+                call_id = call.get("tool_call_id") or step_id
+                arguments = call.get("arguments")
+                events.append(("tool_call", call_id, tool_name,
+                               summarize_tool_call(tool_name, arguments), arguments, timestamp, model, "devin"))
+        observation = step.get("observation")
+        if isinstance(observation, dict):
+            results = observation.get("results")
+            if isinstance(results, list):
+                for result in results:
+                    if not isinstance(result, dict):
+                        continue
+                    call_id = result.get("source_call_id") or step_id
+                    events.append(("tool_result", call_id, "", result.get("content"), None, timestamp, model, "devin"))
+    return events
+
+
+# --- Event streams over whole files ----------------------------------------
+
+def pi_events(path: Path) -> Iterator[Event]:
+    index = 0
+    for line_number, record in jsonl(path):
+        for kind, event_id, tool, text, arguments, timestamp, model, provider in pi_record_events(record):
+            yield make_event(index, kind, timestamp, event_id, tool, text, arguments,
+                             model=model, provider=provider, source_ref=f"line {line_number}")
             index += 1
 
 
 def commandcode_events(path: Path) -> Iterator[Event]:
     index = 0
-    for record in jsonl(path):
-        role = record.get("role")
-        content = record.get("content")
-        timestamp = record.get("timestamp")
-        message_id = record.get("id")
-        pending: list[tuple[str, object, object, object, object | None]] = []
-        if role == "user":
-            pending.append(("user", message_id, "", content_text(content), None))
-        elif role == "assistant" and isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                if block.get("type") == "text":
-                    pending.append(("assistant", message_id, "", block.get("text"), None))
-                elif block.get("type") == "reasoning":
-                    pending.append(("thinking", message_id, "", block.get("text"), None))
-                elif block.get("type") == "tool-call":
-                    tool_name = block.get("toolName")
-                    arguments = block.get("input")
-                    pending.append(("tool_call", block.get("toolCallId") or message_id,
-                                    tool_name, summarize_tool_call(tool_name, arguments), arguments))
-        elif role == "tool" and isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool-result":
-                    pending.append(("tool_result", block.get("toolCallId") or message_id,
-                                    block.get("toolName"), block.get("output"), None))
-        for kind, event_id, tool, text, arguments in pending:
-            yield make_event(index, kind, timestamp, event_id, tool, text, arguments)
+    for line_number, record in jsonl(path):
+        for kind, event_id, tool, text, arguments, timestamp, model, provider in commandcode_record_events(record):
+            yield make_event(index, kind, timestamp, event_id, tool, text, arguments,
+                             model=model, provider=provider, source_ref=f"line {line_number}")
             index += 1
 
 
@@ -384,39 +488,12 @@ def freebuff_events(path: Path) -> Iterator[Event]:
     chat_dir = path if path.is_dir() else path.parent
     messages_path = chat_dir / "chat-messages.json"
     index = 0
-    for message in json_array(messages_path):
+    for item_index, message in enumerate(json_array(messages_path)):
         if not isinstance(message, dict):
             continue
-        variant = message.get("variant")
-        timestamp = message.get("timestamp")
-        message_id = message.get("id")
-        pending: list[tuple[str, object, object, object, object | None]] = []
-        if variant == "user":
-            pending.append(("user", message_id, "", message.get("content"), None))
-        elif variant == "ai":
-            blocks = message.get("blocks")
-            if not isinstance(blocks, list):
-                text = compact(message.get("content"))
-                if text:
-                    pending.append(("assistant", message_id, "", text, None))
-            else:
-                for block in blocks:
-                    if not isinstance(block, dict):
-                        continue
-                    kind = block.get("type")
-                    if kind == "text":
-                        event_kind = "thinking" if block.get("textType") == "reasoning" else "assistant"
-                        pending.append((event_kind, message_id, "", block.get("content"), None))
-                    elif kind == "tool":
-                        tool_id = block.get("toolCallId") or message_id
-                        tool_name = block.get("toolName")
-                        arguments = block.get("input")
-                        pending.append(("tool_call", tool_id, tool_name,
-                                        summarize_tool_call(tool_name, arguments), arguments))
-                        if "output" in block and block.get("output") is not None:
-                            pending.append(("tool_result", tool_id, tool_name, block.get("output"), None))
-        for kind, event_id, tool, text, arguments in pending:
-            yield make_event(index, kind, timestamp, event_id, tool, text, arguments)
+        for kind, event_id, tool, text, arguments, timestamp, model, provider in freebuff_message_events(message):
+            yield make_event(index, kind, timestamp, event_id, tool, text, arguments,
+                             model=model, provider=provider, source_ref=f"item {item_index}")
             index += 1
 
 
@@ -428,44 +505,36 @@ def devin_events(path: Path) -> Iterator[Event]:
     if not isinstance(steps, list):
         raise ValueError(f"no steps array in {path}")
     index = 0
-    for step in steps:
+    for step_index, step in enumerate(steps):
         if not isinstance(step, dict):
             continue
-        source = step.get("source")
-        timestamp = step.get("timestamp")
-        step_id = step.get("step_id")
-        message = step.get("message")
-        pending: list[tuple[str, object, object, object, object | None]] = []
-        if source == "user" and isinstance(message, str) and message.strip():
-            pending.append(("user", step_id, "", message, None))
-        elif source == "agent":
-            if isinstance(message, str) and message.strip():
-                pending.append(("assistant", step_id, "", message, None))
-            reasoning = step.get("reasoning_content")
-            if isinstance(reasoning, str) and reasoning.strip():
-                pending.append(("thinking", step_id, "", reasoning, None))
-            tool_calls = step.get("tool_calls")
-            if isinstance(tool_calls, list):
-                for call in tool_calls:
-                    if not isinstance(call, dict):
-                        continue
-                    tool_name = call.get("function_name", "")
-                    call_id = call.get("tool_call_id") or step_id
-                    arguments = call.get("arguments")
-                    pending.append(("tool_call", call_id, tool_name,
-                                    summarize_tool_call(tool_name, arguments), arguments))
-            observation = step.get("observation")
-            if isinstance(observation, dict):
-                results = observation.get("results")
-                if isinstance(results, list):
-                    for result in results:
-                        if not isinstance(result, dict):
-                            continue
-                        call_id = result.get("source_call_id") or step_id
-                        pending.append(("tool_result", call_id, "", result.get("content"), None))
-        for kind, event_id, tool, text, arguments in pending:
-            yield make_event(index, kind, timestamp, event_id, tool, text, arguments)
+        for kind, event_id, tool, text, arguments, timestamp, model, provider in devin_step_events(step):
+            yield make_event(index, kind, timestamp, event_id, tool, text, arguments,
+                             model=model, provider=provider, source_ref=f"step {step_index}")
             index += 1
+
+
+# --- Matching ---------------------------------------------------------------
+
+def event_haystack(item: Event) -> str:
+    """Full text a --query should match against, before any display truncation."""
+    parts = [item.tool, item.preview]
+    if item.kind == "tool_call" and item.arguments is not None:
+        parts.append(compact(item.arguments)[:MAX_EXTRACT_SOURCE])
+    return " ".join(parts)
+
+
+def event_matches(item: Event, wanted: set[str], tools: set[str],
+                  query: str, tool_arg_filters: list[tuple[str, str]]) -> bool:
+    if item.kind not in wanted:
+        return False
+    if tools and item.tool.casefold() not in tools:
+        return False
+    if tool_arg_filters and not tool_arg_matches(item.arguments, tool_arg_filters):
+        return False
+    if query and query not in event_haystack(item).casefold():
+        return False
+    return True
 
 
 def detect(path: Path) -> str:
@@ -479,7 +548,7 @@ def detect(path: Path) -> str:
             return "devin"
     if path.name.endswith((".checkpoints.jsonl", ".prompts.jsonl")):
         raise ValueError("pass the main Command Code <session-id>.jsonl, not a sidecar")
-    first = next(jsonl(path), None)
+    first = next(jsonl(path), (0, None))[1]
     if first and first.get("type") == "session":
         return "pi"
     if first and ("sessionId" in first or first.get("role") in ("user", "assistant", "tool")):
@@ -506,7 +575,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--tool", action="append", default=[], help="Exact tool name; repeat to combine")
     parser.add_argument("--tool-arg", action="append", default=[],
                         help="Filter tool calls by key=value in arguments; repeat to combine (partial match for strings)")
-    parser.add_argument("--query", default="", help="Case-insensitive text search in preview and tool name")
+    parser.add_argument("--query", default="", help="Case-insensitive text search over full event text, tool names, and tool-call arguments")
     parser.add_argument("--offset", type=int, default=0, help="Matching records to skip (default: 0)")
     parser.add_argument("--limit", type=int, default=20, help="Maximum records (1-500; default: 20)")
     parser.add_argument("--preview-chars", type=int, default=300,
@@ -536,7 +605,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return args
 
 
-def _tool_arg_matches(arguments: object, filters: list[tuple[str, str]]) -> bool:
+def tool_arg_matches(arguments: object, filters: list[tuple[str, str]]) -> bool:
     if not isinstance(arguments, dict):
         return False
     for key, expected in filters:
@@ -552,6 +621,10 @@ def _tool_arg_matches(arguments: object, filters: list[tuple[str, str]]) -> bool
         if expected not in actual_str.casefold():
             return False
     return True
+
+
+# Backwards-compatible private name used by older callers.
+_tool_arg_matches = tool_arg_matches
 
 
 def _extract_field_lines(value: object, max_len: int) -> Iterator[str]:
@@ -576,6 +649,17 @@ def _event_preview(item: Event, extract: bool, query: str, max_chars: int) -> st
         if len(raw) > MAX_EXTRACT_SOURCE:
             raw = raw[: MAX_EXTRACT_SOURCE - 1] + "…"
         return excerpt(raw, query, max_chars)
+    if item.kind == "tool_call" and item.arguments is not None:
+        # The summary preview may not contain the query even when the full
+        # arguments do; fall back to an excerpt of the arguments so the hit is
+        # visible evidence, not a bare file path.
+        summary = excerpt(item.preview, query, max_chars)
+        if query and query not in summary.casefold():
+            raw = compact(item.arguments)
+            if len(raw) > MAX_EXTRACT_SOURCE:
+                raw = raw[: MAX_EXTRACT_SOURCE - 1] + "…"
+            return excerpt(raw, query, max_chars)
+        return summary
     return excerpt(item.preview, query, max_chars)
 
 
@@ -609,13 +693,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     page: list[Event] = []
     try:
         for item in events:
-            if item.kind not in wanted:
-                continue
-            if tools and item.tool.casefold() not in tools:
-                continue
-            if query and query not in f"{item.tool} {item.preview}".casefold():
-                continue
-            if tool_arg_filters and not _tool_arg_matches(item.arguments, tool_arg_filters):
+            if not event_matches(item, wanted, tools, query, tool_arg_filters):
                 continue
             if args.extract_field:
                 if not isinstance(item.arguments, dict) or args.extract_field not in item.arguments:
