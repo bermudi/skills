@@ -83,6 +83,8 @@ skills (e.g. `terminal-browser`) alone.
 
 Some skills are authored here from scratch; others were adapted from upstream sources and should be checked periodically for updates. `scripts/check-upstream.sh` body-diffs tracked skills against their upstream repos; local versions have diverged, so review diffs before merging anything upstream.
 
+`design-skills/` is a **git submodule**, not a skill of this repo: a read-only clone of [`jakubkrehel/skills`](https://github.com/jakubkrehel/skills) (interfaces.dev design collection — `better-*`, `interface-review`, `technical-drawing`, `state-machine`, …). Never edit skills inside it; to change one, adopt it first: copy the skill directory to the repo root, follow **Adopting a Skill**, and add a provenance row. Update the reference with `git -C design-skills pull && git add design-skills`.
+
 **Derived from upstream (track for updates):**
 
 | Skill | Upstream | Notes |

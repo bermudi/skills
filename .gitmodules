@@ -1,0 +1,3 @@
+[submodule "design-skills"]
+	path = design-skills
+	url = https://github.com/jakubkrehel/skills.git
