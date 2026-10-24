@@ -24,6 +24,21 @@ session, so the helpers **exclude them by default** (forks and side-chats also
 carry `parent_id` but remain listed — the slug is the discriminator, never
 `parent_id`).
 
+## The piz fork shares this store
+
+`piz` (~/build/piz — a patch-carrying fork of ZCode) is a thin TUI client
+over the **same core binary** (spawned via `ZCODE_SERVER_BIN`, default
+`zcode` from PATH), and the core owns persistence. Consequences, verified on
+the live store:
+
+- piz sessions are ordinary rows in this same `db.sqlite` —
+  `--harness zcode` finds them; nothing piz-specific is needed.
+- `piz --resume <id>` / `piz -c` accept the same ids with the same semantics
+  as `zcode --resume` (per piz help text).
+- The core stamps `zcode-agent` in message metadata for both frontends, so a
+  session cannot be attributed to piz vs zcode — and any id resumes through
+  either frontend.
+
 ## Commands
 
 | Intent | Command |

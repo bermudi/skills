@@ -48,6 +48,11 @@ Inspect files only when the picker cannot answer the question.
 | Freebuff | `freebuff --continue` | `/history`, `freebuff --continue <id>` | selected chat ID; local chat directory if needed | No tree/fork interface; `/new` starts a separate chat |
 | ZCode | `zcode -c` (cwd-scoped) | `zcode --resume <id>`; TUI `/resume [id]` (omit id = latest in cwd) | session ID from resume listing | `/fork`, `/rewind` (checkpoint restore); no tree view. `/rewind` can restore workspace files — not harmless browsing |
 
+`piz` (the local thin-client fork of zcode) drives the same shared core and
+records into the same store — every zcode row below is findable as-is, and
+`piz --resume <id>` accepts the same ids. The core stamps `zcode-agent` on
+both, so sessions cannot be attributed to one frontend and don't need to be.
+
 Read only the matching reference before giving commands or inspecting storage:
 
 - [Pi](references/pi.md)
