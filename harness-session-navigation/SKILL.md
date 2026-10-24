@@ -69,13 +69,21 @@ delete sessions:
   - scope with `--harness` (repeatable), `--since 30d`, `--project
     <path-substring>`; a full-history scan over gigabytes can take a minute,
     so prefer `--since` when recency bounds the question
+  - `--since` filters by transcript modification time, not event time.
+    `--project` filters the transcript's path on disk, not verified project
+    membership; it cannot scope Devin's flat transcript directory by cwd.
+    Omit that filter for Devin unless the substring identifies a transcript.
+  - the byte prefilter is conservative: Unicode, escaped text, and tool
+    summaries may require extra parsing rather than risk missing a match
   - exit 3 means no matches; zero-hit searches still emit valid empty JSON
 - `scripts/find_sessions.py` — list/filter candidate sessions across
   harnesses by metadata and first-prompt previews (no content search).
   `--cache` memoizes extraction in
   `${XDG_CACHE_HOME:-~/.cache}/session-navigation/` keyed by file
-  mtime/size: a cold scan of thousands of transcripts drops to a warm rerun
-  in well under a second. For Devin, `--devin-source` controls
+  mtime/size, including changes to or creation of optional metadata sidecars:
+  a cold scan of thousands of transcripts drops to a warm rerun in well under
+  a second. Cache format changes cause a rebuild automatically.
+  For Devin, `--devin-source` controls
   discovery: `auto` (default) tries `devin list --format json`, then falls back
   to scanning `~/.local/share/devin/cli/transcripts/*.json`; `cli` forces the
   CLI only; `disk` forces the transcript scan only. When a transcript exists on
@@ -192,6 +200,10 @@ Never treat rewind as harmless browsing.
   from deleting, rewinding files, or continuing agent work.
 - Never print whole transcripts merely to identify a session. Extract the
   smallest useful metadata or prompt preview.
+- Pi content search includes all recorded branches; it does not yet label
+  superseded branches. A historical statement is not necessarily the final
+  decision. For file edits, inspect the corresponding tool result before
+  claiming the mutation succeeded.
 - Do not edit session databases, JSONL, metadata, checkpoint, or sidecar files.
 - Do not delete sessions without explicit confirmation. Prefer the harness's
   picker and trash/recoverable deletion where available.

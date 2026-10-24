@@ -161,27 +161,43 @@ def parse_since(value: str) -> float:
 
 
 def build_needles(query: str, tools: Sequence[str], tool_args: Sequence[tuple[str, str]]) -> tuple[list[re.Pattern[bytes]], bool]:
-    """Byte-level prefilter patterns. Returns (patterns, needs_full_parse).
+    """Return conservative ASCII anchors and whether a full parse is required.
 
-    A needle is only usable as a byte pattern when it is ASCII; non-ASCII
-    needles fall back to full parsing (JSON escaping makes byte matching
-    unreliable for them).
+    A phrase need not appear literally in JSON: whitespace is normalized after
+    decoding, and text blocks are joined. One word from an ASCII filter is a
+    necessary (but not sufficient) match instead. Filters combine with AND in
+    the matcher; accepting any anchor here deliberately admits extra candidates.
+    Unicode/escaped records and tool summaries need additional fallbacks below.
     """
-    texts = [query, *tools, *(value for _, value in tool_args)]
-    patterns: list[re.Pattern[bytes]] = []
-    non_ascii = False
+    texts = [query.strip(), *tools, *(value for _, value in tool_args)]
+    anchors: set[str] = set()
     for text in texts:
-        if not text:
-            continue
         if not text.isascii():
-            non_ascii = True
             continue
-        variants = {text}
-        escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-        variants.add(escaped)
-        for variant in variants:
-            patterns.append(re.compile(re.escape(variant).encode(), re.IGNORECASE))
-    return patterns, non_ascii and not patterns
+        words = re.findall(r"[A-Za-z0-9_]+", text)
+        if words:
+            anchors.add(max(words, key=len))
+    patterns = [re.compile(re.escape(anchor).encode(), re.IGNORECASE)
+                for anchor in sorted(anchors)]
+    # Type-only, empty, punctuation-only, and non-ASCII-only queries have no
+    # safe anchor. They must parse, not reject, every candidate record.
+    return patterns, not patterns
+
+
+# Tool summaries can contain words not present in the encoded arguments (e.g.
+# "workdir" synthesized from a "cwd" key). Always project tool-call records.
+TOOL_MARKERS = (b'"toolCall"', b'"tool-call"', b'"tool_calls"', b'"tool"')
+
+
+def might_match(raw: bytes, needles: list[re.Pattern[bytes]]) -> bool:
+    """Only reject bytes when decoding/projection cannot introduce a match."""
+    if not raw.isascii() or b"\\u" in raw:
+        # Unicode casefolding and JSON unicode escapes may introduce ASCII
+        # anchors absent from the raw bytes (e.g. \\u006e -> n, ſ -> s).
+        return True
+    if any(marker in raw for marker in TOOL_MARKERS):
+        return True
+    return any(needle.search(raw) for needle in needles)
 
 
 def scan_jsonl_lines(path: Path, needles: list[re.Pattern[bytes]], parse_all: bool
@@ -191,7 +207,7 @@ def scan_jsonl_lines(path: Path, needles: list[re.Pattern[bytes]], parse_all: bo
         with path.open("rb") as handle:
             for line_number, raw in enumerate(handle, 1):
                 if not parse_all:
-                    if not any(needle.search(raw) for needle in needles):
+                    if not might_match(raw, needles):
                         continue
                 try:
                     record = json.loads(raw)
@@ -309,7 +325,7 @@ def collect_hits(entry: FileEntry, matcher: Matcher, needles: list[re.Pattern[by
             except OSError as error:
                 warn(f"cannot read {entry.path}: {error}")
                 return hits
-            if not any(needle.search(data) for needle in needles):
+            if not might_match(data, needles):
                 return hits
         stream = ss.devin_events(entry.path) if entry.harness == "devin" else ss.freebuff_events(entry.path)
         try:

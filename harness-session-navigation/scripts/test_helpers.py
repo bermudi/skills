@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -97,6 +98,10 @@ class HelperTests(unittest.TestCase):
         result = search_session.excerpt(text, "needle", 30)
         self.assertLessEqual(len(result), 30)
         self.assertIn("needle", result)
+        for text in ("x" * 200 + "needle", "ß" * 200 + "needle" + "z" * 100):
+            result = search_session.excerpt(text, "needle", 30)
+            self.assertLessEqual(len(result), 30)
+            self.assertIn("needle", result)
 
     def test_commandcode_skips_sidecars(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -170,18 +175,21 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(candidate.updated_at, "1970-01-01T00:00:02+00:00")
             self.assertEqual(candidate.resume_command, "")
 
-    def test_event_payload_is_bounded_when_parsed(self) -> None:
+    def test_full_event_is_searchable_but_display_is_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pi.jsonl"
+            text = "x" * 1_100_000 + " deep_message_needle"
             path.write_text(json.dumps({
-                "type": "message", "message": {"role": "bashExecution", "output": "x" * 1_100_000},
+                "type": "message", "message": {"role": "bashExecution", "output": text},
             }) + "\n")
             event = next(search_session.pi_events(path))
-            # Payloads are still bounded (pathological sizes), but the bound is
-            # high enough that ordinary messages are never cut mid-message —
-            # matching must see full content.
-            self.assertEqual(len(event.preview), search_session.MAX_MATCH_CHARS)
-            self.assertLess(search_session.MAX_MATCH_CHARS, 1_100_000)
+            self.assertEqual(event.preview, text)
+            self.assertTrue(search_session.event_matches(
+                event, {"tool_result"}, set(), "deep_message_needle", [],
+            ))
+            preview = search_session._event_preview(event, False, "deep_message_needle", 100)
+            self.assertLessEqual(len(preview), 100)
+            self.assertIn("deep_message_needle", preview)
 
     def test_devin_extracts_tool_summary_files_duration_and_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -469,12 +477,9 @@ class HelperTests(unittest.TestCase):
             first = find_sessions.find_pi(home, cache)
             self.assertEqual(first[0].preview, "first prompt")
             # Second run: served from cache even when extraction would fail.
-            original = find_sessions.read_pi_candidate
-            find_sessions.read_pi_candidate = lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not extract"))
-            try:
+            with mock.patch.object(find_sessions, "read_pi_candidate",
+                                   side_effect=AssertionError("must not extract")):
                 second = find_sessions.find_pi(home, cache)
-            finally:
-                find_sessions.read_pi_candidate = original
             self.assertEqual(second[0].preview, "first prompt")
             # Changed file -> cache miss -> re-extraction picks up new content.
             time.sleep(0.01)
@@ -595,6 +600,159 @@ class HelperTests(unittest.TestCase):
             payload = json.loads(out.getvalue())
             self.assertEqual(len(payload["sessions"]), 1)
             self.assertEqual(payload["sessions"][0]["harness"], "freebuff")
+
+    def _write_user_transcript(self, home: Path, harness: str, text: str) -> Path:
+        if harness == "pi":
+            path = home / ".pi/agent/sessions/repo/date_session.jsonl"
+            data: object = {"type": "message", "id": "u1", "message": {"role": "user", "content": text}}
+        elif harness == "commandcode":
+            path = home / ".commandcode/projects/repo/session.jsonl"
+            data = {"sessionId": "session", "role": "user", "content": text}
+        elif harness == "devin":
+            path = home / ".local/share/devin/cli/transcripts/session.json"
+            data = {"session_id": "session", "steps": [{"step_id": 1, "source": "user", "message": text}]}
+        else:
+            path = home / ".config/manicode/projects/repo/chats/session/chat-messages.json"
+            data = [{"variant": "user", "content": text}]
+        path.parent.mkdir(parents=True)
+        # A real literal non-ASCII record exercises casefolding before/after
+        # byte filtering. The escaped-ASCII variant is made explicitly below.
+        path.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
+        return path
+
+    def test_cross_search_prefilter_preserves_decoded_matches(self) -> None:
+        cases = [
+            ("webhook\nretries", "webhook retries"),
+            ("webhook\t  retries", "webhook retries"),
+            ("needle", " needle "),
+            ("needle", "needle"),
+            ("ſearch", "search"),
+            ("needle::", "::"),
+            ("café", "café"),
+        ]
+        for harness in search_sessions.HARNESSES:
+            for text, query in cases:
+                with self.subTest(harness=harness, text=text, query=query), tempfile.TemporaryDirectory() as tmp:
+                    home = Path(tmp)
+                    path = self._write_user_transcript(home, harness, text)
+                    if text == query == "needle":
+                        path.write_text(path.read_text().replace("needle", r"\u006eeedle"))
+                    out = io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                        rc = search_sessions.run(search_sessions.parse_args([
+                            "--harness", harness, "--query", query,
+                        ]), home)
+                    self.assertEqual(rc, 0)
+                    sessions = json.loads(out.getvalue())["sessions"]
+                    self.assertEqual(len(sessions), 1)
+                    self.assertIn(query.strip().casefold(), sessions[0]["hits"][0]["excerpt"].casefold())
+
+    def test_cross_search_type_only_parses_without_text_needles(self) -> None:
+        for harness in search_sessions.HARNESSES:
+            with self.subTest(harness=harness), tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp)
+                self._write_user_transcript(home, harness, "hello")
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = search_sessions.run(search_sessions.parse_args([
+                        "--harness", harness, "--type", "user",
+                    ]), home)
+                self.assertEqual(rc, 0)
+                self.assertEqual(json.loads(out.getvalue())["sessions"][0]["hits"][0]["kind"], "user")
+
+    def test_cross_search_preserves_synthetic_tool_summary_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = home / ".pi/agent/sessions/repo/date_id.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({
+                "type": "message", "message": {"role": "assistant", "content": [
+                    {"type": "toolCall", "name": "exec", "arguments": {"command": "ls", "cwd": "/work"}},
+                ]},
+            }) + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                rc = search_sessions.run(search_sessions.parse_args([
+                    "--harness", "pi", "--query", "workdir",
+                ]), home)
+            self.assertEqual(rc, 0)
+            self.assertIn("workdir", json.loads(out.getvalue())["sessions"][0]["hits"][0]["excerpt"])
+
+    def test_deep_tool_arguments_match_and_render_in_both_searches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = home / ".pi/agent/sessions/repo/date_id.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({
+                "type": "message", "message": {"role": "assistant", "content": [
+                    {"type": "toolCall", "id": "tc1", "name": "edit", "arguments": {
+                        "path": "/work/file", "newText": "x" * 210_000 + " deep_argument_needle",
+                    }},
+                ]},
+            }) + "\n")
+            for extract in (False, True):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = search_session.main([
+                        str(path), "--harness", "pi", "--query", "deep_argument_needle",
+                        "--preview-chars", "100", *(["--extract"] if extract else []),
+                    ])
+                self.assertEqual(rc, 0)
+                preview = json.loads(out.getvalue())["events"][0]["preview"]
+                self.assertIn("deep_argument_needle", preview)
+                self.assertLessEqual(len(preview), 100)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                rc = search_sessions.run(search_sessions.parse_args([
+                    "--harness", "pi", "--query", "deep_argument_needle", "--preview-chars", "100",
+                ]), home)
+            self.assertEqual(rc, 0)
+            preview = json.loads(out.getvalue())["sessions"][0]["hits"][0]["excerpt"]
+            self.assertIn("deep_argument_needle", preview)
+            self.assertLessEqual(len(preview), 100)
+
+    def test_cache_invalidates_when_optional_sidecar_appears_changes_or_disappears(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = home / ".commandcode/projects/repo/session.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"role": "user", "content": "hello"}) + "\n")
+            cache_path = home / "cache.json"
+            cache = session_cache.Cache(cache_path)
+            self.assertEqual(find_sessions.find_commandcode(home, cache)[0].title, "")
+            cache.save()
+            cache = session_cache.Cache.load(cache_path)
+            self.assertIsNotNone(cache.get(f"commandcode:{path}"))
+            sidecar = path.with_name("session.meta.json")
+            for title in ("new title", "a changed title"):
+                sidecar.write_text(json.dumps({"title": title}))
+                self.assertEqual(find_sessions.find_commandcode(home, cache)[0].title, title)
+            sidecar.unlink()
+            self.assertEqual(find_sessions.find_commandcode(home, cache)[0].title, "")
+            cache.save()
+            self.assertIsNotNone(session_cache.Cache.load(cache_path).get(f"commandcode:{path}"))
+
+    def test_cache_upgrade_discards_entries_without_absence_tracking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cache.json"
+            path.write_text(json.dumps({"version": 1, "entries": {"old": {"value": "stale"}}}))
+            self.assertEqual(session_cache.Cache.load(path).entries, {})
+
+    def test_freebuff_cache_depends_on_optional_messages_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            chat = home / ".config/manicode/projects/repo/chats/chat-1"
+            chat.mkdir(parents=True)
+            (chat / "chat-meta.json").write_text(json.dumps({"firstPrompt": "hello"}))
+            messages = chat / "chat-messages.json"
+            cache = session_cache.Cache(home / "cache.json")
+            find_sessions.find_freebuff(home, cache)
+            messages.write_text("[]")
+            import os
+            os.utime(messages, (1_000, 1_000))
+            self.assertEqual(find_sessions.find_freebuff(home, cache)[0].updated_at, find_sessions.iso_mtime(messages))
+            os.utime(messages, (2_000, 2_000))
+            self.assertEqual(find_sessions.find_freebuff(home, cache)[0].updated_at, find_sessions.iso_mtime(messages))
 
     def test_search_sessions_no_match_exits_three(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

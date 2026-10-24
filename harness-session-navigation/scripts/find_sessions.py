@@ -261,14 +261,16 @@ def find_commandcode(home: Path, cache: session_cache.Cache | None = None) -> li
                 continue
         candidate = read_commandcode_candidate(path)
         if cache is not None:
-            deps: dict[str, tuple[float, int]] = {}
+            deps: dict[str, tuple[float, int] | None] = {}
             try:
                 stat = path.stat()
                 deps[str(path)] = (stat.st_mtime, stat.st_size)
                 meta_path = path.with_name(f"{path.stem}.meta.json")
-                if meta_path.is_file():
+                try:
                     meta_stat = meta_path.stat()
                     deps[str(meta_path)] = (meta_stat.st_mtime, meta_stat.st_size)
+                except FileNotFoundError:
+                    deps[str(meta_path)] = None
                 cache.put(key, deps, asdict(candidate))
             except OSError:
                 pass
@@ -295,7 +297,16 @@ def find_freebuff(home: Path, cache: session_cache.Cache | None = None) -> list[
         if cache is not None:
             try:
                 stat = meta_path.stat()
-                cache.put(key, {str(meta_path): (stat.st_mtime, stat.st_size)}, asdict(candidate))
+                deps: dict[str, tuple[float, int] | None] = {
+                    str(meta_path): (stat.st_mtime, stat.st_size),
+                }
+                messages_path = meta_path.parent / "chat-messages.json"
+                try:
+                    messages_stat = messages_path.stat()
+                    deps[str(messages_path)] = (messages_stat.st_mtime, messages_stat.st_size)
+                except FileNotFoundError:
+                    deps[str(messages_path)] = None
+                cache.put(key, deps, asdict(candidate))
             except OSError:
                 pass
         results.append(candidate)

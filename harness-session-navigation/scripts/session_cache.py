@@ -7,19 +7,21 @@
 
 Caches extraction results (candidate fields, preview strings) keyed by the
 files they were read from. An entry is valid only while every dependency file
-still has the recorded mtime and size, so changed or replaced files are
-re-extracted on the next run. Entries whose source files vanish are pruned on
+still has the recorded mtime and size, and optional sidecars recorded as
+absent are still absent. Changed dependencies are re-extracted on the next
+run. Entries whose required source files vanish are pruned on
 save. The cache is a performance memo, never a source of truth: every run
 still enumerates the real filesystem.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 import os
 import tempfile
 from pathlib import Path
 
-VERSION = 1
+VERSION = 2
 
 
 class Cache:
@@ -57,16 +59,23 @@ class Cache:
                 return None
             try:
                 stat = os.stat(file_path)
+            except FileNotFoundError:
+                if mtime is None and size is None:
+                    continue  # An explicitly absent dependency is still absent.
+                return None
             except OSError:
                 return None
+            if mtime is None or size is None:
+                return None  # A previously absent sidecar was created.
             if stat.st_mtime != mtime or stat.st_size != size:
                 return None
         value = entry.get("value")
         return value
 
-    def put(self, key: str, deps: dict[str, tuple[float, int]], value: object) -> None:
+    def put(self, key: str, deps: Mapping[str, tuple[float, int] | None], value: object) -> None:
         self.entries[key] = {
-            "deps": [[path, mtime, size] for path, (mtime, size) in deps.items()],
+            "deps": [[path, *(state if state is not None else (None, None))]
+                     for path, state in deps.items()],
             "value": value,
         }
         self.dirty = True
@@ -79,7 +88,7 @@ class Cache:
             deps = entry.get("deps") if isinstance(entry, dict) else None
             alive = isinstance(deps, list) and bool(deps) and all(
                 isinstance(dep, list) and len(dep) == 3 and isinstance(dep[0], str)
-                and Path(dep[0]).exists()
+                and ((dep[1] is None and dep[2] is None) or Path(dep[0]).exists())
                 for dep in deps
             )
             if alive:

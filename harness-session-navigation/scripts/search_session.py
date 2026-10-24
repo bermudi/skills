@@ -18,16 +18,11 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterator, Sequence
 
 KINDS = ("user", "assistant", "thinking", "tool", "tool_call", "tool_result")
 MAX_NORMAL_PREVIEW = 2_000
 MAX_EXTRACT_PREVIEW = 100_000
-MAX_EXTRACT_SOURCE = 200_000
-# Retained per-event content bound. Matching happens against this text, so it
-# must be large enough that ordinary messages are never truncated mid-message;
-# pathological payloads are still bounded.
-MAX_MATCH_CHARS = 1_000_000
 OUTPUT_FIELDS = ("index", "kind", "timestamp", "message_id", "tool", "preview",
                  "model", "provider", "source_ref")
 
@@ -83,7 +78,7 @@ def content_text(content: object) -> str:
     return clean(" ".join(block_text(block) for block in content if isinstance(block, dict) and block.get("type") == "text"))
 
 
-def jsonl(path: Path) -> Iterable[tuple[int, dict[str, object]]]:
+def jsonl(path: Path) -> Iterator[tuple[int, dict[str, object]]]:
     with path.open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             try:
@@ -99,9 +94,10 @@ def make_event(index: int, kind: str, timestamp: object, message_id: object,
                tool: object, text: object, arguments: object | None = None,
                model: object = "", provider: object = "",
                source_ref: str = "") -> Event:
-    # Bound retained payloads during parsing, not merely when rendering output.
+    # Matching must see the complete text. Bound excerpts only when rendering;
+    # cutting retained text here silently turns deep matches into false negatives.
     return Event(index, kind, compact(timestamp)[:100], compact(message_id)[:200],
-                 compact(tool)[:100], compact(text)[:MAX_MATCH_CHARS], arguments,
+                 compact(tool)[:100], compact(text), arguments,
                  compact(model)[:200], compact(provider)[:100], source_ref)
 
 
@@ -314,16 +310,26 @@ def excerpt(text: str, query: str, limit: int) -> str:
     """Return a bounded excerpt, centering a query match when possible."""
     if len(text) <= limit:
         return text
-    position = text.casefold().find(query) if query else 0
-    if position < 0:
-        position = 0
-    start = max(0, position - limit // 3)
-    end = min(len(text), start + limit)
-    start = max(0, end - limit)
+    folded = text.casefold()
+    position = max(0, folded.find(query)) if query else 0
+    if len(folded) != len(text):
+        # casefold can expand characters (ß -> ss). Its offsets are not
+        # original-text offsets; map the hit back before selecting a window.
+        folded_offset = 0
+        for original_offset, char in enumerate(text):
+            folded_offset += len(char.casefold())
+            if folded_offset > position:
+                position = original_offset
+                break
+    # Reserve marker space before selecting the window. Trimming afterwards
+    # can cut the end of a query that sits at the very end of a long payload.
+    window = max(1, limit - 2)
+    start = max(0, position - window // 3)
+    end = min(len(text), start + window)
+    start = max(0, end - window)
     prefix = "…" if start else ""
     suffix = "…" if end < len(text) else ""
-    body_limit = max(1, limit - len(prefix) - len(suffix))
-    return prefix + text[start : start + body_limit] + suffix
+    return prefix + text[start:end] + suffix
 
 
 # --- Per-record projectors -------------------------------------------------
@@ -520,7 +526,7 @@ def event_haystack(item: Event) -> str:
     """Full text a --query should match against, before any display truncation."""
     parts = [item.tool, item.preview]
     if item.kind == "tool_call" and item.arguments is not None:
-        parts.append(compact(item.arguments)[:MAX_EXTRACT_SOURCE])
+        parts.append(compact(item.arguments))
     return " ".join(parts)
 
 
@@ -646,8 +652,6 @@ def _extract_field_lines(value: object, max_len: int) -> Iterator[str]:
 def _event_preview(item: Event, extract: bool, query: str, max_chars: int) -> str:
     if extract and item.kind == "tool_call":
         raw = compact(item.arguments)
-        if len(raw) > MAX_EXTRACT_SOURCE:
-            raw = raw[: MAX_EXTRACT_SOURCE - 1] + "…"
         return excerpt(raw, query, max_chars)
     if item.kind == "tool_call" and item.arguments is not None:
         # The summary preview may not contain the query even when the full
@@ -656,8 +660,6 @@ def _event_preview(item: Event, extract: bool, query: str, max_chars: int) -> st
         summary = excerpt(item.preview, query, max_chars)
         if query and query not in summary.casefold():
             raw = compact(item.arguments)
-            if len(raw) > MAX_EXTRACT_SOURCE:
-                raw = raw[: MAX_EXTRACT_SOURCE - 1] + "…"
             return excerpt(raw, query, max_chars)
         return summary
     return excerpt(item.preview, query, max_chars)
@@ -707,6 +709,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.extract_field:
         for item in page:
+            if not isinstance(item.arguments, dict):
+                raise ValueError("matched extraction event has no argument object")
             value = item.arguments[args.extract_field]
             for line in _extract_field_lines(value, args.preview_chars):
                 print(line)
