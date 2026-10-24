@@ -23,11 +23,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Sequence
 
-import zcode_store  # noqa: E402  (same directory)
-
 SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+
+import zcode_store  # noqa: E402  (same directory)
 
 KINDS = ("user", "assistant", "thinking", "tool", "tool_call", "tool_result")
 MAX_NORMAL_PREVIEW = 2_000
@@ -553,7 +553,11 @@ def event_matches(item: Event, wanted: set[str], tools: set[str],
 
 
 def looks_like_zcode_id(source: object) -> bool:
-    return isinstance(source, str) and source.startswith("sess_") and not Path(source).exists()
+    """zcode ids are sess_<uuid>; some core-internal rows use session_<hex>.
+    The not-a-file guard keeps real paths winning over id-shaped strings."""
+    if not isinstance(source, str) or Path(source).exists():
+        return False
+    return source.startswith(("sess_", "session_"))
 
 
 def detect(path: Path) -> str:
@@ -721,7 +725,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.offset <= total_matches < args.offset + args.limit:
                 page.append(item)
             total_matches += 1
-    except (OSError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

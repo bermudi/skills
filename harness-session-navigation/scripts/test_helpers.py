@@ -332,7 +332,7 @@ class HelperTests(unittest.TestCase):
                 ],
             }))
 
-            def fake_run(*args, **kwargs):
+            def fake_run(*args: object, **kwargs: object) -> object:
                 raise FileNotFoundError("devin")
 
             original_run = find_sessions.subprocess.run
@@ -818,6 +818,7 @@ class HelperTests(unittest.TestCase):
     ZCODE_DELETED = "sess_33333333-3333-3333-3333-333333333333"
     ZCODE_FORK = "sess_44444444-4444-4444-4444-444444444444-fork-ab12"
     ZCODE_OTHER_PROJECT = "sess_55555555-5555-5555-5555-555555555555"
+    ZCODE_HEXID = "session_aabbccdd-1122-3344-5566-778899aabbcc"
 
     def _write_zcode_fixture(self, home: Path) -> Path:
         """Build a zcode store with the real schema and representative rows."""
@@ -863,6 +864,9 @@ class HelperTests(unittest.TestCase):
              "fork of main", 1_577_836_800_000, None),  # 2020: excluded by --since
             (self.ZCODE_OTHER_PROJECT, None, self.ZCODE_OTHER_PROJECT, "/tmp/other",
              "other project", now_ms - 5_400_000, None),
+            # Core-internal rows use session_<hex> ids; auto-detect must accept them.
+            (self.ZCODE_HEXID, None, self.ZCODE_HEXID, "/tmp/proj-wiki",
+             "hex id session", now_ms - 7_200_000, None),
         ]
         for sid, parent, slug, directory, title, updated, deleted in sessions:
             conn.execute(
@@ -880,6 +884,8 @@ class HelperTests(unittest.TestCase):
              {"role": "assistant", "time": {"created": now_ms - 3_500_000}, "model": model}),
             ("m3", self.ZCODE_OTHER_PROJECT, 0,
              {"role": "user", "time": {"created": now_ms - 5_400_000}}),
+            ("m4", self.ZCODE_HEXID, 0,
+             {"role": "user", "time": {"created": now_ms - 7_200_000}}),
         ]
         for mid, sid, seq, payload in rows:
             conn.execute(
@@ -903,6 +909,8 @@ class HelperTests(unittest.TestCase):
                         "output": "the file has been updated with the obelisk section"}}),
             ("p5", "m3", self.ZCODE_OTHER_PROJECT, 0,
              {"type": "text", "text": "unrelated work in another project"}),
+            ("p6", "m4", self.ZCODE_HEXID, 0,
+             {"type": "text", "text": "hex id session says hello"}),
         ]
         for pid, mid, sid, seq, payload in parts:
             conn.execute(
@@ -1021,6 +1029,37 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(result["user_prompt_previews"],
                              ["rethink the wiki with a zettelkasten obelisk"])
             self.assertEqual(result["resume_command"], f"zcode --resume {self.ZCODE_MAIN}")
+
+
+    def test_zcode_hex_shaped_id_autodetects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            db = self._write_zcode_fixture(home)
+            out = io.StringIO()
+            err = io.StringIO()
+            env = {"ZCODE_DB": str(db)}
+            # No --harness flag: detect() must recognize the session_ prefix.
+            with mock.patch.dict("os.environ", env), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = search_session.main([self.ZCODE_HEXID, "--type", "user", "--format", "jsonl"])
+            self.assertEqual(rc, 0)
+            events = [json.loads(line) for line in out.getvalue().splitlines()]
+            self.assertEqual(len(events), 1)
+            self.assertIn("hex id session", events[0]["preview"])
+
+    def test_zcode_unreadable_store_is_a_clean_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bogus = Path(tmp) / "fake-zcode.sqlite"
+            bogus.write_bytes(b"definitely not a sqlite database")
+            out = io.StringIO()
+            err = io.StringIO()
+            env = {"ZCODE_DB": str(bogus)}
+            with mock.patch.dict("os.environ", env), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = search_session.main(["sess_abc123", "--type", "user"])
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+            self.assertNotIn("Traceback", err.getvalue())
 
 
 if __name__ == "__main__":

@@ -61,12 +61,14 @@ by a live writer falls back to `immutable=1` with a stderr warning):
 
 - `find_sessions.py --harness zcode` — title, first real prompt (zcode-injected
   boilerplate like TodoWrite nudges and `<task-notification>` blocks is
-  skipped for previews), exact project directory, `zcode --resume <id>`
+  skipped for previews), recorded working directory, `zcode --resume <id>`
 - `search_sessions.py --harness zcode` — SQL LIKE prefilter that mirrors the
   byte prefilter's contract (rows containing `\uXXXX` escapes or any
   non-ASCII text are accepted and matched after decode), provenance from the
   message's model record, `--since` maps to session `time_updated`,
-  `--project` matches the recorded directory exactly
+  `--project` is a case-insensitive substring on the recorded working
+  directory — the real cwd, unlike the transcript-path inference other
+  harnesses rely on
 - `search_session.py sess_<id-or-prefix>` — full event stream of one session,
   unique id prefixes allowed
 - `inspect_session.py sess_<id-or-prefix>` — metadata, prompt previews,

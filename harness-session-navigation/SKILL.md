@@ -25,8 +25,9 @@ Inspect files only when the picker cannot answer the question.
    assume every JSONL file is a Pi session.
 2. Establish the **project directory**. Pi, Devin, Command Code, ZCode, and
    Freebuff all scope normal history discovery by working directory or project.
-   ZCode records each session's directory in its store, so project scoping is
-   exact there.
+   ZCode records each session's working directory in its store — a real cwd,
+   not a transcript-path inference — so `--project` substring scoping is
+   reliable there (still a substring match, not equality).
 3. Choose the operation:
    - latest session, and the user explicitly wants it activated → continue command
    - known session → resume by name or ID
@@ -85,8 +86,9 @@ delete sessions:
     activity time. `--project` filters the transcript's path on disk, not
     verified project membership; it cannot scope Devin's flat transcript
     directory by cwd. Omit that filter for Devin unless the substring
-    identifies a transcript. ZCode's `--project` matches the session's
-    recorded directory, so it is exact.
+    identifies a transcript. ZCode's `--project` matches against the
+    session's recorded working directory — a case-insensitive substring like
+    everywhere else, but on the real cwd rather than an inferred path.
   - the byte prefilter is conservative: Unicode, escaped text, and tool
     summaries may require extra parsing rather than risk missing a match
   - exit 3 means no matches; zero-hit searches still emit valid empty JSON

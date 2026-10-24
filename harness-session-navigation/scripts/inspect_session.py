@@ -236,7 +236,10 @@ def inspect_devin(path: Path, max_prompts: int, preview_chars: int) -> dict[str,
 
 
 def looks_like_zcode_id(source: object) -> bool:
-    return isinstance(source, str) and source.startswith("sess_") and not Path(source).exists()
+    """zcode ids are sess_<uuid>; some core-internal rows use session_<hex>."""
+    if not isinstance(source, str) or Path(source).exists():
+        return False
+    return source.startswith(("sess_", "session_"))
 
 
 def detect(path: Path) -> str:
@@ -294,7 +297,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             db = zcode_store.db_path()
             conn = zcode_store.connect(db)
             try:
-                result = zcode_store.inspect(conn, str(args.source), str(args.source),
+                result = zcode_store.inspect(conn, str(args.source),
                                              args.max_prompts, args.preview_chars, str(db))
             finally:
                 conn.close()

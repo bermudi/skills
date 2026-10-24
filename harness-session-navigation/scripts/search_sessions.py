@@ -442,7 +442,7 @@ def search_zcode(args: argparse.Namespace, home: Path, matcher: Matcher,
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Search message and tool content across all local sessions (Pi, Devin, Command Code, Freebuff).",
+        description="Search message and tool content across all local sessions (Pi, Devin, Command Code, Freebuff, ZCode).",
         epilog=("Examples:\n"
                 "  uv run scripts/search_sessions.py --query obelisk\n"
                 "  uv run scripts/search_sessions.py --query 'auth bug' --harness pi --harness devin --since 30d\n"

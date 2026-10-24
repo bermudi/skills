@@ -357,10 +357,10 @@ def tool_activity_summary(conn: sqlite3.Connection, session_id: str,
             "files_touched": files, "files_touched_note": note}
 
 
-def inspect(conn: sqlite3.Connection, session_id: str, reference: str,
+def inspect(conn: sqlite3.Connection, reference: str,
             max_prompts: int, preview_chars: int, source: str) -> dict[str, object]:
     """Bounded inspection of one zcode session."""
-    row = resolve_session(conn, session_id) or resolve_session(conn, reference)
+    row = resolve_session(conn, reference)
     if row is None:
         raise ValueError(f"no zcode session matches {reference!r}")
     count_sql = ("SELECT count(*), min(time_created), max(time_created)"
