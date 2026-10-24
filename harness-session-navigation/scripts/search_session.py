@@ -5,20 +5,29 @@
 # ///
 """Search normalized messages, thinking, and tool activity in one session.
 
-Supports Pi, Command Code, Devin, and Freebuff local transcripts. ``--query``
-matches against full message text and full tool-call arguments before any
-display truncation; output excerpts are bounded. Complete payloads are never
-emitted wholesale.
+Supports Pi, Command Code, Devin, Freebuff, and ZCode sessions. ZCode has no
+transcript files: pass a session id (``sess_…``, unique prefix allowed) and it
+is read — strictly read-only — from the zcode SQLite store.
+``--query`` matches against full message text and full tool-call arguments
+before any display truncation; output excerpts are bounded. Complete payloads
+are never emitted wholesale.
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Sequence
+
+import zcode_store  # noqa: E402  (same directory)
+
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 KINDS = ("user", "assistant", "thinking", "tool", "tool_call", "tool_result")
 MAX_NORMAL_PREVIEW = 2_000
@@ -543,7 +552,13 @@ def event_matches(item: Event, wanted: set[str], tools: set[str],
     return True
 
 
+def looks_like_zcode_id(source: object) -> bool:
+    return isinstance(source, str) and source.startswith("sess_") and not Path(source).exists()
+
+
 def detect(path: Path) -> str:
+    if looks_like_zcode_id(str(path)):
+        return "zcode"
     if path.is_dir() and (path / "chat-messages.json").is_file():
         return "freebuff"
     if path.name in ("chat-meta.json", "chat-messages.json"):
@@ -574,8 +589,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
                 "  uv run scripts/search_session.py devin.json --type tool_call --tool-arg file_path=foo"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, or Freebuff chat directory/file")
-    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff"), default="auto")
+    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, Freebuff chat directory/file, or ZCode session id (sess_…, unique prefix allowed)")
+    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff", "zcode"), default="auto")
     parser.add_argument("--type", dest="types", action="append", choices=KINDS,
                         help="Event type; repeat to combine. 'tool' includes calls and results")
     parser.add_argument("--tool", action="append", default=[], help="Exact tool name; repeat to combine")
@@ -592,7 +607,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
                         help="With --extract, emit only this argument field as plain text, one value per line")
     parser.add_argument("--format", choices=("json", "jsonl", "tsv"), default="json")
     args = parser.parse_args(argv)
-    if not args.source.exists():
+    if not args.source.exists() and args.harness != "zcode" \
+            and not looks_like_zcode_id(str(args.source)):
         parser.error(f"source does not exist: {args.source}")
     if args.offset < 0:
         parser.error("--offset must be non-negative")
@@ -669,7 +685,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     try:
         harness = detect(args.source) if args.harness == "auto" else args.harness
-        if harness == "pi":
+        if harness == "zcode":
+            events = zcode_store.zcode_session_events(zcode_store.db_path(), str(args.source))
+        elif harness == "pi":
             events = pi_events(args.source)
         elif harness == "commandcode":
             events = commandcode_events(args.source)
@@ -677,7 +695,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             events = devin_events(args.source)
         else:
             events = freebuff_events(args.source)
-    except (OSError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

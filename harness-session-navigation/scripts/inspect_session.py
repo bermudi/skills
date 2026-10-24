@@ -3,16 +3,23 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Inspect one Pi, Command Code, Devin, or Freebuff session without dumping it."""
+"""Inspect one Pi, Command Code, Devin, Freebuff, or ZCode session without dumping it."""
 from __future__ import annotations
 
 import argparse
 from datetime import datetime
 import json
 import shlex
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
+
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+import zcode_store  # noqa: E402  (same directory)
 
 
 def clean(value: object, limit: int) -> str:
@@ -228,7 +235,13 @@ def inspect_devin(path: Path, max_prompts: int, preview_chars: int) -> dict[str,
     return result
 
 
+def looks_like_zcode_id(source: object) -> bool:
+    return isinstance(source, str) and source.startswith("sess_") and not Path(source).exists()
+
+
 def detect(path: Path) -> str:
+    if looks_like_zcode_id(str(path)):
+        return "zcode"
     if path.is_dir() and (path / "chat-meta.json").is_file():
         return "freebuff"
     if path.name in ("chat-meta.json", "chat-messages.json"):
@@ -239,7 +252,7 @@ def detect(path: Path) -> str:
             return "devin"
     if path.name.endswith((".checkpoints.jsonl", ".prompts.jsonl")):
         raise ValueError("pass the main Command Code <session-id>.jsonl, not a sidecar")
-    first = next(records(path), None)
+    first = next(iter(records(path)), None)
     if first and first.get("type") == "session":
         return "pi"
     if first and ("sessionId" in first or first.get("role") in ("user", "assistant", "tool")):
@@ -252,12 +265,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description="Show bounded metadata and user-prompt previews for one local session.",
         epilog="Example: uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3",
     )
-    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, or Freebuff chat directory/file")
-    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff"), default="auto")
+    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, Freebuff chat directory/file, or ZCode session id (sess_…, unique prefix allowed)")
+    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff", "zcode"), default="auto")
     parser.add_argument("--max-prompts", type=int, default=3, help="Prompt previews to return (0-20; default: 3)")
     parser.add_argument("--preview-chars", type=int, default=200, help="Characters per preview (20-1000; default: 200)")
     args = parser.parse_args(argv)
-    if not args.source.exists():
+    if not args.source.exists() and args.harness != "zcode" \
+            and not looks_like_zcode_id(str(args.source)):
         parser.error(f"source does not exist: {args.source}")
     if not 0 <= args.max_prompts <= 20:
         parser.error("--max-prompts must be between 0 and 20")
@@ -276,9 +290,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = inspect_commandcode(args.source, args.max_prompts, args.preview_chars)
         elif harness == "devin":
             result = inspect_devin(args.source, args.max_prompts, args.preview_chars)
+        elif harness == "zcode":
+            db = zcode_store.db_path()
+            conn = zcode_store.connect(db)
+            try:
+                result = zcode_store.inspect(conn, str(args.source), str(args.source),
+                                             args.max_prompts, args.preview_chars, str(db))
+            finally:
+                conn.close()
         else:
             result = inspect_freebuff(args.source, args.max_prompts, args.preview_chars)
-    except (OSError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     json.dump(result, sys.stdout, indent=2)

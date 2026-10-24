@@ -20,6 +20,8 @@ from pathlib import Path
 from types import ModuleType
 
 SCRIPTS = Path(__file__).parent
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 
 def load(name: str) -> ModuleType:
@@ -31,11 +33,14 @@ def load(name: str) -> ModuleType:
     return module
 
 
+# Order matters: shared modules first so later plain imports inside script
+# bodies resolve to the very instances registered here (no A/B duplicates).
+session_cache = load("session_cache")
+search_session = load("search_session")
+zcode_store = load("zcode_store")
 find_sessions = load("find_sessions")
 inspect_session = load("inspect_session")
-search_session = load("search_session")
 search_sessions = load("search_sessions")
-session_cache = load("session_cache")
 
 
 class HelperTests(unittest.TestCase):
@@ -602,6 +607,44 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(payload["sessions"][0]["harness"], "freebuff")
 
     def _write_user_transcript(self, home: Path, harness: str, text: str) -> Path:
+        if harness == "zcode":
+            import sqlite3
+
+            db = home / ".zcode/cli/db/db.sqlite"
+            db.parent.mkdir(parents=True)
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                "CREATE TABLE session (id text primary key, project_id text not null,"
+                " workspace_id text, parent_id text, slug text not null, directory text not null,"
+                " path text, title text not null, version text not null, share_url text,"
+                " summary_additions integer, summary_deletions integer, summary_files integer,"
+                " summary_diffs text, revert text, permission text, time_created integer not null,"
+                " time_updated integer not null, time_compacting integer, time_archived integer,"
+                " task_type text not null default 'interactive',"
+                " title_source text not null default 'first_input', title_message_id text,"
+                " time_title_updated integer, trace_id text, time_deleted integer, last_outcome text);"
+                "CREATE TABLE message (id text primary key, session_id text not null,"
+                " time_created integer not null, time_updated integer not null,"
+                " data text not null, sequence integer);"
+                "CREATE TABLE part (id text primary key, message_id text not null,"
+                " session_id text not null, time_created integer not null,"
+                " time_updated integer not null, data text not null, sequence integer);")
+            now_ms = int(time.time() * 1000)
+            conn.execute(
+                "INSERT INTO session (id, project_id, slug, directory, title, version,"
+                " time_created, time_updated) VALUES ('sess_z1','p','sess_z1','/work/zeta','t','0.17.0',?,?)",
+                (now_ms, now_ms))
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data, sequence)"
+                " VALUES ('mz1','sess_z1',0,0,?,0)",
+                (json.dumps({"role": "user", "time": {"created": now_ms}}, ensure_ascii=False),))
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data, sequence)"
+                " VALUES ('pz1','mz1','sess_z1',0,0,?,0)",
+                (json.dumps({"type": "text", "text": text}, ensure_ascii=False),))
+            conn.commit()
+            conn.close()
+            return db
         if harness == "pi":
             path = home / ".pi/agent/sessions/repo/date_session.jsonl"
             data: object = {"type": "message", "id": "u1", "message": {"role": "user", "content": text}}
@@ -635,7 +678,10 @@ class HelperTests(unittest.TestCase):
                 with self.subTest(harness=harness, text=text, query=query), tempfile.TemporaryDirectory() as tmp:
                     home = Path(tmp)
                     path = self._write_user_transcript(home, harness, text)
-                    if text == query == "needle":
+                    # The escaped-ASCII variant rewrites a raw transcript file;
+                    # zcode stores JSON inside SQLite, so its escape case is
+                    # covered by test_zcode_sql_prefilter_tolerates_escapes.
+                    if text == query == "needle" and harness != "zcode":
                         path.write_text(path.read_text().replace("needle", r"\u006eeedle"))
                     out = io.StringIO()
                     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
@@ -763,6 +809,218 @@ class HelperTests(unittest.TestCase):
             with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
                 rc = search_sessions.run(search_sessions.parse_args(["--query", "definitely-not-there-xyz", "--format", "json"]), home)
             self.assertEqual(rc, 3)
+
+
+    # --- ZCode (SQLite session store) --------------------------------------
+
+    ZCODE_MAIN = "sess_11111111-1111-1111-1111-111111111111"
+    ZCODE_SUB = "sess_subagent_agent_22222222-2222-2222-2222-222222222222"
+    ZCODE_DELETED = "sess_33333333-3333-3333-3333-333333333333"
+    ZCODE_FORK = "sess_44444444-4444-4444-4444-444444444444-fork-ab12"
+    ZCODE_OTHER_PROJECT = "sess_55555555-5555-5555-5555-555555555555"
+
+    def _write_zcode_fixture(self, home: Path) -> Path:
+        """Build a zcode store with the real schema and representative rows."""
+        import sqlite3
+
+        db = home / ".zcode/cli/db/db.sqlite"
+        db.parent.mkdir(parents=True)
+        now_ms = int(time.time() * 1000)
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            """
+            CREATE TABLE session (
+              id text primary key, project_id text not null, workspace_id text,
+              parent_id text, slug text not null, directory text not null,
+              path text, title text not null, version text not null, share_url text,
+              summary_additions integer, summary_deletions integer,
+              summary_files integer, summary_diffs text, revert text, permission text,
+              time_created integer not null, time_updated integer not null,
+              time_compacting integer, time_archived integer,
+              task_type text not null default 'interactive',
+              title_source text not null default 'first_input',
+              title_message_id text, time_title_updated integer, trace_id text,
+              time_deleted integer, last_outcome text);
+            CREATE TABLE message (
+              id text primary key, session_id text not null,
+              time_created integer not null, time_updated integer not null,
+              data text not null, sequence integer);
+            CREATE TABLE part (
+              id text primary key, message_id text not null,
+              session_id text not null, time_created integer not null,
+              time_updated integer not null, data text not null, sequence integer);
+            """
+        )
+        sessions = [
+            # (id, parent, slug, directory, title, updated_ms, deleted_ms)
+            (self.ZCODE_MAIN, None, self.ZCODE_MAIN, "/tmp/proj-wiki",
+             "Wiki rethink", now_ms - 3_600_000, None),
+            (self.ZCODE_SUB, self.ZCODE_MAIN, self.ZCODE_SUB, "/tmp/proj-wiki",
+             "You are a FIXER", now_ms - 3_000_000, None),
+            (self.ZCODE_DELETED, None, self.ZCODE_DELETED, "/tmp/proj-wiki",
+             "gone", now_ms - 2_000_000, now_ms - 1_000_000),
+            (self.ZCODE_FORK, self.ZCODE_MAIN, self.ZCODE_FORK, "/tmp/proj-wiki",
+             "fork of main", 1_577_836_800_000, None),  # 2020: excluded by --since
+            (self.ZCODE_OTHER_PROJECT, None, self.ZCODE_OTHER_PROJECT, "/tmp/other",
+             "other project", now_ms - 5_400_000, None),
+        ]
+        for sid, parent, slug, directory, title, updated, deleted in sessions:
+            conn.execute(
+                "INSERT INTO session (id, project_id, slug, directory, title, version,"
+                " time_created, time_updated, time_deleted, parent_id)"
+                " VALUES (?, 'p', ?, ?, ?, '0.17.0', ?, ?, ?, ?)",
+                (sid, slug, directory, title, updated, updated, deleted, parent))
+
+        model = {"providerID": "account:zai-individual-coding-plan", "modelID": "GLM-5.3"}
+        rows: list[tuple[str, str, int, object]] = [
+            ("m1", self.ZCODE_MAIN, 0,
+             {"role": "user", "time": {"created": now_ms - 3_600_000},
+              "model": {"providerID": "account:zai-individual-coding-plan", "modelID": "GLM-5.3"}}),
+            ("m2", self.ZCODE_MAIN, 1,
+             {"role": "assistant", "time": {"created": now_ms - 3_500_000}, "model": model}),
+            ("m3", self.ZCODE_OTHER_PROJECT, 0,
+             {"role": "user", "time": {"created": now_ms - 5_400_000}}),
+        ]
+        for mid, sid, seq, payload in rows:
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data, sequence)"
+                " VALUES (?, ?, ?, ?, ?, ?)", (mid, sid, 0, 0, json.dumps(payload), seq))
+
+        parts: list[tuple[str, str, str, int, object]] = [
+            # Boilerplate first: previews must skip it, search must still see it.
+            ("p0", "m1", self.ZCODE_MAIN, 0,
+             {"type": "text", "text": "The TodoWrite tool hasn't been used recently."}),
+            ("p1", "m1", self.ZCODE_MAIN, 1,
+             {"type": "text", "text": "rethink the wiki with a zettelkasten obelisk"}),
+            ("p2", "m2", self.ZCODE_MAIN, 0,
+             {"type": "reasoning", "text": "user wants breadth of options"}),
+            ("p3", "m2", self.ZCODE_MAIN, 1,
+             {"type": "text", "text": "here are five architectures"}),
+            ("p4", "m2", self.ZCODE_MAIN, 2,
+             {"type": "tool", "callID": "call_1", "tool": "Edit",
+              "state": {"status": "completed",
+                        "input": {"file_path": "/tmp/proj-wiki/index.md", "new_str": "obelisk"},
+                        "output": "the file has been updated with the obelisk section"}}),
+            ("p5", "m3", self.ZCODE_OTHER_PROJECT, 0,
+             {"type": "text", "text": "unrelated work in another project"}),
+        ]
+        for pid, mid, sid, seq, payload in parts:
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data, sequence)"
+                " VALUES (?, ?, ?, 0, 0, ?, ?)", (pid, mid, sid, json.dumps(payload), seq))
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_zcode_sql_prefilter_tolerates_escapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            db = self._write_zcode_fixture(home)
+            import sqlite3
+
+            conn = sqlite3.connect(db)
+            # Store the needle as a JSON unicode escape: the SQL prefilter
+            # must not reject the row before Python matching can decode it.
+            conn.execute(
+                "UPDATE part SET data = ? WHERE id = 'p5'",
+                (json.dumps({"type": "text", "text": "needle"}).replace("needle", r"\u006eeedle"),))
+            conn.commit()
+            conn.close()
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                rc = search_sessions.run(search_sessions.parse_args([
+                    "--harness", "zcode", "--query", "needle",
+                ]), home)
+            self.assertEqual(rc, 0)
+            sessions = json.loads(out.getvalue())["sessions"]
+            self.assertEqual(len(sessions), 1)
+            self.assertEqual(sessions[0]["session_id"], self.ZCODE_OTHER_PROJECT)
+            self.assertIn("needle", sessions[0]["hits"][0]["excerpt"])
+
+    def test_zcode_finder_filters_and_previews(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_zcode_fixture(home)
+            candidates = find_sessions.find_zcode(home)
+            ids = {candidate.id for candidate in candidates}
+            self.assertIn(self.ZCODE_MAIN, ids)
+            self.assertIn(self.ZCODE_FORK, ids)  # forks are user-facing
+            self.assertNotIn(self.ZCODE_SUB, ids)  # subagents are listing noise
+            self.assertNotIn(self.ZCODE_DELETED, ids)  # deleted stays hidden
+            main = next(c for c in candidates if c.id == self.ZCODE_MAIN)
+            self.assertEqual(main.harness, "zcode")
+            self.assertEqual(main.project, "/tmp/proj-wiki")
+            self.assertTrue(main.preview.startswith("rethink the wiki"))  # boilerplate skipped
+            self.assertEqual(main.resume_command, f"zcode --resume {self.ZCODE_MAIN}")
+            self.assertTrue(main.updated_at.endswith("+00:00"))
+
+    def test_zcode_cross_search_kinds_provenance_and_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._write_zcode_fixture(home)
+            args = search_sessions.parse_args(
+                ["--harness", "zcode", "--query", "obelisk", "--project", "proj-wiki",
+                 "--since", "30d", "--format", "json"])
+            out = io.StringIO()
+            err = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = search_sessions.run(args, home)
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(len(payload["sessions"]), 1)
+            match = payload["sessions"][0]
+            self.assertEqual(match["session_id"], self.ZCODE_MAIN)
+            self.assertEqual(match["project"], "/tmp/proj-wiki")
+            kinds = {hit["kind"] for hit in match["hits"]}
+            self.assertIn("user", kinds)
+            self.assertIn("tool_call", kinds)
+            self.assertIn("tool_result", kinds)
+            tool_hits = [hit for hit in match["hits"] if hit["kind"] == "tool_call"]
+            self.assertTrue(tool_hits and tool_hits[0]["tool"] == "Edit")
+            self.assertIn("msg 1 part 2", {hit["source_ref"] for hit in match["hits"]})
+            user_hit = next(hit for hit in match["hits"] if hit["kind"] == "user")
+            self.assertEqual(user_hit["model"], "GLM-5.3")
+            self.assertEqual(user_hit["provider"], "account:zai-individual-coding-plan")
+            self.assertIn("zettelkasten", user_hit["excerpt"])
+
+    def test_zcode_single_session_and_prefix_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            db = self._write_zcode_fixture(home)
+            out = io.StringIO()
+            err = io.StringIO()
+            env = {"ZCODE_DB": str(db)}
+            with mock.patch.dict("os.environ", env), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = search_session.main([self.ZCODE_MAIN[:13], "--type", "user",
+                                          "--query", "zettelkasten", "--format", "jsonl"])
+            self.assertEqual(rc, 0)
+            events = [json.loads(line) for line in out.getvalue().splitlines()]
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0]["kind"], "user")
+            self.assertTrue(events[0]["message_id"])  # table id threaded through
+            self.assertIn("zettelkasten", events[0]["preview"])
+            self.assertEqual(events[0]["source_ref"], "msg 0 part 1")
+
+    def test_zcode_inspect_reports_activity_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            db = self._write_zcode_fixture(home)
+            out = io.StringIO()
+            err = io.StringIO()
+            env = {"ZCODE_DB": str(db)}
+            with mock.patch.dict("os.environ", env), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = inspect_session.main([self.ZCODE_MAIN[:13], "--max-prompts", "2"])
+            self.assertEqual(rc, 0)
+            result = json.loads(out.getvalue())
+            self.assertEqual(result["harness"], "zcode")
+            self.assertEqual(result["project"], "/tmp/proj-wiki")
+            self.assertEqual(result["tool_call_summary"], {"Edit": 1})
+            self.assertEqual(result["files_touched"], ["/tmp/proj-wiki/index.md"])
+            self.assertEqual(result["user_prompt_previews"],
+                             ["rethink the wiki with a zettelkasten obelisk"])
+            self.assertEqual(result["resume_command"], f"zcode --resume {self.ZCODE_MAIN}")
 
 
 if __name__ == "__main__":

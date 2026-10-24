@@ -2,15 +2,15 @@
 name: harness-session-navigation
 description: >
   Use this skill when finding, identifying, resuming, switching, branching, or
-  navigating sessions in Pi, Devin CLI, Command Code (`cmd`/`commandcode`), or
-  Freebuff, when identifying which of those harnesses owns an unknown coding
-  session, or when searching session history — by content, tool actions, or
-  file edits — across one or all of them. Covers project scoping, IDs,
-  transcript locations, pickers, trees, forks, and safe read-only recovery
-  when the normal picker cannot find it.
+  navigating sessions in Pi, Devin CLI, Command Code (`cmd`/`commandcode`),
+  ZCode (`zcode`), or Freebuff, when identifying which of those harnesses
+  owns an unknown coding session, or when searching session history — by
+  content, tool actions, or file edits — across one or all of them. Covers
+  project scoping, IDs, transcript locations, pickers, trees, forks, and safe
+  read-only recovery when the normal picker cannot find it.
 license: Apache-2.0
 metadata:
-  version: "1.0"
+  version: "1.1"
   topic: harness-sessions
 ---
 # Harness Session Navigation
@@ -23,8 +23,10 @@ Inspect files only when the picker cannot answer the question.
 
 1. Identify the harness from the command, process, or storage path. Do not
    assume every JSONL file is a Pi session.
-2. Establish the **project directory**. Pi, Devin, Command Code, and Freebuff
-   all scope normal history discovery by working directory or project.
+2. Establish the **project directory**. Pi, Devin, Command Code, ZCode, and
+   Freebuff all scope normal history discovery by working directory or project.
+   ZCode records each session's directory in its store, so project scoping is
+   exact there.
 3. Choose the operation:
    - latest session, and the user explicitly wants it activated → continue command
    - known session → resume by name or ID
@@ -44,6 +46,7 @@ Inspect files only when the picker cannot answer the question.
 | Devin | `devin -c` | `devin -r [id]`, `devin list`, `/resume`, `/ls` | session ID shown by listing/resume | No Pi-style tree command; start fresh with `/new` |
 | Command Code | `cmd -c` | `cmd -r [name]`, `/resume`, `cmd --session <path-or-id>` | `/session-file` | `/tree`, `/rewind`, `/fork`, `/clone` |
 | Freebuff | `freebuff --continue` | `/history`, `freebuff --continue <id>` | selected chat ID; local chat directory if needed | No tree/fork interface; `/new` starts a separate chat |
+| ZCode | `zcode -c` (cwd-scoped) | `zcode --resume <id>`; TUI `/resume [id]` (omit id = latest in cwd) | session ID from resume listing | `/fork`, `/rewind` (checkpoint restore); no tree view. `/rewind` can restore workspace files — not harmless browsing |
 
 Read only the matching reference before giving commands or inspecting storage:
 
@@ -51,6 +54,7 @@ Read only the matching reference before giving commands or inspecting storage:
 - [Devin](references/devin.md)
 - [Command Code](references/commandcode.md)
 - [Freebuff](references/freebuff.md)
+- [ZCode](references/zcode.md)
 
 ## Helper scripts
 
@@ -58,21 +62,26 @@ The helpers are read-only, emit bounded structured output, and never resume or
 delete sessions:
 
 - `scripts/search_sessions.py` — search message and tool content across
-  **all** local sessions at once (Pi, Devin, Command Code, Freebuff): the
+  **all** local sessions at once (Pi, Devin, Command Code, Freebuff, ZCode): the
   one-place search. Byte-prefilters each transcript, parses only what could
   match, and returns per-session grouped hits with bounded excerpts,
   provenance (model/provider/source position), and a resume command where
-  safe. Use it before running `search_session.py` over individual files.
+  safe. ZCode is queried through its SQLite store instead of files; its
+  subagent sessions are excluded as noise. Use it before running
+  `search_session.py` over individual files.
   - `--query` matches full event text, tool names, and full tool-call
     arguments; `--tool edit --tool-arg path=AGENTS.md` answers "which
     sessions — and which models — changed a file"
   - scope with `--harness` (repeatable), `--since 30d`, `--project
     <path-substring>`; a full-history scan over gigabytes can take a minute,
     so prefer `--since` when recency bounds the question
-  - `--since` filters by transcript modification time, not event time.
-    `--project` filters the transcript's path on disk, not verified project
-    membership; it cannot scope Devin's flat transcript directory by cwd.
-    Omit that filter for Devin unless the substring identifies a transcript.
+  - `--since` filters by transcript modification time, not event time — for
+    zcode it uses the session's recorded `time_updated`, which is real
+    activity time. `--project` filters the transcript's path on disk, not
+    verified project membership; it cannot scope Devin's flat transcript
+    directory by cwd. Omit that filter for Devin unless the substring
+    identifies a transcript. ZCode's `--project` matches the session's
+    recorded directory, so it is exact.
   - the byte prefilter is conservative: Unicode, escaped text, and tool
     summaries may require extra parsing rather than risk missing a match
   - exit 3 means no matches; zero-hit searches still emit valid empty JSON
@@ -89,17 +98,20 @@ delete sessions:
   CLI only; `disk` forces the transcript scan only. When a transcript exists on
   disk, the `source` field is the transcript path and `preview` is the first
   user prompt.
-- `scripts/inspect_session.py` — inspect one Pi, Command Code, Devin, or
-  Freebuff session, returning metadata and a limited number of user prompt
-  previews. For Devin, pass the transcript file from
+- `scripts/inspect_session.py` — inspect one Pi, Command Code, Devin,
+  Freebuff, or ZCode session, returning metadata and a limited number of user
+  prompt previews. For Devin, pass the transcript file from
   `~/.local/share/devin/cli/transcripts/<session-id>.json`. Devin output also
   includes `tool_call_summary` (counts by tool name), `files_touched` (paths
   from write/edit calls, capped at 50), `duration`, `step_counts`, and
-  `final_metrics` when present.
+  `final_metrics` when present. For ZCode, pass a session id (`sess_…`, unique
+  prefix allowed) — no transcript file exists; output includes
+  `tool_call_summary`, `files_touched`, and `duration_seconds`.
 - `scripts/search_session.py` — normalize and filter one local transcript by
   `user`, `assistant`, `thinking`, `tool`, `tool_call`, or `tool_result`;
   optionally filter exact tool names and preview text. Supports Pi, Command
-  Code, Devin, and Freebuff. `--query` matches full event text and full
+  Code, Devin, Freebuff, and ZCode (pass a `sess_…` id or unique prefix;
+  looked up read-only in the zcode store). `--query` matches full event text and full
   tool-call arguments before any display truncation, so matches deep inside
   long messages or `edit`/`write` payloads are found. Output rows carry
   `model`, `provider`, and `source_ref` (line/step position) for

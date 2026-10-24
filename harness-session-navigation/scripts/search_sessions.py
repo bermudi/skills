@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import sqlite3
 import sys
 import time
 from dataclasses import dataclass, field
@@ -32,8 +33,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import search_session as ss  # noqa: E402  (same directory)
+import zcode_store  # noqa: E402  (same directory)
 
-HARNESSES = ("pi", "devin", "commandcode", "freebuff")
+HARNESSES = ("pi", "devin", "commandcode", "freebuff", "zcode")
 PROJECTORS: dict[str, Callable[[dict[str, object]], list[ss.RawEvent]]] = {
     "pi": ss.pi_record_events,
     "commandcode": ss.commandcode_record_events,
@@ -273,6 +275,8 @@ def resume_command(harness: str, path: Path, session_id: str) -> str:
         return shell_command("cmd", "--session", str(path))
     if harness == "devin" and session_id:
         return shell_command("devin", "-r", session_id)
+    if harness == "zcode" and session_id:
+        return shell_command("zcode", "--resume", session_id)
     # Freebuff's on-disk project key is only a basename, so a bare resume
     # command could target the wrong project; deliberately omitted.
     return ""
@@ -360,6 +364,82 @@ def finalize_session(entry: FileEntry, hits: list[Hit]) -> SessionMatch:
     return result
 
 
+def sql_needle(query: str, tools: Sequence[str], tool_args: Sequence[tuple[str, str]]) -> str:
+    """A conservative SQL LIKE anchor mirroring build_needles' logic.
+
+    The longest ASCII word of the filters must appear literally (modulo
+    letter case) in a matching part's JSON. Unicode-only or empty filters get
+    no anchor and force a full scan, exactly like the byte prefilter.
+    """
+    best = ""
+    for text in (query.strip(), *tools, *(value for _, value in tool_args)):
+        if not text.isascii():
+            continue
+        for word in re.findall(r"[A-Za-z0-9_]+", text):
+            if len(word) > len(best):
+                best = word
+    return best
+
+
+def search_zcode(args: argparse.Namespace, home: Path, matcher: Matcher,
+                 max_hits: int, preview_chars: int) -> list[SessionMatch]:
+    """Query the zcode SQLite store directly instead of scanning files.
+
+    ``--since`` maps to session time_updated (real activity time, not file
+    mtime) and ``--project`` matches the session's recorded directory, so
+    zcode project scoping is exact rather than a path-substring guess.
+    """
+    db = zcode_store.db_path(home)
+    if not db.is_file():
+        warn(f"zcode session store not found at {db}; skipping harness")
+        return []
+    try:
+        conn = zcode_store.connect(db, warn)
+    except (sqlite3.Error, OSError) as error:
+        warn(f"cannot open zcode session store ({db}): {error}")
+        return []
+    since_ms = int(args.since * 1000) if args.since is not None else None
+    needle = sql_needle(args.query, args.tool, args.tool_arg)
+    grouped: dict[str, list[Hit]] = {}
+    meta: dict[str, zcode_store.SessionRow] = {}
+    try:
+        for row, message_data, part_data, message_id, message_sequence, part_sequence in \
+                zcode_store.matching_part_rows(conn, needle, since_ms, args.project):
+            hits = grouped.setdefault(row.id, [])
+            if len(hits) >= max_hits:
+                meta.setdefault(row.id, row)
+                continue
+            for kind, event_id, tool, text, arguments, timestamp, model, provider in \
+                    zcode_store.zcode_row_events(message_data, part_data, message_id):
+                item = ss.make_event(len(hits), kind, timestamp, event_id, tool, text,
+                                     arguments, model=model, provider=provider,
+                                     source_ref=f"msg {message_sequence} part {part_sequence}")
+                if matcher.matches(item):
+                    hits.append(Hit(kind=item.kind, tool=item.tool,
+                                    timestamp=iso_event_timestamp(item.timestamp),
+                                    model=item.model, provider=item.provider,
+                                    source_ref=item.source_ref,
+                                    excerpt=ss._event_preview(item, extract=False,
+                                                              query=matcher.query,
+                                                              max_chars=preview_chars)))
+                    meta.setdefault(row.id, row)
+    finally:
+        conn.close()
+    size = db.stat().st_size
+    matches: list[SessionMatch] = []
+    for row_id, hits in grouped.items():
+        session_row = meta.get(row_id)
+        if session_row is None or not hits:
+            continue
+        matches.append(SessionMatch(harness="zcode", path=db, size=size,
+                                    updated_at=zcode_store.ms_to_iso(session_row.time_updated_ms),
+                                    session_id=session_row.id, project=session_row.directory,
+                                    title=" ".join(session_row.title.split())[:200],
+                                    resume_command=resume_command("zcode", db, session_row.id),
+                                    hits=hits))
+    return matches
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Search message and tool content across all local sessions (Pi, Devin, Command Code, Freebuff).",
@@ -409,8 +489,9 @@ def run(args: argparse.Namespace, home: Path) -> int:
     needles, needs_full_parse = build_needles(args.query, args.tool, args.tool_arg)
     parse_all = needs_full_parse
 
+    file_harnesses = [harness for harness in selected if harness != "zcode"]
     entries: list[FileEntry] = []
-    for harness in selected:
+    for harness in file_harnesses:
         entries.extend(ENUMERATORS[harness](home))
     if args.since is not None:
         entries = [entry for entry in entries if entry.path.stat().st_mtime >= args.since]
@@ -419,10 +500,15 @@ def run(args: argparse.Namespace, home: Path) -> int:
         entries = [entry for entry in entries if needle_path in str(entry.path).casefold()]
 
     total_bytes = sum(entry.size for entry in entries)
-    print(f"searching {len(entries)} files ({total_bytes / 2**20:.1f} MiB) across {', '.join(selected)}"
+    scope = ", ".join(selected)
+    if "zcode" in selected:
+        scope += " (zcode queries its SQLite session store directly)"
+    print(f"searching {len(entries)} files ({total_bytes / 2**20:.1f} MiB) across {scope}"
           + ("; no text needle, full-parsing every file" if parse_all else ""), file=sys.stderr)
 
     matches: list[SessionMatch] = []
+    if "zcode" in selected:
+        matches.extend(search_zcode(args, home, matcher, args.max_hits, args.preview_chars))
     files_read = 0
     for entry in entries:
         hits = collect_hits(entry, matcher, needles, parse_all, args.max_hits, args.preview_chars)

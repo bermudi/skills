@@ -1,29 +1,35 @@
 {
-  "skill_name": "harness-session-navigation",
-  "evals": [
-    {
-      "id": 1,
-      "prompt": "I was working in Pi on the payments repo yesterday, but I only remember the prompt mentioned webhook retries. Find the right session and tell me how to resume it without dumping all my transcripts.",
-      "expected_output": "Uses Pi's project-scoped picker first, then bounded metadata/content search only if needed; returns candidates with IDs/projects and an exact pi resume command without exposing whole transcripts.",
-      "files": []
-    },
-    {
-      "id": 2,
-      "prompt": "List my recent Devin sessions for this repo in a scriptable format and resume the one called Refactor auth. Don't start coding yet.",
-      "expected_output": "Uses devin list --format json or csv in the target directory, selects by title/ID, resumes with devin -r, verifies workspace/session, and does not issue a modifying prompt.",
-      "files": []
-    },
-    {
-      "id": 3,
-      "prompt": "In Command Code I want to go back before the database migration experiment, but I don't want to lose the current conversation or accidentally restore files. What should I do?",
-      "expected_output": "Distinguishes tree navigation from rewind and file restoration, recommends a fork before divergence, and avoids treating /rewind as read-only browsing.",
-      "files": []
-    },
-    {
-      "id": 4,
-      "prompt": "Freebuff --continue picked the wrong chat. Show me how to search the history for the first prompt about the Houthis and reopen it. Is ~/.freebuff where the real chats live?",
-      "expected_output": "Uses /history and first-prompt search, explains project scoping and --cwd/--continue ID, identifies the current manicode project chat storage while warning that project-local .freebuff session logs may not be resumable chats.",
-      "files": []
-    }
-  ]
+ "skill_name": "harness-session-navigation",
+ "evals": [
+  {
+   "id": 1,
+   "prompt": "I was working in Pi on the payments repo yesterday, but I only remember the prompt mentioned webhook retries. Find the right session and tell me how to resume it without dumping all my transcripts.",
+   "expected_output": "Uses Pi's project-scoped picker first, then bounded metadata/content search only if needed; returns candidates with IDs/projects and an exact pi resume command without exposing whole transcripts.",
+   "files": []
+  },
+  {
+   "id": 2,
+   "prompt": "List my recent Devin sessions for this repo in a scriptable format and resume the one called Refactor auth. Don't start coding yet.",
+   "expected_output": "Uses devin list --format json or csv in the target directory, selects by title/ID, resumes with devin -r, verifies workspace/session, and does not issue a modifying prompt.",
+   "files": []
+  },
+  {
+   "id": 3,
+   "prompt": "In Command Code I want to go back before the database migration experiment, but I don't want to lose the current conversation or accidentally restore files. What should I do?",
+   "expected_output": "Distinguishes tree navigation from rewind and file restoration, recommends a fork before divergence, and avoids treating /rewind as read-only browsing.",
+   "files": []
+  },
+  {
+   "id": 4,
+   "prompt": "Freebuff --continue picked the wrong chat. Show me how to search the history for the first prompt about the Houthis and reopen it. Is ~/.freebuff where the real chats live?",
+   "expected_output": "Uses /history and first-prompt search, explains project scoping and --cwd/--continue ID, identifies the current manicode project chat storage while warning that project-local .freebuff session logs may not be resumable chats.",
+   "files": []
+  },
+  {
+   "id": 5,
+   "prompt": "I had a zcode session in ~/Documents/NewsWiki where we rethought the whole filing approach, but I can't find it in the picker and I don't know where zcode archives old conversations. Find it and give me a resume command.",
+   "expected_output": "Explains zcode keeps sessions in ~/.zcode/cli/db/db.sqlite (archived is a flag, not a place), uses find_sessions/search_sessions with --harness zcode and --project scoping (subagents excluded), and returns the session id with an exact zcode --resume command without dumping the store.",
+   "files": []
+  }
+ ]
 }

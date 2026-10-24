@@ -23,6 +23,7 @@ import csv
 import json
 import os
 import shlex
+import sqlite3
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -35,8 +36,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import session_cache  # noqa: E402  (same directory)
+import zcode_store  # noqa: E402  (same directory)
 
-HARNESSES = ("pi", "devin", "commandcode", "freebuff")
+HARNESSES = ("pi", "devin", "commandcode", "freebuff", "zcode")
 
 
 def cache_path(home: Path | None = None) -> Path:
@@ -404,6 +406,38 @@ def find_devin(project: Path, devin_source: str = "auto", home: Path | None = No
         return find_devin_disk(home, cache)
 
 
+def find_zcode(home: Path) -> list[Candidate]:
+    """List zcode sessions from its SQLite store (one query; nothing to cache).
+
+    Subagent sessions (slug ``sess_subagent*``) are excluded as listing noise;
+    forks and side-chats carry parent_id too but stay listed. Deleted sessions
+    are skipped; archived ones are kept — resuming them is ordinary history.
+    """
+    db = zcode_store.db_path(home)
+    if not db.is_file():
+        return []
+    try:
+        conn, rows = zcode_store.iter_candidates(db, warn)
+    except (sqlite3.Error, OSError) as error:
+        raise DiscoveryError(f"zcode session store unreadable ({db}): {error}") from error
+    results: list[Candidate] = []
+    try:
+        for row in rows:
+            preview = ""
+            texts = zcode_store.first_user_texts(conn, row.id, limit=1)
+            if texts:
+                preview = clean_text(texts[0])
+            results.append(Candidate(
+                "zcode", row.id, clean_text(row.title, 200), preview,
+                clean_text(row.directory, 500),
+                zcode_store.ms_to_iso(row.time_updated_ms),
+                shell_command("zcode", "--resume", row.id), str(db),
+            ))
+    finally:
+        conn.close()
+    return results
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Find session candidates without printing full transcripts or resuming them.",
@@ -447,6 +481,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 candidates.extend(find_commandcode(home, cache))
             elif harness == "freebuff":
                 candidates.extend(find_freebuff(home, cache))
+            elif harness == "zcode":
+                candidates.extend(find_zcode(home))
     except DiscoveryError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
