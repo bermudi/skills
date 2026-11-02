@@ -21,7 +21,11 @@ matches the installed binary). The binary is the authority; this file only layer
 orchestration method on top.
 
 The orchestrator is itself an agent inside herdr (`HERDR_ENV=1`); verify that before
-driving. Canonical loop:
+driving. If `HERDR_ENV` is unset but the operator hands you a socket
+(`HERDR_SOCKET_PATH=…`) or says to proceed, that is the authorization: prefix commands with
+the path and go. Do not refuse, and do not re-explain a refusal — one operator hit this
+six turns running, escalating each time, while the same inline-socket form worked in other
+sessions. Canonical loop:
 
 **baseline → start → prompt → wait for a settled state → read → independently verify → steer or stop.**
 
@@ -262,6 +266,9 @@ Treat coding agents as implementers, not authorities:
    you just read. Do not script polling loops, timers, or canned "continue" prompts
    across panes: that bloats the child's context and burns the quota it was meant to
    spend on work (an overnight coordinator did exactly this and the operator stopped it).
+   When the operator asks what a child is doing, answer with its assigned task and
+   progress (from your brief and its transcript), not a description of the current screen
+   or dialog; keep that investigation read-only.
 3. **Distrust completion summaries.** Inspect the complete diff and commit, reconcile
    task ledgers/specs, and rerun the narrowest relevant checks yourself. A claimed
    "pre-existing" failure needs reproduction or history evidence.
