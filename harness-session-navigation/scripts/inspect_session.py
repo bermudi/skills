@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Inspect one Pi, Command Code, Devin, Freebuff, or ZCode session without dumping it."""
+"""Inspect one Pi, Claude Code, Command Code, Devin, Freebuff, or ZCode session without dumping it."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import claude_sessions  # noqa: E402  (same directory)
+import find_sessions  # noqa: E402  (same directory)
 import zcode_store  # noqa: E402  (same directory)
 
 
@@ -73,6 +75,23 @@ def inspect_pi(path: Path, max_prompts: int, preview_chars: int) -> dict[str, ob
     return {"harness": "pi", "id": session_id, "title": title, "project": project,
             "message_records": messages, "user_prompt_previews": prompts,
             "resume_command": f"pi --session {shlex.quote(str(path))}", "source": str(path)}
+
+
+def inspect_claude(path: Path, max_prompts: int, preview_chars: int) -> dict[str, object]:
+    meta = claude_sessions.read_meta(path)
+    prompts: list[str] = []
+    messages = 0
+    for record in records(path):
+        if record.get("type") in ("user", "assistant") and not record.get("isMeta"):
+            messages += 1
+        if len(prompts) < max_prompts:
+            text = clean(claude_sessions.user_prompt(record), preview_chars)
+            if text:
+                prompts.append(text)
+    return {"harness": "claude", "id": meta.session_id, "title": meta.title, "project": meta.cwd,
+            "message_records": messages, "user_prompt_previews": prompts,
+            "resume_command": claude_sessions.resume_command(meta.session_id, meta.cwd),
+            "source": str(path)}
 
 
 def inspect_commandcode(path: Path, max_prompts: int, preview_chars: int) -> dict[str, object]:
@@ -258,6 +277,8 @@ def detect(path: Path) -> str:
     first = next(iter(records(path)), None)
     if first and first.get("type") == "session":
         return "pi"
+    if claude_sessions.looks_like_claude(path, first):
+        return "claude"
     if first and ("sessionId" in first or first.get("role") in ("user", "assistant", "tool")):
         return "commandcode"
     raise ValueError("could not identify the session format")
@@ -268,14 +289,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description="Show bounded metadata and user-prompt previews for one local session.",
         epilog="Example: uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3",
     )
-    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, Freebuff chat directory/file, or ZCode session id (sess_…, unique prefix allowed)")
-    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff", "zcode"), default="auto")
+    parser.add_argument("source", type=Path, help="Transcript path (Pi/Claude Code/Command Code JSONL, Devin JSON, Freebuff chat dir/file), or a session id from any harness (unique prefix allowed)")
+    parser.add_argument("--harness", choices=("auto", "pi", "claude", "commandcode", "devin", "freebuff", "zcode"), default="auto")
     parser.add_argument("--max-prompts", type=int, default=3, help="Prompt previews to return (0-20; default: 3)")
     parser.add_argument("--preview-chars", type=int, default=200, help="Characters per preview (20-1000; default: 200)")
     args = parser.parse_args(argv)
     if not args.source.exists() and args.harness != "zcode" \
-            and not looks_like_zcode_id(str(args.source)):
-        parser.error(f"source does not exist: {args.source}")
+            and not looks_like_zcode_id(str(args.source)) \
+            and not find_sessions.looks_like_session_id(str(args.source)):
+        parser.error(f"source does not exist: {args.source} (pass a transcript path or a session id)")
     if not 0 <= args.max_prompts <= 20:
         parser.error("--max-prompts must be between 0 and 20")
     if not 20 <= args.preview_chars <= 1000:
@@ -286,9 +308,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     try:
+        if not args.source.exists() and args.harness != "zcode" \
+                and not looks_like_zcode_id(str(args.source)):
+            args.source = find_sessions.resolve_source(args.source)
         harness = detect(args.source) if args.harness == "auto" else args.harness
         if harness == "pi":
             result = inspect_pi(args.source, args.max_prompts, args.preview_chars)
+        elif harness == "claude":
+            result = inspect_claude(args.source, args.max_prompts, args.preview_chars)
         elif harness == "commandcode":
             result = inspect_commandcode(args.source, args.max_prompts, args.preview_chars)
         elif harness == "devin":
@@ -303,7 +330,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 conn.close()
         else:
             result = inspect_freebuff(args.source, args.max_prompts, args.preview_chars)
-    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
+    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error, LookupError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     json.dump(result, sys.stdout, indent=2)

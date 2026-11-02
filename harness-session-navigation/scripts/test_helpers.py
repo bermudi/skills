@@ -36,6 +36,7 @@ def load(name: str) -> ModuleType:
 # Order matters: shared modules first so later plain imports inside script
 # bodies resolve to the very instances registered here (no A/B duplicates).
 session_cache = load("session_cache")
+claude_sessions = load("claude_sessions")
 search_session = load("search_session")
 zcode_store = load("zcode_store")
 find_sessions = load("find_sessions")
@@ -97,6 +98,169 @@ class HelperTests(unittest.TestCase):
             events = list(search_session.commandcode_events(path))
             self.assertEqual([event.kind for event in events], ["thinking", "tool_call", "tool_result"])
             self.assertEqual(events[-1].preview, "contents")
+
+    def test_claude_find_inspect_and_search(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            project = home / ".claude/projects/-work-my-repo"
+            project.mkdir(parents=True)
+            path = project / "abc-123.jsonl"
+            rows = [
+                {"type": "mode", "mode": "normal", "sessionId": "abc-123"},
+                {"type": "user", "uuid": "u0", "isMeta": True, "cwd": "/work/my repo", "sessionId": "abc-123",
+                 "message": {"role": "user", "content": "<caveat>ignore</caveat>"}},
+                {"type": "user", "uuid": "u1", "cwd": "/work/my repo", "sessionId": "abc-123",
+                 "timestamp": "2026-01-01T00:00:00Z", "message": {"role": "user", "content": "fix the flaky migration"}},
+                {"type": "ai-title", "aiTitle": "Old title", "sessionId": "abc-123"},
+                {"type": "assistant", "uuid": "a1", "timestamp": "2026-01-01T00:00:01Z", "message": {
+                    "model": "claude-x", "role": "assistant", "content": [
+                        {"type": "thinking", "thinking": "check the schema"},
+                        {"type": "tool_use", "id": "tu1", "name": "Edit", "input": {"file_path": "db.sql"}}]}},
+                {"type": "user", "uuid": "u2", "message": {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "tu1", "content": "edited ok"}]}},
+                {"type": "ai-title", "aiTitle": "Migration fix", "sessionId": "abc-123"},
+            ]
+            path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            (project / "abc-123").mkdir()
+            (project / "abc-123" / "spill.jsonl").write_text("{}\n")  # nested: not a session
+
+            [candidate] = find_sessions.find_claude(home)
+            self.assertEqual((candidate.id, candidate.title, candidate.project),
+                             ("abc-123", "Migration fix", "/work/my repo"))
+            self.assertEqual(candidate.preview, "fix the flaky migration")
+            self.assertEqual(candidate.resume_command, "cd '/work/my repo' && claude --resume abc-123")
+
+            info = inspect_session.inspect_claude(path, 3, 100)
+            self.assertEqual(info["user_prompt_previews"], ["fix the flaky migration"])
+            self.assertEqual(info["message_records"], 3)
+            self.assertEqual(inspect_session.detect(path), "claude")
+
+            events = list(search_session.claude_events(path))
+            self.assertEqual([e.kind for e in events], ["user", "thinking", "tool_call", "tool_result"])
+            self.assertEqual(events[2].tool, "Edit")
+            self.assertEqual(events[1].model, "claude-x")
+            self.assertEqual(search_session.detect(path), "claude")
+
+            entries = list(search_sessions.enumerate_claude(home))
+            self.assertEqual([entry.path for entry in entries], [path])
+            matcher = search_sessions.Matcher(mock.Mock(types=None, tool=["edit"], query="", tool_arg=[("file_path", "db.sql")]))
+            hits = search_sessions.collect_hits(entries[0], matcher, [], True, 5, 200)
+            self.assertEqual([hit.tool for hit in hits], ["Edit"])
+            match = search_sessions.finalize_session(entries[0], hits)
+            self.assertEqual(match.resume_command, candidate.resume_command)
+
+    def _claude_fixture(self, home: Path, session: str = "abc-123", slug: str = "-work-my-repo",
+                        cwd: str = "/work/my-repo") -> Path:
+        project = home / ".claude/projects" / slug
+        project.mkdir(parents=True, exist_ok=True)
+        path = project / f"{session}.jsonl"
+        rows = [
+            {"type": "user", "uuid": "u1", "cwd": cwd, "message": {"role": "user", "content": "run the suite"}},
+            {"type": "assistant", "uuid": "a1", "message": {"model": "m", "role": "assistant", "content": [
+                {"type": "tool_use", "id": "tu1", "name": "Bash", "input": {"command": "pytest"}}]}},
+            {"type": "user", "uuid": "u2", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "tu1", "content": "all green zebra"}]}},
+        ]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+        return path
+
+    def test_claude_tool_results_carry_the_tool_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = self._claude_fixture(home)
+            events = list(search_session.claude_events(path))
+            self.assertEqual([(e.kind, e.tool) for e in events],
+                             [("user", ""), ("tool_call", "Bash"), ("tool_result", "Bash")])
+            # Cross-search: the result line contains neither the tool name nor
+            # the call, so the prefilter must still admit it and the name pairs.
+            for extra in (["--tool", "bash", "--type", "tool_result"], ["--query", "zebra"]):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = search_sessions.run(search_sessions.parse_args(
+                        ["--harness", "claude", "--type", "tool_result", *extra]), home)
+                self.assertEqual(rc, 0, extra)
+                [hit] = json.loads(out.getvalue())["sessions"][0]["hits"]
+                self.assertEqual((hit["tool"], hit["kind"]), ("Bash", "tool_result"))
+
+    def test_session_id_resolves_to_owning_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._claude_fixture(home, "abc-123")
+            self._claude_fixture(home, "abd-999", slug="-work-other", cwd="/work/other")
+            with mock.patch.dict("os.environ", {"XDG_CACHE_HOME": str(home / "cache")}), \
+                    mock.patch.object(Path, "home", return_value=home):
+                found = find_sessions.resolve_session_id("abc", home)
+                self.assertEqual((found.harness, found.id, found.project), ("claude", "abc-123", "/work/my-repo"))
+                with self.assertRaisesRegex(LookupError, "ambiguous"):
+                    find_sessions.resolve_session_id("ab", home)
+                with self.assertRaisesRegex(LookupError, "no session id"):
+                    find_sessions.resolve_session_id("zzzz", home)
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = inspect_session.main(["abc-123"])
+                self.assertEqual(rc, 0)
+                self.assertEqual(json.loads(out.getvalue())["user_prompt_previews"], ["run the suite"])
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = search_session.main(["abc-123", "--type", "tool_result", "--tool", "bash"])
+                self.assertEqual(rc, 0)
+                self.assertEqual(json.loads(out.getvalue())["total_matches"], 1)
+
+    def test_project_scope_is_shared_and_slug_tolerant(self) -> None:
+        import scoping
+        self.assertTrue(scoping.project_matches("/home/me/app", "--home-me-app--"))
+        self.assertTrue(scoping.project_matches("ME/APP", "/home/me/app"))
+        self.assertFalse(scoping.project_matches("/home/me/other", "--home-me-app--"))
+        self.assertTrue(scoping.project_matches("", "anything"))
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self._claude_fixture(home)
+            self._claude_fixture(home, "zzz-111", slug="-work-other", cwd="/work/other")
+            with mock.patch.object(Path, "home", return_value=home):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = find_sessions.main(["--harness", "claude", "--project", "/work/my-repo"])
+                self.assertEqual(rc, 0)
+                self.assertEqual([c["id"] for c in json.loads(out.getvalue())["candidates"]], ["abc-123"])
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = search_sessions.run(search_sessions.parse_args(
+                        ["--harness", "claude", "--query", "zebra", "--project", "/work/other"]), home)
+                self.assertEqual(rc, 0)
+                self.assertEqual([x["session_id"] for x in json.loads(out.getvalue())["sessions"]], ["zzz-111"])
+
+    def test_truncation_is_reported_in_every_search_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            for index in range(3):
+                self._claude_fixture(home, f"s{index}-aaaa", slug=f"-w-{index}", cwd=f"/w/{index}")
+            out = io.StringIO()
+            with mock.patch.object(Path, "home", return_value=home), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                find_sessions.main(["--harness", "claude", "--limit", "2"])
+            found = json.loads(out.getvalue())
+            self.assertEqual((found["total_matches"], found["returned"], found["truncated"]), (3, 2, True))
+            self.assertIn("raise --limit", found["hint"])
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                search_sessions.run(search_sessions.parse_args(
+                    ["--harness", "claude", "--type", "user", "--limit", "2", "--max-hits", "1"]), home)
+            payload = json.loads(out.getvalue())
+            self.assertEqual((payload["total_matches"], payload["returned"], payload["truncated"]), (3, 2, True))
+            self.assertTrue(payload["sessions"][0]["hits_capped"])
+            self.assertEqual(len(payload["hints"]), 2)
+
+            path = self._claude_fixture(home, "big-1111", slug="-w-big", cwd="/w/big")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                search_session.main([str(path), "--limit", "1"])
+            single = json.loads(out.getvalue())
+            self.assertEqual((single["returned"], single["truncated"], single["next_offset"]), (1, True, 1))
+            self.assertIn("--offset 1", single["hint"])
+
+    def test_claude_resume_omitted_without_cwd(self) -> None:
+        self.assertEqual(claude_sessions.resume_command("abc", ""), "")
 
     def test_excerpt_centers_query_and_stays_bounded(self) -> None:
         text = "a" * 100 + "needle" + "z" * 100
@@ -651,6 +815,9 @@ class HelperTests(unittest.TestCase):
         elif harness == "commandcode":
             path = home / ".commandcode/projects/repo/session.jsonl"
             data = {"sessionId": "session", "role": "user", "content": text}
+        elif harness == "claude":
+            path = home / ".claude/projects/-repo/session.jsonl"
+            data = {"type": "user", "uuid": "u1", "cwd": "/repo", "message": {"role": "user", "content": text}}
         elif harness == "devin":
             path = home / ".local/share/devin/cli/transcripts/session.json"
             data = {"session_id": "session", "steps": [{"step_id": 1, "source": "user", "message": text}]}

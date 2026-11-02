@@ -5,7 +5,7 @@
 # ///
 """Search normalized messages, thinking, and tool activity in one session.
 
-Supports Pi, Command Code, Devin, Freebuff, and ZCode sessions. ZCode has no
+Supports Pi, Claude Code, Command Code, Devin, Freebuff, and ZCode sessions. ZCode has no
 transcript files: pass a session id (``sess_…``, unique prefix allowed) and it
 is read — strictly read-only — from the zcode SQLite store.
 ``--query`` matches against full message text and full tool-call arguments
@@ -21,12 +21,14 @@ import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Callable, Iterator, Sequence
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import claude_sessions  # noqa: E402  (same directory)
+import find_sessions  # noqa: E402  (same directory)
 import zcode_store  # noqa: E402  (same directory)
 
 KINDS = ("user", "assistant", "thinking", "tool", "tool_call", "tool_result")
@@ -381,6 +383,65 @@ def pi_record_events(record: dict[str, object]) -> list[RawEvent]:
     return events
 
 
+def claude_projector() -> Callable[[dict[str, object]], list[RawEvent]]:
+    """A per-file projector that names ``tool_result`` events.
+
+    Claude's result blocks carry only ``tool_use_id``; the name lives on the
+    earlier ``tool_use`` block. Use one projector per transcript.
+    """
+    names: dict[str, str] = {}
+
+    def project(record: dict[str, object]) -> list[RawEvent]:
+        return claude_record_events(record, names)
+
+    return project
+
+
+def claude_record_events(record: dict[str, object],
+                         tool_names: dict[str, str] | None = None) -> list[RawEvent]:
+    kind = record.get("type")
+    if kind not in ("user", "assistant") or record.get("isMeta"):
+        return []
+    message = record.get("message")
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    timestamp = record.get("timestamp")
+    message_id = record.get("uuid")
+    model = message.get("model")
+    events: list[RawEvent] = []
+    if kind == "user":
+        if isinstance(content, str):
+            events.append(("user", message_id, "", content, None, timestamp, None, None))
+        elif isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text":
+                    events.append(("user", message_id, "", block.get("text"), None, timestamp, None, None))
+                elif block.get("type") == "tool_result":
+                    use_id = block.get("tool_use_id")
+                    name = tool_names.get(use_id, "") if tool_names is not None and isinstance(use_id, str) else ""
+                    events.append(("tool_result", use_id or message_id, name,
+                                   content_text(block.get("content")), None, timestamp, None, None))
+    elif isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                events.append(("assistant", message_id, "", block.get("text"), None, timestamp, model, None))
+            elif block.get("type") == "thinking":
+                events.append(("thinking", message_id, "", block.get("thinking"), None, timestamp, model, None))
+            elif block.get("type") == "tool_use":
+                tool_name = block.get("name")
+                arguments = block.get("input")
+                if tool_names is not None and isinstance(block.get("id"), str) and isinstance(tool_name, str):
+                    tool_names[block["id"]] = tool_name
+                events.append(("tool_call", block.get("id") or message_id, tool_name,
+                               summarize_tool_call(tool_name, arguments), arguments, timestamp, model, None))
+    return events
+
+
 def commandcode_record_events(record: dict[str, object]) -> list[RawEvent]:
     role = record.get("role")
     content = record.get("content")
@@ -499,6 +560,16 @@ def commandcode_events(path: Path) -> Iterator[Event]:
             index += 1
 
 
+def claude_events(path: Path) -> Iterator[Event]:
+    index = 0
+    project = claude_projector()
+    for line_number, record in jsonl(path):
+        for kind, event_id, tool, text, arguments, timestamp, model, provider in project(record):
+            yield make_event(index, kind, timestamp, event_id, tool, text, arguments,
+                             model=model, provider=provider, source_ref=f"line {line_number}")
+            index += 1
+
+
 def freebuff_events(path: Path) -> Iterator[Event]:
     chat_dir = path if path.is_dir() else path.parent
     messages_path = chat_dir / "chat-messages.json"
@@ -576,6 +647,8 @@ def detect(path: Path) -> str:
     first = next(jsonl(path), (0, None))[1]
     if first and first.get("type") == "session":
         return "pi"
+    if claude_sessions.looks_like_claude(path, first):
+        return "claude"
     if first and ("sessionId" in first or first.get("role") in ("user", "assistant", "tool")):
         return "commandcode"
     raise ValueError("could not identify the session format")
@@ -593,8 +666,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
                 "  uv run scripts/search_session.py devin.json --type tool_call --tool-arg file_path=foo"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("source", type=Path, help="Pi/Command Code JSONL, Devin transcript JSON, Freebuff chat directory/file, or ZCode session id (sess_…, unique prefix allowed)")
-    parser.add_argument("--harness", choices=("auto", "pi", "commandcode", "devin", "freebuff", "zcode"), default="auto")
+    parser.add_argument("source", type=Path, help="Transcript path (Pi/Claude Code/Command Code JSONL, Devin JSON, Freebuff chat dir/file), or a session id from any harness (unique prefix allowed)")
+    parser.add_argument("--harness", choices=("auto", "pi", "claude", "commandcode", "devin", "freebuff", "zcode"), default="auto")
     parser.add_argument("--type", dest="types", action="append", choices=KINDS,
                         help="Event type; repeat to combine. 'tool' includes calls and results")
     parser.add_argument("--tool", action="append", default=[], help="Exact tool name; repeat to combine")
@@ -612,8 +685,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--format", choices=("json", "jsonl", "tsv"), default="json")
     args = parser.parse_args(argv)
     if not args.source.exists() and args.harness != "zcode" \
-            and not looks_like_zcode_id(str(args.source)):
-        parser.error(f"source does not exist: {args.source}")
+            and not looks_like_zcode_id(str(args.source)) \
+            and not find_sessions.looks_like_session_id(str(args.source)):
+        parser.error(f"source does not exist: {args.source} (pass a transcript path or a session id)")
     if args.offset < 0:
         parser.error("--offset must be non-negative")
     if not 1 <= args.limit <= 500:
@@ -688,18 +762,23 @@ def _event_preview(item: Event, extract: bool, query: str, max_chars: int) -> st
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     try:
+        if not args.source.exists() and args.harness != "zcode" \
+                and not looks_like_zcode_id(str(args.source)):
+            args.source = find_sessions.resolve_source(args.source)
         harness = detect(args.source) if args.harness == "auto" else args.harness
         if harness == "zcode":
             events = zcode_store.zcode_session_events(zcode_store.db_path(), str(args.source))
         elif harness == "pi":
             events = pi_events(args.source)
+        elif harness == "claude":
+            events = claude_events(args.source)
         elif harness == "commandcode":
             events = commandcode_events(args.source)
         elif harness == "devin":
             events = devin_events(args.source)
         else:
             events = freebuff_events(args.source)
-    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
+    except (OSError, json.JSONDecodeError, ValueError, sqlite3.Error, LookupError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
@@ -729,6 +808,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
+    if args.format != "json" and args.offset + len(page) < total_matches:
+        print(f"note: showing {len(page)} of {total_matches} matches; "
+              f"continue with --offset {args.offset + len(page)}", file=sys.stderr)
     if args.extract_field:
         for item in page:
             if not isinstance(item.arguments, dict):
@@ -746,8 +828,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         rows.append(row)
 
     if args.format == "json":
-        json.dump({"harness": harness, "total_matches": total_matches, "offset": args.offset,
-                   "limit": args.limit, "events": rows}, sys.stdout, indent=2)
+        end = args.offset + len(rows)
+        truncated = end < total_matches
+        summary: dict[str, object] = {"harness": harness, "total_matches": total_matches,
+                                      "offset": args.offset, "limit": args.limit,
+                                      "returned": len(rows), "truncated": truncated}
+        if truncated:
+            summary["next_offset"] = end
+            summary["hint"] = (f"{total_matches - end} more matches; continue with --offset {end}, "
+                               "or narrow with --type/--tool/--query")
+        json.dump({**summary, "events": rows}, sys.stdout, indent=2)
         print()
     elif args.format == "jsonl":
         for row in rows:

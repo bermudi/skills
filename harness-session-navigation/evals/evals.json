@@ -30,6 +30,12 @@
       "prompt": "I had a zcode session in ~/Documents/NewsWiki where we rethought the whole filing approach, but I can't find it in the picker and I don't know where zcode archives old conversations. Find it and give me a resume command.",
       "expected_output": "Explains zcode keeps sessions in ~/.zcode/cli/db/db.sqlite (archived is a flag, not a place), uses find_sessions/search_sessions with --harness zcode and --project scoping (subagents excluded), and returns the session id with an exact zcode --resume command without dumping the store.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Which of my Claude Code sessions edited AGENTS.md in the last month? Give me a way back into the newest one.",
+      "expected_output": "Uses scripts/search_sessions.py --harness claude with --tool Edit --tool-arg file_path=AGENTS.md --since 30d (bounded excerpts, no transcript dumps), reports candidates with id, title, cwd, and a `cd <cwd> && claude --resume <id>` command; does not read ~/.claude/sessions or resume anything automatically.",
+      "files": []
     }
   ]
 }

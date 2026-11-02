@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Find bounded session candidates for Pi, Devin, Command Code, and Freebuff.
+"""Find bounded session candidates for Pi, Claude Code, Devin, Command Code, and Freebuff.
 
 Devin sessions are discovered from ``devin list`` when available and fall back
 to on-disk transcripts otherwise.
@@ -22,6 +22,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import shlex
 import sqlite3
 import subprocess
@@ -35,10 +36,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import claude_sessions  # noqa: E402  (same directory)
+import scoping  # noqa: E402  (same directory)
 import session_cache  # noqa: E402  (same directory)
 import zcode_store  # noqa: E402  (same directory)
 
-HARNESSES = ("pi", "devin", "commandcode", "freebuff", "zcode")
+HARNESSES = ("pi", "claude", "devin", "commandcode", "freebuff", "zcode")
 
 
 def cache_path(home: Path | None = None) -> Path:
@@ -149,6 +152,13 @@ def read_pi_candidate(path: Path) -> Candidate:
                      shell_command("pi", "--session", str(path)), str(path))
 
 
+def read_claude_candidate(path: Path) -> Candidate:
+    meta = claude_sessions.read_meta(path)
+    return Candidate("claude", meta.session_id, meta.title, meta.preview, meta.cwd,
+                     iso_mtime(path), claude_sessions.resume_command(meta.session_id, meta.cwd),
+                     str(path))
+
+
 def read_commandcode_candidate(path: Path) -> Candidate:
     session_id = path.stem
     meta_path = path.with_name(f"{session_id}.meta.json")
@@ -237,6 +247,26 @@ def find_pi(home: Path, cache: session_cache.Cache | None = None) -> list[Candid
                 results.append(Candidate(**cached))
                 continue
         candidate = read_pi_candidate(path)
+        if cache is not None:
+            try:
+                stat = path.stat()
+                cache.put(key, {str(path): (stat.st_mtime, stat.st_size)}, asdict(candidate))
+            except OSError:
+                pass
+        results.append(candidate)
+    return results
+
+
+def find_claude(home: Path, cache: session_cache.Cache | None = None) -> list[Candidate]:
+    results: list[Candidate] = []
+    for path in claude_sessions.transcripts(home):
+        key = f"claude:{path}"
+        if cache is not None:
+            cached = cache.get(key)
+            if isinstance(cached, dict):
+                results.append(Candidate(**cached))
+                continue
+        candidate = read_claude_candidate(path)
         if cache is not None:
             try:
                 stat = path.stat()
@@ -443,16 +473,23 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description="Find session candidates without printing full transcripts or resuming them.",
         epilog=("Examples:\n"
                 "  uv run scripts/find_sessions.py --harness pi --query webhook\n"
-                "  uv run scripts/find_sessions.py --harness devin --project . --format tsv\n"
-                "  uv run scripts/find_sessions.py --harness devin --devin-source disk --limit 5\n"
-                "  uv run scripts/find_sessions.py --harness all --cache   # memoize extraction"),
+                "  uv run scripts/find_sessions.py --here --format tsv        # this directory only\n"
+                "  uv run scripts/find_sessions.py --project build/skills --limit 5\n"
+                "  uv run scripts/find_sessions.py --id 1686b8b5              # which harness owns this id?\n"
+                "  uv run scripts/find_sessions.py --harness all --cache      # memoize extraction"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--harness", choices=("all", *HARNESSES), default="all")
     parser.add_argument("--query", default="", help="Case-insensitive title, preview, ID, or project filter")
-    parser.add_argument("--project", type=Path, default=Path.cwd(), help="Project used for Devin listing")
+    parser.add_argument("--id", default="", help="Session id or unique-ish prefix; finds the owning harness")
+    parser.add_argument("--project", default="",
+                        help="Case-insensitive substring of the session's project/cwd/path (a real path also "
+                             "matches slug-keyed harnesses). Same meaning as search_sessions.py")
+    parser.add_argument("--here", action="store_true", help="Shorthand for --project <current directory>")
     parser.add_argument("--devin-source", choices=("auto", "cli", "disk"), default="auto",
-                        help="Devin discovery: auto (CLI, then disk fallback), cli, or disk (default: auto)")
+                        help="Devin discovery: auto (CLI when scoped by --project/--here, else transcript scan), "
+                             "cli, or disk. `devin list` is directory-scoped; a --project that is an existing "
+                             "directory is passed to it")
     parser.add_argument("--limit", type=int, default=20, help="Maximum results (1-500; default: 20)")
     parser.add_argument("--format", choices=("json", "jsonl", "tsv"), default="json")
     parser.add_argument("--cache", action="store_true",
@@ -460,9 +497,78 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if not 1 <= args.limit <= 500:
         parser.error("--limit must be between 1 and 500")
-    if not args.project.is_dir():
-        parser.error(f"--project is not a directory: {args.project}")
+    if args.here:
+        if args.project:
+            parser.error("--here and --project are mutually exclusive")
+        args.project = str(Path.cwd())
     return args
+
+
+def gather(selected: Sequence[str], project: str, devin_source: str, home: Path,
+           cache: session_cache.Cache | None) -> list[Candidate]:
+    """All candidates for the harnesses, unfiltered except Devin's CLI scope."""
+    # `devin list` only reports the directory it runs in. Unscoped listings
+    # therefore read the transcript directory so Devin isn't silently limited
+    # to whatever the caller's cwd happens to be.
+    if devin_source == "auto" and not project:
+        devin_source = "disk"
+    devin_dir = Path(project) if project and Path(project).is_dir() else Path.cwd()
+    candidates: list[Candidate] = []
+    for harness in selected:
+        if harness == "pi":
+            candidates.extend(find_pi(home, cache))
+        elif harness == "claude":
+            candidates.extend(find_claude(home, cache))
+        elif harness == "devin":
+            candidates.extend(find_devin(devin_dir.resolve(), devin_source, home, cache))
+        elif harness == "commandcode":
+            candidates.extend(find_commandcode(home, cache))
+        elif harness == "freebuff":
+            candidates.extend(find_freebuff(home, cache))
+        elif harness == "zcode":
+            candidates.extend(find_zcode(home))
+    return candidates
+
+
+def looks_like_session_id(text: str) -> bool:
+    """An id-shaped token (not a path): 4+ chars of [A-Za-z0-9_.-], no separators."""
+    return re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{3,}", text) is not None
+
+
+def resolve_session_id(text: str, home: Path | None = None) -> Candidate:
+    """The single session whose id equals/starts with ``text``, across harnesses.
+
+    Raises LookupError (with a bounded candidate list) if none or several match.
+    """
+    home = home or Path.home()
+    cache = session_cache.Cache.load(cache_path(home))
+    try:
+        candidates = gather(HARNESSES, "", "auto", home, cache)
+    finally:
+        try:
+            cache.save()
+        except OSError as error:
+            warn(f"cannot write cache: {error}")
+    prefix = text.casefold()
+    matches = [c for c in candidates if c.id.casefold().startswith(prefix)]
+    exact = [c for c in matches if c.id.casefold() == prefix]
+    if len(exact) == 1:
+        return exact[0]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise LookupError(f"no session id starting with {text!r} in {', '.join(HARNESSES)}")
+    listing = "; ".join(f"{c.harness}:{c.id} {c.title or c.preview[:40]!r}" for c in matches[:10])
+    more = f" (+{len(matches) - 10} more)" if len(matches) > 10 else ""
+    raise LookupError(f"id prefix {text!r} is ambiguous: {listing}{more}. Use a longer prefix")
+
+
+def resolve_source(source: Path, home: Path | None = None) -> Path:
+    """Map a session id given where a path is expected to its transcript source."""
+    candidate = resolve_session_id(str(source), home)
+    print(f"resolved {source} -> {candidate.harness} session {candidate.id}", file=sys.stderr)
+    # zcode has no transcript file; its helpers take the id itself.
+    return Path(candidate.id) if candidate.harness == "zcode" else Path(candidate.source)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -470,19 +576,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     home = Path.home()
     selected = HARNESSES if args.harness == "all" else (args.harness,)
     cache = session_cache.Cache.load(cache_path(home)) if args.cache else None
-    candidates: list[Candidate] = []
     try:
-        for harness in selected:
-            if harness == "pi":
-                candidates.extend(find_pi(home, cache))
-            elif harness == "devin":
-                candidates.extend(find_devin(args.project.resolve(), args.devin_source, home, cache))
-            elif harness == "commandcode":
-                candidates.extend(find_commandcode(home, cache))
-            elif harness == "freebuff":
-                candidates.extend(find_freebuff(home, cache))
-            elif harness == "zcode":
-                candidates.extend(find_zcode(home))
+        candidates = gather(selected, args.project, args.devin_source, home, cache)
     except DiscoveryError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -492,26 +587,45 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cache.save()
             except OSError as error:
                 warn(f"cannot write cache: {error}")
+    if args.project:
+        candidates = [c for c in candidates if scoping.project_matches(args.project, c.project, c.source)]
+        if "devin" in selected and not Path(args.project).is_dir():
+            warn("`devin list` is directory-scoped: Devin results cover only the current directory "
+                 "unless --project is an existing directory")
+    if args.id:
+        wanted_id = args.id.casefold()
+        candidates = [c for c in candidates if c.id.casefold().startswith(wanted_id)]
     query = args.query.casefold().strip()
     if query:
         candidates = [candidate for candidate in candidates if query in " ".join((
             candidate.title, candidate.preview, candidate.id, candidate.project,
         )).casefold()]
     candidates.sort(key=lambda candidate: candidate.updated_at, reverse=True)
+    total = len(candidates)
     candidates = candidates[: args.limit]
+    truncated = total > len(candidates)
 
     rows = [asdict(candidate) for candidate in candidates]
     if args.format == "json":
-        json.dump(rows, sys.stdout, indent=2)
+        summary: dict[str, object] = {"total_matches": total, "returned": len(rows),
+                                      "truncated": truncated, "harnesses": list(selected)}
+        if truncated:
+            summary["hint"] = (f"{total - len(rows)} more; raise --limit (max 500) or narrow with "
+                               "--query/--project/--harness/--id")
+        json.dump({**summary, "candidates": rows}, sys.stdout, indent=2)
         print()
-    elif args.format == "jsonl":
-        for row in rows:
-            print(json.dumps(row, ensure_ascii=False))
     else:
-        fields = list(Candidate.__dataclass_fields__)
-        writer = csv.DictWriter(sys.stdout, fieldnames=fields, delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+        if truncated:
+            print(f"note: showing {len(rows)} of {total} candidates; raise --limit or narrow the filters",
+                  file=sys.stderr)
+        if args.format == "jsonl":
+            for row in rows:
+                print(json.dumps(row, ensure_ascii=False))
+        else:
+            fields = list(Candidate.__dataclass_fields__)
+            writer = csv.DictWriter(sys.stdout, fieldnames=fields, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
     return 0 if candidates else 3
 
 

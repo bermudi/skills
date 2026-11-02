@@ -5,7 +5,7 @@
 # ///
 """Search message and tool content across ALL local sessions at once.
 
-Discovers Pi, Devin, Command Code, and Freebuff transcripts on disk, applies a
+Discovers Pi, Claude Code, Devin, Command Code, and Freebuff transcripts on disk, applies a
 cheap byte-level prefilter per line/file, and only parses content that could
 match. Each matching session is reported with bounded excerpts, provenance
 (model/provider/source position), and a resume command when one is safe.
@@ -32,17 +32,28 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import claude_sessions  # noqa: E402  (same directory)
+import scoping  # noqa: E402  (same directory)
 import search_session as ss  # noqa: E402  (same directory)
 import zcode_store  # noqa: E402  (same directory)
 
-HARNESSES = ("pi", "devin", "commandcode", "freebuff", "zcode")
-PROJECTORS: dict[str, Callable[[dict[str, object]], list[ss.RawEvent]]] = {
-    "pi": ss.pi_record_events,
-    "commandcode": ss.commandcode_record_events,
+HARNESSES = ("pi", "claude", "devin", "commandcode", "freebuff", "zcode")
+Projector = Callable[[dict[str, object]], list[ss.RawEvent]]
+# Factories, because some projectors carry per-file state (Claude pairs
+# tool_result events to their tool_use name).
+PROJECTOR_FACTORIES: dict[str, Callable[[], Projector]] = {
+    "pi": lambda: ss.pi_record_events,
+    "claude": ss.claude_projector,
+    "commandcode": lambda: ss.commandcode_record_events,
 }
 
 
+WARNINGS = 0  # diagnostics emitted this run; reported so partial coverage is visible
+
+
 def warn(message: str) -> None:
+    global WARNINGS
+    WARNINGS += 1
     print(f"warning: {message}", file=sys.stderr)
 
 
@@ -96,6 +107,7 @@ class SessionMatch:
     title: str = ""
     resume_command: str = ""
     hits: list[Hit] = field(default_factory=list)
+    hits_capped: bool = False  # stopped at --max-hits; more may exist
 
 
 def enumerate_pi(home: Path) -> Iterator[FileEntry]:
@@ -104,6 +116,11 @@ def enumerate_pi(home: Path) -> Iterator[FileEntry]:
         return
     for path in root.rglob("*.jsonl"):
         yield FileEntry("pi", path, path.stat().st_size)
+
+
+def enumerate_claude(home: Path) -> Iterator[FileEntry]:
+    for path in claude_sessions.transcripts(home):
+        yield FileEntry("claude", path, path.stat().st_size)
 
 
 def enumerate_devin(home: Path) -> Iterator[FileEntry]:
@@ -136,6 +153,7 @@ def enumerate_freebuff(home: Path) -> Iterator[FileEntry]:
 
 ENUMERATORS: dict[str, Callable[[Path], Iterator[FileEntry]]] = {
     "pi": enumerate_pi,
+    "claude": enumerate_claude,
     "devin": enumerate_devin,
     "commandcode": enumerate_commandcode,
     "freebuff": enumerate_freebuff,
@@ -253,6 +271,11 @@ def pi_session_metadata(path: Path) -> tuple[str, str, str]:
     return session_id, project, title
 
 
+def claude_session_metadata(path: Path) -> tuple[str, str, str]:
+    meta = claude_sessions.read_meta(path)
+    return meta.session_id, meta.cwd, meta.title
+
+
 def commandcode_session_metadata(path: Path) -> tuple[str, str, str]:
     session_id = path.stem
     project = path.parent.name
@@ -268,9 +291,11 @@ def commandcode_session_metadata(path: Path) -> tuple[str, str, str]:
     return session_id, project, title
 
 
-def resume_command(harness: str, path: Path, session_id: str) -> str:
+def resume_command(harness: str, path: Path, session_id: str, project: str = "") -> str:
     if harness == "pi":
         return shell_command("pi", "--session", str(path))
+    if harness == "claude":
+        return claude_sessions.resume_command(session_id, project)
     if harness == "commandcode":
         return shell_command("cmd", "--session", str(path))
     if harness == "devin" and session_id:
@@ -310,8 +335,15 @@ def collect_hits(entry: FileEntry, matcher: Matcher, needles: list[re.Pattern[by
         ))
         return len(hits) >= max_hits
 
-    if entry.harness in PROJECTORS:
-        projector = PROJECTORS[entry.harness]
+    if entry.harness in PROJECTOR_FACTORIES:
+        projector = PROJECTOR_FACTORIES[entry.harness]()
+        if entry.harness == "claude" and not parse_all and "tool_result" in matcher.wanted:
+            # tool_result lines carry no tool name. Always read tool_use lines
+            # so the name is known, and with a --tool filter read the result
+            # lines too, since they can't contain the filter word.
+            needles = [*needles, re.compile(rb'"type":\s*"tool_use"')]
+            if matcher.tools:
+                needles.append(re.compile(rb'"type":\s*"tool_result"'))
         index = 0
         for line_number, record in scan_jsonl_lines(entry.path, needles, parse_all):
             for kind, event_id, tool, text, arguments, timestamp, model, provider in projector(record):
@@ -347,6 +379,8 @@ def finalize_session(entry: FileEntry, hits: list[Hit]) -> SessionMatch:
                           updated_at=iso_mtime(entry.path))
     if entry.harness == "pi":
         result.session_id, result.project, result.title = pi_session_metadata(entry.path)
+    elif entry.harness == "claude":
+        result.session_id, result.project, result.title = claude_session_metadata(entry.path)
     elif entry.harness == "commandcode":
         result.session_id, result.project, result.title = commandcode_session_metadata(entry.path)
     elif entry.harness == "devin":
@@ -359,7 +393,7 @@ def finalize_session(entry: FileEntry, hits: list[Hit]) -> SessionMatch:
     else:  # freebuff: .../projects/<project>/chats/<chat-id>/chat-messages.json
         result.session_id = entry.path.parent.name
         result.project = entry.path.parents[2].name if len(entry.path.parents) >= 3 else ""
-    result.resume_command = resume_command(entry.harness, entry.path, result.session_id)
+    result.resume_command = resume_command(entry.harness, entry.path, result.session_id, result.project)
     result.hits = hits
     return result
 
@@ -391,7 +425,8 @@ def search_zcode(args: argparse.Namespace, home: Path, matcher: Matcher,
     """
     db = zcode_store.db_path(home)
     if not db.is_file():
-        warn(f"zcode session store not found at {db}; skipping harness")
+        # Not installed is not partial coverage: plain note, not a counted warning.
+        print(f"note: zcode session store not found at {db}; skipping harness", file=sys.stderr)
         return []
     try:
         conn = zcode_store.connect(db, warn)
@@ -442,7 +477,7 @@ def search_zcode(args: argparse.Namespace, home: Path, matcher: Matcher,
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Search message and tool content across all local sessions (Pi, Devin, Command Code, Freebuff, ZCode).",
+        description="Search message and tool content across all local sessions (Pi, Claude Code, Devin, Command Code, Freebuff, ZCode).",
         epilog=("Examples:\n"
                 "  uv run scripts/search_sessions.py --query obelisk\n"
                 "  uv run scripts/search_sessions.py --query 'auth bug' --harness pi --harness devin --since 30d\n"
@@ -459,7 +494,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--tool-arg", action="append", default=[],
                         help="Filter tool calls by key=value in arguments; repeat to combine (partial match for strings)")
     parser.add_argument("--project", default="",
-                        help="Case-insensitive substring the transcript path must contain (e.g. project directory)")
+                        help="Case-insensitive substring the transcript path must contain (a real path also "
+                             "matches slug-keyed harnesses). Same meaning as find_sessions.py")
+    parser.add_argument("--here", action="store_true", help="Shorthand for --project <current directory>")
     parser.add_argument("--since", type=parse_since, default=None,
                         help="Only sessions modified since: 30d, 12h, 4w, 6mo, 1y, or an ISO date")
     parser.add_argument("--limit", type=int, default=20, help="Maximum sessions returned (1-100; default: 20)")
@@ -469,6 +506,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
                         help="Characters per excerpt (20-2000; default: 300)")
     parser.add_argument("--format", choices=("json", "jsonl", "tsv"), default="json")
     args = parser.parse_args(argv)
+    if args.here:
+        if args.project:
+            parser.error("--here and --project are mutually exclusive")
+        args.project = str(Path.cwd())
     if not 1 <= args.limit <= 100:
         parser.error("--limit must be between 1 and 100")
     if not 1 <= args.max_hits <= 20:
@@ -484,6 +525,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 
 def run(args: argparse.Namespace, home: Path) -> int:
+    global WARNINGS
+    WARNINGS = 0
     selected = list(HARNESSES) if not args.harness or "all" in args.harness else list(dict.fromkeys(args.harness))
     matcher = Matcher(args)
     needles, needs_full_parse = build_needles(args.query, args.tool, args.tool_arg)
@@ -496,8 +539,7 @@ def run(args: argparse.Namespace, home: Path) -> int:
     if args.since is not None:
         entries = [entry for entry in entries if entry.path.stat().st_mtime >= args.since]
     if args.project:
-        needle_path = args.project.casefold()
-        entries = [entry for entry in entries if needle_path in str(entry.path).casefold()]
+        entries = [entry for entry in entries if scoping.project_matches(args.project, str(entry.path))]
 
     total_bytes = sum(entry.size for entry in entries)
     scope = ", ".join(selected)
@@ -514,11 +556,27 @@ def run(args: argparse.Namespace, home: Path) -> int:
         hits = collect_hits(entry, matcher, needles, parse_all, args.max_hits, args.preview_chars)
         if hits:
             files_read += 1
-            matches.append(finalize_session(entry, hits))
+            match = finalize_session(entry, hits)
+            match.hits_capped = len(hits) >= args.max_hits
+            matches.append(match)
     matches.sort(key=lambda match: match.updated_at, reverse=True)
+    total_matches = len(matches)
     matches = matches[: args.limit]
-
-    print(f"{len(matches)} session(s) matched", file=sys.stderr)
+    truncated = total_matches > len(matches)
+    capped = sum(1 for match in matches if match.hits_capped)
+    hints: list[str] = []
+    if truncated:
+        hints.append(f"{total_matches - len(matches)} more matching sessions not shown: raise --limit (max 100) "
+                     "or narrow with --since/--project/--harness/--tool")
+    if capped:
+        hints.append(f"{capped} session(s) stopped at --max-hits {args.max_hits} and may have more hits: "
+                     "raise --max-hits or open one with search_session.py")
+    if WARNINGS:
+        hints.append(f"{WARNINGS} warning(s) on stderr (unreadable files or skipped stores): coverage may be partial")
+    shown = f"{len(matches)} of {total_matches}" if truncated else f"{len(matches)}"
+    print(f"{shown} session(s) matched", file=sys.stderr)
+    for hint in hints:
+        print(f"note: {hint}", file=sys.stderr)
 
     def session_dict(match: SessionMatch) -> dict[str, object]:
         return {
@@ -529,11 +587,14 @@ def run(args: argparse.Namespace, home: Path) -> int:
             "path": str(match.path),
             "updated_at": match.updated_at,
             "resume_command": match.resume_command,
+            "hits_capped": match.hits_capped,
             "hits": [vars(hit) for hit in match.hits],
         }
 
     if args.format == "json":
         json.dump({"harnesses": selected, "files_scanned": len(entries),
+                   "total_matches": total_matches, "returned": len(matches), "truncated": truncated,
+                   "warnings": WARNINGS, "hints": hints,
                    "sessions": [session_dict(match) for match in matches]},
                   sys.stdout, indent=2, ensure_ascii=False)
         print()

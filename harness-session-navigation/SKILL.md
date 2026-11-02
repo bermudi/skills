@@ -2,7 +2,7 @@
 name: harness-session-navigation
 description: >
   Use this skill when finding, identifying, resuming, switching, branching, or
-  navigating sessions in Pi, Devin CLI, Command Code (`cmd`/`commandcode`),
+  navigating sessions in Pi, Claude Code, Devin CLI, Command Code (`cmd`/`commandcode`),
   ZCode (`zcode`), or Freebuff, when identifying which of those harnesses
   owns an unknown coding session, or when searching session history — by
   content, tool actions, or file edits — across one or all of them. Covers
@@ -10,7 +10,7 @@ description: >
   read-only recovery when the normal picker cannot find it.
 license: Apache-2.0
 metadata:
-  version: "1.1"
+  version: "1.3"
   topic: harness-sessions
 ---
 # Harness Session Navigation
@@ -23,7 +23,7 @@ Inspect files only when the picker cannot answer the question.
 
 1. Identify the harness from the command, process, or storage path. Do not
    assume every JSONL file is a Pi session.
-2. Establish the **project directory**. Pi, Devin, Command Code, ZCode, and
+2. Establish the **project directory**. Pi, Claude Code, Devin, Command Code, ZCode, and
    Freebuff all scope normal history discovery by working directory or project.
    ZCode records each session's working directory in its store — a real cwd,
    not a transcript-path inference — so `--project` substring scoping is
@@ -44,6 +44,7 @@ Inspect files only when the picker cannot answer the question.
 | Harness | Continue latest | Find/resume | Current session | Navigate or branch |
 |---|---|---|---|---|
 | Pi | `pi -c` | `pi -r`, `/resume`, `pi --session <path-or-id>` | `/session` | `/tree`, `/fork`, `/clone` |
+| Claude Code | `claude -c` (cwd-scoped) | `claude -r [id-or-name]`, `/resume` | session UUID in `~/.claude/projects/<slug>/<id>.jsonl` | `--fork-session` on resume; `/rewind` can restore files; no tree view |
 | Devin | `devin -c` | `devin -r [id]`, `devin list`, `/resume`, `/ls` | session ID shown by listing/resume | No Pi-style tree command; start fresh with `/new` |
 | Command Code | `cmd -c` | `cmd -r [name]`, `/resume`, `cmd --session <path-or-id>` | `/session-file` | `/tree`, `/rewind`, `/fork`, `/clone` |
 | Freebuff | `freebuff --continue` | `/history`, `freebuff --continue <id>` | selected chat ID; local chat directory if needed | No tree/fork interface; `/new` starts a separate chat |
@@ -57,6 +58,7 @@ both, so sessions cannot be attributed to one frontend and don't need to be.
 Read only the matching reference before giving commands or inspecting storage:
 
 - [Pi](references/pi.md)
+- [Claude Code](references/claude.md)
 - [Devin](references/devin.md)
 - [Command Code](references/commandcode.md)
 - [Freebuff](references/freebuff.md)
@@ -68,7 +70,7 @@ The helpers are read-only, emit bounded structured output, and never resume or
 delete sessions:
 
 - `scripts/search_sessions.py` — search message and tool content across
-  **all** local sessions at once (Pi, Devin, Command Code, Freebuff, ZCode): the
+  **all** local sessions at once (Pi, Claude Code, Devin, Command Code, Freebuff, ZCode): the
   one-place search. Byte-prefilters each transcript, parses only what could
   match, and returns per-session grouped hits with bounded excerpts,
   provenance (model/provider/source position), and a resume command where
@@ -92,21 +94,37 @@ delete sessions:
   - the byte prefilter is conservative: Unicode, escaped text, and tool
     summaries may require extra parsing rather than risk missing a match
   - exit 3 means no matches; zero-hit searches still emit valid empty JSON
+  - **read the coverage fields**: JSON carries `total_matches`, `returned`,
+    `truncated`, `warnings`, and `hints` (what to raise or narrow); each
+    session has `hits_capped` when it stopped at `--max-hits`. Treat
+    `truncated: true` as "not everything is shown", never as the full answer
+  - `--here` is shorthand for `--project <cwd>`; the same flag and meaning
+    exist in `find_sessions.py`. A real path (`/home/me/app`) also matches
+    slug-keyed harnesses (`--home-me-app--`)
 - `scripts/find_sessions.py` — list/filter candidate sessions across
   harnesses by metadata and first-prompt previews (no content search).
+  `--id <prefix>` answers "which harness owns this session id?" (returns the
+  harness, project, and resume command). JSON output is an object with
+  `total_matches`/`returned`/`truncated`/`hint` and a `candidates` array.
+  `--project`/`--here` use the same substring scoping as `search_sessions.py`.
   `--cache` memoizes extraction in
   `${XDG_CACHE_HOME:-~/.cache}/session-navigation/` keyed by file
   mtime/size, including changes to or creation of optional metadata sidecars:
   a cold scan of thousands of transcripts drops to a warm rerun in well under
   a second. Cache format changes cause a rebuild automatically.
   For Devin, `--devin-source` controls
-  discovery: `auto` (default) tries `devin list --format json`, then falls back
-  to scanning `~/.local/share/devin/cli/transcripts/*.json`; `cli` forces the
+  discovery: `auto` (default) tries `devin list --format json` when scoped by
+  `--project`/`--here` (it is directory-scoped; an existing directory given to
+  `--project` is passed to it) and otherwise reads the full transcript
+  directory so unscoped listings aren't limited to the cwd; either way it
+  falls back to scanning `~/.local/share/devin/cli/transcripts/*.json`; `cli` forces the
   CLI only; `disk` forces the transcript scan only. When a transcript exists on
   disk, the `source` field is the transcript path and `preview` is the first
   user prompt.
-- `scripts/inspect_session.py` — inspect one Pi, Command Code, Devin,
-  Freebuff, or ZCode session, returning metadata and a limited number of user
+- `scripts/inspect_session.py` — inspect one Pi, Claude Code, Command Code, Devin,
+  Freebuff, or ZCode session (pass a transcript path, or just a session id /
+  unique prefix from any harness — it is resolved like `find_sessions.py --id`;
+  `search_session.py` accepts the same), returning metadata and a limited number of user
   prompt previews. For Devin, pass the transcript file from
   `~/.local/share/devin/cli/transcripts/<session-id>.json`. Devin output also
   includes `tool_call_summary` (counts by tool name), `files_touched` (paths
@@ -116,8 +134,8 @@ delete sessions:
   `tool_call_summary`, `files_touched`, and `duration_seconds`.
 - `scripts/search_session.py` — normalize and filter one local transcript by
   `user`, `assistant`, `thinking`, `tool`, `tool_call`, or `tool_result`;
-  optionally filter exact tool names and preview text. Supports Pi, Command
-  Code, Devin, Freebuff, and ZCode (pass a `sess_…` id or unique prefix;
+  optionally filter exact tool names and preview text. Supports Pi, Claude
+  Code, Command Code, Devin, Freebuff, and ZCode (pass a `sess_…` id or unique prefix;
   looked up read-only in the zcode store). `--query` matches full event text and full
   tool-call arguments before any display truncation, so matches deep inside
   long messages or `edit`/`write` payloads are found. Output rows carry
@@ -129,7 +147,8 @@ delete sessions:
   visible. `--tool-arg key=value` filters by argument
   content (case-insensitive partial match). `--extract` with
   `--extract-field <name>` pulls plain-text values from tool-call arguments —
-  e.g., recovering all file paths written by a session.
+  e.g., recovering all file paths written by a session. JSON output reports
+  `returned`, `truncated`, and `next_offset` for paging with `--offset`.
 
 Run them from the skill directory with `uv`:
 
@@ -140,6 +159,9 @@ uv run scripts/search_sessions.py --query kwin --project skills --format tsv
 uv run scripts/find_sessions.py --harness pi --query webhook --cache
 uv run scripts/find_sessions.py --harness devin --devin-source disk --limit 10
 uv run scripts/find_sessions.py --harness devin --project /path/to/repo --format tsv
+uv run scripts/find_sessions.py --id 1686b8b5            # which harness owns this id?
+uv run scripts/find_sessions.py --here --limit 10        # sessions for the current directory
+uv run scripts/inspect_session.py 1686b8b5               # id instead of a path
 uv run scripts/inspect_session.py /path/to/session.jsonl --max-prompts 3
 uv run scripts/inspect_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json
 uv run scripts/search_session.py /path/to/session.jsonl --type user --query migration
@@ -169,6 +191,7 @@ be surprising, use a subshell:
 
 ```bash
 (cd /path/to/project && pi -r)
+(cd /path/to/project && claude -r)
 (cd /path/to/project && devin list)
 (cd /path/to/project && cmd -r)
 ```
