@@ -21,11 +21,9 @@ matches the installed binary). The binary is the authority; this file only layer
 orchestration method on top.
 
 The orchestrator is itself an agent inside herdr (`HERDR_ENV=1`); verify that before
-driving. If `HERDR_ENV` is unset but the operator hands you a socket
-(`HERDR_SOCKET_PATH=…`) or says to proceed, that is the authorization: prefix commands with
-the path and go. Do not refuse, and do not re-explain a refusal — one operator hit this
-six turns running, escalating each time, while the same inline-socket form worked in other
-sessions. Canonical loop:
+driving. If `HERDR_ENV` is unset but the operator supplies a socket or session
+(`HERDR_SOCKET_PATH=…`, `--session <name>`), that is the authorization: prefix commands
+with it and proceed — don't refuse or argue. Canonical loop:
 
 **baseline → start → prompt → wait for a settled state → read → independently verify → steer or stop.**
 
@@ -72,10 +70,8 @@ or accept it and tighten in-TUI when `idle` (Devin: `/mode accept-edits`).
 Recognizable failure: `agent start … -- --permission-mode X` times out
 (`timed out waiting for agent startup`), `agent get <name>` says `agent_not_found`, and
 `herdr pane read <pane-id>` shows `error: the argument '--permission-mode …' cannot be
-used multiple times`. It is the alias, not herdr's integration — agents repeatedly
-mis-blamed the integration. Also read `visible` after start and confirm the model and
-mode banner before the first prompt; fresh sessions have come up on an unintended model
-or in bypass.
+used multiple times`. It is the alias, not herdr's integration (agents keep
+mis-blaming the integration).
 
 ### Other quirks
 
@@ -151,6 +147,9 @@ prints the deleted checkout path. Errors arrive as a JSON envelope with `.error.
 - `agent start` returns only once the agent is detected and ready for input (30s
   default timeout). On a startup block it returns `agent_not_ready` but keeps the name
   usable — wait for `idle` before prompting.
+- After every `agent start` and every `/new`, read `--source visible` and confirm the
+  model and permission-mode banner before the first prompt; fresh sessions have come up
+  on an unintended model or in bypass.
 - **Two timeouts, two units.** herdr `--timeout` is milliseconds; your own shell tool's
   `timeout` argument has its own unit (pi's `bash`: seconds). Copying one into the other
   yields `Invalid timeout: maximum is 2147483.647 seconds` — that is your tool rejecting
@@ -158,8 +157,8 @@ prints the deleted checkout path. Errors arrive as a JSON envelope with `.error.
 - `agent start` accepts `--timeout` of 3000–300000 ms. A start **`timeout`** (as opposed
   to `agent_not_ready`) leaves **no registered name**: diagnose with
   `herdr pane read <pane-id> --source recent-unwrapped`, fix the cause (alias flag clash,
-  extension/startup error), and address the pane by ID. Re-running `agent start` on the
-  same pane has returned `agent_pane_busy`.
+  extension/startup error), and address the pane by ID rather than blindly re-running
+  `agent start` on it.
 - A wait timeout or an interrupted parent tool call does **not** mean the child stopped.
   Re-read state and output before acting:
 
@@ -186,15 +185,14 @@ report to a Markdown file and read that (never request this in the initial promp
 
 ### Known traps
 
-- **Early or suspicious `done`.** `done` persists until the next `agent prompt`
-  consumes it. If `prompt --wait` returns suspiciously fast, measure rather than guess:
-  elapsed wall time, `completion_seq`/`state_change_seq` vs. before, then `agent read`.
-  Real multi-minute turns have been mistaken for "instant" ones, and the reverse has
-  happened. Three causes seen: a stale terminal state from the prior turn (wait again);
-  a genuine early `idle`; and a turn that died on a model/plan/quota error
-  (`Permission denied`, usage limit) and shows `done` with no work done — only the
-  pane text tells these apart. For an agent that may already be working, use
-  `agent wait <name> --until working` and then a plain `agent wait <name>`.
+- **Suspicious `done`.** From `idle`/`done`, `prompt --wait` must observe `working` or
+  `blocked` within 5 s (else `agent_prompt_stalled`), so an instantly matched stale
+  `done` is an older-build trap. Two cases remain: a turn that died on a model, plan, or
+  quota error (`Permission denied`, usage limit) settles as `done` with no work done; and
+  waiting on an agent that is already working may match that turn's end. Before calling a
+  result stale, measure — elapsed time, `completion_seq` — and `agent read`; real
+  multi-minute turns have been misjudged as instant. For an already-working agent:
+  `agent wait <name> --until working`, then a plain `agent wait <name>`.
 - **`agent_blocked`.** `agent prompt` refuses to send while the agent sits at an
   approval/question dialog. Resolve the dialog first (see below).
 - **`agent_prompt_stalled`.** A prompt sent from a non-working state must produce an
@@ -215,15 +213,16 @@ report to a Markdown file and read that (never request this in the initial promp
 ## Prompting rules
 
 1. **Target by unique name** (`herdr agent rename <target> <name>` if needed). Names
-   are identities; pane/terminal IDs are low-level escape hatches. **Pin the target
-   before every send:** `agent get` must show the expected kind and cwd, and the pane
-   must not be your own (`$HERDR_PANE_ID`) — an orchestrator has read its own pane
-   believing it was the child. `agent prompt --expect-session <id>` makes the send
-   refuse if the occupant changed. Inherited env from another herdr session needs
-   `--session`. Prompt agent panes with `agent prompt`, never a `pane send-text`
-   line-loop plus `send-keys enter`: that once pasted a 4.6 KB task into the wrong
-   (review) pane and submitted it. Don't `head`-truncate `agent list` before reporting an
-   agent absent; filter to one compact line per record.
+   are identities; pane/terminal IDs are low-level escape hatches. Pin the target
+   before every send:
+   - `agent get` shows the expected kind and cwd;
+   - the pane is not your own (`$HERDR_PANE_ID`);
+   - `agent prompt --expect-session <id>` refuses if the occupant changed;
+   - env inherited from another herdr session needs `--session`.
+
+   Prompt agent panes only with `agent prompt` — a `pane send-text` loop plus
+   `send-keys enter` has submitted a task to the wrong pane. Never `head`-truncate
+   `agent list` before declaring an agent absent; print one compact line per record.
 2. **Write long specs to a file** (`/tmp/task-123.md` or `TASK.md` in the repo) and
    send a one-line prompt referencing it. Multi-line pasted text is unreliable in TUI
    input boxes — Enter may submit early.
@@ -264,8 +263,7 @@ Treat coding agents as implementers, not authorities:
 2. **Inspect at milestones.** Read output at meaningful checkpoints; never inject
    prompts while the agent is working. Every follow-up prompt must be chosen from what
    you just read. Do not script polling loops, timers, or canned "continue" prompts
-   across panes: that bloats the child's context and burns the quota it was meant to
-   spend on work (an overnight coordinator did exactly this and the operator stopped it).
+   across panes: they bloat the child's context and burn the quota meant for work.
    When the operator asks what a child is doing, answer with its assigned task and
    progress (from your brief and its transcript), not a description of the current screen
    or dialog; keep that investigation read-only.
@@ -302,8 +300,8 @@ Treat coding agents as implementers, not authorities:
 - Create workspaces and panes with `--no-focus` when orchestrating; drive agents purely
   by name.
 - Tell every child, in the brief, not to touch herdr layout (no `pane/tab/workspace
-  close` or move). A codex child "cleaning up" ran `herdr workspace close` and killed
-  itself, the orchestrator, and a reviewer sharing that workspace.
+  close` or move) — a child "cleaning up" once closed the workspace it shared with the
+  orchestrator, killing both.
 - Fan-in: loop over names, `agent wait`/`agent get` each, collect with `agent read`.
 - Announce completion: `herdr notification show "All agents done" --sound done`.
 
