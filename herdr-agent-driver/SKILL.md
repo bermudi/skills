@@ -235,7 +235,8 @@ report to a Markdown file and read that (never request this in the initial promp
 4. **Bound every implementation turn:** name the phase or issue, allowed scope,
    required checks, commit expectation, and an explicit stopping point. Steering
    follow-ups stay short and imperative.
-5. **Reset harness context at phase or review boundaries** — `/clear` or `/new`, per
+5. **Reset harness context at phase or review boundaries** — the long-lived context,
+   not the prompt text, is what burns a subscription window — `/clear` or `/new`, per
    harness (launch-defaults table). Stale context makes agents defend earlier work and
    blur scope.
 6. Useful stopping prompt: `Implement only <unit>; run <checks>; commit only scoped
@@ -263,7 +264,9 @@ Treat coding agents as implementers, not authorities:
 2. **Inspect at milestones.** Read output at meaningful checkpoints; never inject
    prompts while the agent is working. Every follow-up prompt must be chosen from what
    you just read. Do not script polling loops, timers, or canned "continue" prompts
-   across panes: they bloat the child's context and burn the quota meant for work.
+   across panes. When a child hits a usage/quota wall, stop prompting it until the
+   stated reset time and say so; probing every few minutes only stacks dead prompts in
+   its history.
    When the operator asks what a child is doing, answer with its assigned task and
    progress (from your brief and its transcript), not a description of the current screen
    or dialog; keep that investigation read-only.
