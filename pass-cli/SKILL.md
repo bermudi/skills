@@ -158,7 +158,11 @@ PROTON_PASS_AGENT_REASON="Find the token item for the requested deployment" \
 
 Once found, prefer the vault share ID and item ID for automation. Names are
 convenient for an interactive one-off, but duplicate vault or item names can
-resolve to the wrong object.
+resolve to the wrong object — and **trashed items are eligible for title
+resolution**: a hidden duplicate in trash silently shadows the active item, so
+the CLI keeps serving an old value no re-login can fix (observed 2026-10-25).
+Diagnose with `item list <vault> --output json` (`state`, `modify_time`) and
+pin references to `share_id` + `id`.
 
 ## Give a process a secret without exposing it
 
