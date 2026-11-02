@@ -10,6 +10,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import tempfile
 import time
@@ -18,6 +19,7 @@ from unittest import mock
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 SCRIPTS = Path(__file__).parent
 if str(SCRIPTS) not in sys.path:
@@ -42,6 +44,8 @@ zcode_store = load("zcode_store")
 find_sessions = load("find_sessions")
 inspect_session = load("inspect_session")
 search_sessions = load("search_sessions")
+session_children = load("session_children")
+turn_usage = load("turn_usage")
 
 
 class HelperTests(unittest.TestCase):
@@ -143,8 +147,9 @@ class HelperTests(unittest.TestCase):
 
             entries = list(search_sessions.enumerate_claude(home))
             self.assertEqual([entry.path for entry in entries], [path])
-            matcher = search_sessions.Matcher(mock.Mock(types=None, tool=["edit"], query="", tool_arg=[("file_path", "db.sql")]))
-            hits = search_sessions.collect_hits(entries[0], matcher, [], True, 5, 200)
+            matcher = search_sessions.Matcher(mock.Mock(types=None, tool=["edit"], query=[], regex=[],
+                                                        tool_arg=[("file_path", "db.sql")]))
+            hits = search_sessions.collect_hits(entries[0], matcher, search_sessions.Prefilter([]), 5, 200)
             self.assertEqual([hit.tool for hit in hits], ["Edit"])
             match = search_sessions.finalize_session(entries[0], hits)
             self.assertEqual(match.resume_command, candidate.resume_command)
@@ -1227,6 +1232,311 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("error:", err.getvalue())
             self.assertNotIn("Traceback", err.getvalue())
+
+    # --- search ergonomics: coverage, pairing, context, regex/AND, speed guards ---
+
+    def _run_cross(self, home: Path, *argv: str) -> tuple[int, Any, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = search_sessions.run(search_sessions.parse_args(list(argv)), home)
+        return rc, json.loads(out.getvalue()), err.getvalue()
+
+    def _run_single(self, *argv: str) -> tuple[int, Any]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            rc = search_session.main(list(argv))
+        return rc, json.loads(out.getvalue()) if out.getvalue().strip() else {}
+
+    def _pi_orchestrator(self, home: Path, records: list[dict[str, object]], name: str = "orch") -> Path:
+        path = home / f".pi/agent/sessions/--work-orch--/2026-11-02T08-00-00-000Z_{name}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [{"type": "session", "id": name, "cwd": "/work/orch"}, *records]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+        return path
+
+    @staticmethod
+    def _pi_call(call_id: str, command: str, ts: int) -> dict[str, object]:
+        return {"type": "message", "id": f"a-{call_id}", "message": {"role": "assistant", "timestamp": ts,
+                "content": [{"type": "toolCall", "id": call_id, "name": "bash", "arguments": {"command": command}}]}}
+
+    @staticmethod
+    def _pi_result(call_id: str, text: str, ts: int, is_error: bool = False,
+                   duration: int | None = None) -> dict[str, object]:
+        message: dict[str, object] = {"role": "toolResult", "toolCallId": call_id, "toolName": "bash",
+                                      "isError": is_error, "timestamp": ts,
+                                      "content": [{"type": "text", "text": text}]}
+        if duration is not None:
+            message["durationMs"] = duration
+        return {"type": "message", "id": f"r-{call_id}", "message": message}
+
+    def test_fold_to_ascii_set_is_complete(self) -> None:
+        # Hard-coded (and \\u-escaped) because tools NFKC-normalize the Kelvin
+        # sign to "K"; a normalized copy made every line with a K bypass the prefilter.
+        expected = {chr(cp) for cp in range(0x80, 0x110000)
+                    if any(any(ch.isascii() for ch in form)
+                           for form in (chr(cp).casefold(), chr(cp).lower(), chr(cp).upper()))}
+        self.assertEqual(set(search_sessions.FOLDS_TO_ASCII), expected)
+        self.assertNotIn("K", search_sessions.FOLDS_TO_ASCII)
+
+    def test_prefilter_rejects_plain_unicode_and_requires_every_phrase_word(self) -> None:
+        prefilter = search_sessions.build_prefilter(search_session.TextFilter.build(["herdr agent"]), [], [])
+        em_dash = '{"text":"a — herdr only"}'.encode()
+        self.assertFalse(prefilter.might_match(em_dash))           # non-ASCII alone is no reason to parse
+        self.assertFalse(prefilter.might_match(b'{"text":"herdr only"}'))  # phrase words are ANDed
+        self.assertTrue(prefilter.might_match(b'{"text":"herdr\\nagent"}'))
+        self.assertTrue(prefilter.might_match('{"text":"ẖerdr agent"}'.encode()))  # ẖ folds to h
+        self.assertFalse(prefilter.might_match(b'{"text":"ansi \\u001b[31m only"}'))
+        self.assertTrue(prefilter.might_match(b'{"text":"\\u0068erdr agent"}'))
+        # Only folds that can supply an anchor letter are checked: ſ (s) is irrelevant here.
+        self.assertFalse(prefilter.might_match('{"text":"ſ"}'.encode()))
+        kelvin = search_sessions.build_prefilter(search_session.TextFilter.build(["kelvin"]), [], [])
+        self.assertTrue(kelvin.might_match('{"text":"Kelvin"}'.encode()))
+        # A tool-call line bypasses only when an anchor could be summary-synthesized.
+        call = b'{"type":"toolCall","name":"exec","arguments":{"cwd":"/w"}}'
+        self.assertFalse(prefilter.might_match(call))
+        workdir = search_sessions.build_prefilter(search_session.TextFilter.build(["workdir"]), [], [])
+        self.assertTrue(workdir.might_match(call))
+
+    def test_summary_words_come_from_arguments_or_labels(self) -> None:
+        samples = [
+            ("bash", {"command": "ls -la", "workdir": "/w"}), ("exec", {"cmd": "make", "cwd": "/x"}),
+            ("run_subagent", {"title": "Fix it", "profile": "fast"}),
+            ("grep", {"pattern": "foo", "path": "src", "glob_pattern": "*.py"}),
+            ("find_file_by_name", {"pattern": "a", "path": "b"}), ("web_search", {"query": "zig"}),
+            ("webfetch", {"url": "https://e.x"}), ("skill", {"command": "go", "skill": "pdf"}),
+            ("todo_write", {"todos": [1, 2]}), ("ask_user_question", {"questions": [1]}),
+            ("edit", {"path": "/a/b.py"}), ("mystery", {"k": "v"}),
+        ]
+        for tool, arguments in samples:
+            summary = search_session.summarize_tool_call(tool, arguments)
+            source = search_session.compact(arguments).casefold()
+            for word in re.findall(r"[A-Za-z0-9_]+", summary.casefold()):
+                with self.subTest(tool=tool, word=word):
+                    self.assertTrue(word in source or word.isdigit() or word in search_session.SUMMARY_LABELS,
+                                    "new synthetic summary word: add it to SUMMARY_LABELS")
+
+    def test_regex_anchor_words(self) -> None:
+        def anchors(pattern: str) -> object:
+            return search_sessions.regex_anchor_words(re.compile(pattern, re.IGNORECASE))
+        self.assertEqual(anchors(r"retard|idiot|wtf"), frozenset({"retard", "idiot", "wtf"}))
+        self.assertEqual(anchors(r"why (did|are) you"), frozenset({"why"}))
+        self.assertEqual(anchors(r"stale\s+done"), frozenset({"stale"}))
+        self.assertEqual(anchors(r"(?:returned )?instantly"), frozenset({"instantly"}))
+        self.assertIsNone(anchors(r"\d+ms"[:3]))
+        self.assertIsNone(anchors(r"foo|\d+"))  # one branch has no literal: no safe anchor
+        self.assertEqual(anchors(r"x(?=ylophone)"), frozenset({"ylophone"}))
+
+    def test_repeated_query_and_regex_are_anded_in_both_searches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = self._pi_orchestrator(home, [
+                {"type": "message", "id": "u1", "message": {"role": "user", "content": "alpha and beta"}},
+                {"type": "message", "id": "u2", "message": {"role": "user", "content": "alpha only"}},
+                {"type": "message", "id": "u3", "message": {"role": "user", "content": "WHY did you do that"}},
+            ])
+            rc, data = self._run_single(str(path), "--query", "alpha", "--query", "beta")
+            self.assertEqual((rc, data["total_matches"]), (0, 1))
+            rc, data = self._run_single(str(path), "--regex", r"why (did|are) you", "--type", "user")
+            self.assertEqual(data["total_matches"], 1)
+            self.assertIn("WHY", data["events"][0]["preview"])
+            rc, data = self._run_single(str(path), "--regex", "^alpha", "--query", "only")
+            self.assertEqual(data["total_matches"], 1)  # ^ anchors at text start: no leading join space
+            rc, data, _ = self._run_cross(home, "--harness", "pi", "--query", "alpha", "--query", "beta",
+                                          "--max-hits", "5")
+            self.assertEqual(len(data["sessions"][0]["hits"]), 1)
+            rc, data, _ = self._run_cross(home, "--harness", "pi", "--regex", "wtf|why did")
+            self.assertEqual(data["sessions"][0]["hits"][0]["source_ref"], "line 4")
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                search_session.parse_args([str(path), "--regex", "("])
+
+    def test_with_result_pairs_calls_results_errors_and_elapsed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = self._pi_orchestrator(home, [
+                self._pi_call("c1", "herdr agent wait w1", 1_793_600_000_000),
+                self._pi_result("c1", "done: idle", 1_793_600_400_000, duration=397_000),
+                self._pi_call("c2", "herdr agent wait w2", 1_793_600_500_000),
+                self._pi_result("c2", "boom", 1_793_600_503_000, is_error=True),
+                self._pi_call("c3", "herdr agent wait w3", 1_793_600_600_000),  # interrupted: no result
+            ])
+            rc, data = self._run_single(str(path), "--type", "tool_call", "--query", "agent wait", "--with-result")
+            results = [event["result"] for event in data["events"]]
+            self.assertEqual((results[0]["elapsed_ms"], results[0]["elapsed_source"], results[0]["is_error"]),
+                             (397_000, "recorded", False))
+            self.assertEqual((results[1]["elapsed_ms"], results[1]["elapsed_source"], results[1]["is_error"]),
+                             (3_000, "timestamps", True))
+            self.assertIsNone(results[2])
+            rc, data = self._run_single(str(path), "--type", "tool_result", "--query", "boom", "--with-result")
+            self.assertEqual(data["events"][0]["call"]["preview"], "herdr agent wait w2")
+            self.assertTrue(data["events"][0]["is_error"])
+            # Cross-session: the result lines hold none of the query words.
+            rc, data, _ = self._run_cross(home, "--harness", "pi", "--query", "agent wait", "--type", "tool_call",
+                                          "--with-result", "--max-hits", "1")
+            [hit] = data["sessions"][0]["hits"]
+            self.assertEqual((hit["result"]["elapsed_ms"], hit["result"]["preview"]), (397_000, "done: idle"))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                search_sessions.run(search_sessions.parse_args(
+                    ["--harness", "pi", "--query", "agent wait", "--with-result", "--format", "tsv"]), home)
+            header, first = out.getvalue().splitlines()[:2]
+            self.assertIn("elapsed_ms", header.split("\t"))
+            self.assertIn("397000", first.split("\t"))
+
+    def test_with_result_claude_timestamps_and_devin_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            path = self._claude_fixture(home)
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
+            rows[1]["timestamp"], rows[2]["timestamp"] = "2026-11-02T10:00:00.000Z", "2026-11-02T10:04:30.500Z"
+            rows[2]["message"]["content"][0]["is_error"] = True
+            path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            rc, data = self._run_single(str(path), "--type", "tool_call", "--with-result")
+            result = data["events"][0]["result"]
+            self.assertEqual((result["elapsed_ms"], result["is_error"]), (270_500, True))
+            devin = home / "devin.json"
+            devin.write_text(json.dumps({"session_id": "d1", "steps": [{
+                "source": "agent", "step_id": 1, "timestamp": "2026-11-02T10:00:00Z",
+                "tool_calls": [{"tool_call_id": "t1", "function_name": "exec", "arguments": {"command": "sleep 300"}}],
+                "observation": {"results": [{"source_call_id": "t1", "content": "ok"}]}}]}))
+            rc, data = self._run_single(str(devin), "--type", "tool_call", "--with-result")
+            result = data["events"][0]["result"]
+            # Call and result share one step timestamp: elapsed is unknown, never a fake 0.
+            self.assertEqual((result["elapsed_ms"], result["elapsed_source"]), (None, "unknown"))
+
+    def test_around_shows_context_and_rejects_search_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            records: list[dict[str, object]] = []
+            for n in range(10):
+                records.append({"type": "message", "id": f"u{n}", "message": {"role": "user", "content": f"prompt {n}"}})
+            path = self._pi_orchestrator(home, records)
+            rc, data = self._run_single(str(path), "--around", "L6", "--before", "2", "--after", "3")
+            self.assertEqual([e["source_ref"] for e in data["events"]],
+                             ["line 4", "line 5", "line 6", "line 7", "line 8", "line 9"])
+            self.assertEqual([e["anchor"] for e in data["events"]], [False, False, True, False, False, False])
+            rc, data = self._run_single(str(path), "--around", "#0", "--before", "0", "--after", "1")
+            self.assertEqual([e["preview"] for e in data["events"]], ["prompt 0", "prompt 1"])
+            rc, data = self._run_single(str(path), "--around", "L999")
+            self.assertEqual(rc, 3)
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                self.assertEqual(search_session.main([str(path), "--around", "step 2"]), 2)
+            self.assertIn("'line <n>'", err.getvalue())
+            for bad in (["--around", "L2", "--query", "x"], ["--before", "3"], ["--around", "nowhere"]):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    search_session.parse_args([str(path), *bad])
+
+    def test_cross_search_offset_pages_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            for n in range(3):
+                self._pi_orchestrator(home, [{"type": "message", "id": "u", "message": {
+                    "role": "user", "content": "paging needle"}}], name=f"s{n}")
+            rc, first, err = self._run_cross(home, "--harness", "pi", "--query", "needle", "--limit", "2")
+            self.assertEqual((first["total_matches"], first["returned"], first["truncated"], first["next_offset"]),
+                             (3, 2, True, 2))
+            self.assertIn("--offset 2", first["hints"][0])
+            rc, rest, _ = self._run_cross(home, "--harness", "pi", "--query", "needle", "--offset", "2")
+            self.assertEqual((rest["returned"], rest["truncated"]), (1, False))
+            seen = {s["path"] for s in first["sessions"]} | {s["path"] for s in rest["sessions"]}
+            self.assertEqual(len(seen), 3)
+
+    def test_session_children_resolves_ids_and_infers_claude_by_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            devin = home / ".local/share/devin/cli/transcripts/keen-snowman.json"
+            devin.parent.mkdir(parents=True)
+            devin.write_text(json.dumps({"session_id": "keen-snowman", "steps": [
+                {"source": "user", "step_id": 0, "message": "child task"}]}))
+            claude_path = self._claude_fixture(home, session="cl-child", slug="-work-app", cwd="/work/app")
+            rows = [json.loads(line) for line in claude_path.read_text().splitlines()]
+            rows[0]["timestamp"] = "2026-11-02T08:05:00.000Z"
+            claude_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            os_time = 1_793_606_700  # 2026-11-02T08:05Z
+            import os
+            os.utime(claude_path, (os_time + 300, os_time + 300))
+            listing = json.dumps({"result": {"agents": [
+                {"agent": "devin", "agent_session": {"agent": "devin", "kind": "id", "value": "keen-snowman"},
+                 "cwd": "/work/app", "pane_id": "w1:p1", "terminal_id": "t-dev"},
+                {"agent": "claude", "cwd": "/work/app", "pane_id": "w1:p2", "terminal_id": "t-cl"},
+                {"agent": None, "cwd": "/work", "pane_id": "w1:p3"},
+                {"agent": "opencode", "agent_session": {"kind": "id", "value": "oc1"}, "cwd": "/x", "pane_id": "w1:p4"},
+            ]}})
+            orchestrator = self._pi_orchestrator(home, [
+                self._pi_call("c1", "herdr agent list --json", 1_793_606_700_000),
+                self._pi_result("c1", listing, 1_793_606_701_000),
+                self._pi_call("c2", "herdr agent prompt w1:p2 'run tests'", 1_793_606_760_000),
+                self._pi_result("c2", "ok", 1_793_606_761_000),
+            ])
+            out = io.StringIO()
+            with mock.patch.object(Path, "home", return_value=home), \
+                    mock.patch.object(find_sessions, "find_devin_cli", side_effect=find_sessions.DiscoveryError("no cli")), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                rc = session_children.main([str(orchestrator)])
+            self.assertEqual(rc, 0)
+            children = {child["agent"]: child for child in json.loads(out.getvalue())["children"]}
+            self.assertEqual(set(children), {"devin", "claude", "opencode"})  # shell pane ignored
+            self.assertEqual(children["devin"]["resolution"], "agent_session")
+            self.assertEqual(children["devin"]["session"]["source"], str(devin))
+            self.assertEqual(children["devin"]["driven_calls"], 0)
+            self.assertEqual(children["claude"]["resolution"], "inferred")
+            self.assertEqual([c["session_id"] for c in children["claude"]["candidates"]], ["cl-child"])
+            self.assertEqual(children["claude"]["driven_calls"], 1)
+            self.assertIn("not a harness", children["opencode"]["note"])
+
+    def test_event_timestamp_out_of_range_passes_through(self) -> None:
+        self.assertEqual(search_sessions.iso_event_timestamp("999999999999"), "999999999999")
+
+    def test_turn_usage_dedupes_claude_requests_and_reads_pi_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            project = home / ".claude/projects/-w"
+            project.mkdir(parents=True)
+            usage = {"input_tokens": 10, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 90,
+                     "output_tokens": 50}
+            rows = [
+                {"type": "user", "uuid": "u1", "cwd": "/w", "timestamp": "2026-11-02T10:00:00Z",
+                 "message": {"role": "user", "content": "first task"}},
+                # One request, written as two block records that repeat its usage.
+                {"type": "assistant", "uuid": "a1", "timestamp": "2026-11-02T10:00:05Z", "message": {
+                    "id": "msg1", "model": "m1", "usage": usage, "content": [{"type": "thinking", "thinking": "."}]}},
+                {"type": "assistant", "uuid": "a2", "timestamp": "2026-11-02T10:00:06Z", "message": {
+                    "id": "msg1", "model": "m1", "usage": usage,
+                    "content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {}}]}},
+                {"type": "user", "uuid": "u2", "timestamp": "2026-11-02T10:00:09Z", "message": {"role": "user",
+                 "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x", "is_error": True}]}},
+                {"type": "system", "subtype": "compact_boundary", "timestamp": "2026-11-02T10:00:10Z"},
+                {"type": "user", "uuid": "u3", "timestamp": "2026-11-02T10:01:00Z",
+                 "message": {"role": "user", "content": "second task"}},
+            ]
+            path = project / "s1.jsonl"
+            path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(turn_usage.main([str(path)]), 0)
+            data = json.loads(out.getvalue())
+            first = data["turns"][0]
+            self.assertEqual((first["api_calls"], first["output_tokens"], first["peak_context"],
+                              first["tool_calls"], first["tool_errors"], first["compactions"], first["duration_s"]),
+                             (1, 50, 1100, 1, 1, 1, 10.0))
+            self.assertEqual(data["totals"]["turns"], 2)
+            pi = self._pi_orchestrator(home, [
+                {"type": "message", "id": "u1", "timestamp": "2026-11-02T10:00:00Z",
+                 "message": {"role": "user", "content": "go"}},
+                {"type": "message", "id": "a1", "timestamp": "2026-11-02T10:00:03Z", "message": {
+                    "role": "assistant", "model": "p1", "usage": {"input": 5, "output": 7, "cacheRead": 100, "cacheWrite": 0},
+                    "content": [{"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}}]}},
+                self._pi_result("c1", "bad", 0, is_error=True),
+                {"type": "message", "id": "a2", "timestamp": "2026-11-02T10:00:08Z", "message": {
+                    "role": "assistant", "model": "p1", "usage": {"input": 9, "output": 3, "cacheRead": 105, "cacheWrite": 2},
+                    "content": [{"type": "text", "text": "done"}]}},
+            ])
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(turn_usage.main([str(pi), "--format", "json"]), 0)
+            [turn] = json.loads(out.getvalue())["turns"]
+            self.assertEqual((turn["api_calls"], turn["output_tokens"], turn["peak_context"], turn["tool_errors"]),
+                             (2, 10, 116, 1))
 
 
 if __name__ == "__main__":

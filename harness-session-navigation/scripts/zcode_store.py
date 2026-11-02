@@ -206,11 +206,11 @@ def zcode_row_events(message_data: dict[str, object],
         if isinstance(text, str) and text.strip():
             role = message_data.get("role")
             kind = "user" if role == "user" else "assistant"
-            events.append((kind, message_id, "", text, None, timestamp, model_id, provider))
+            events.append(ss.RawEvent(kind, message_id, "", text, None, timestamp, model_id, provider))
     elif part_type == "reasoning":
         text = part_data.get("text")
         if isinstance(text, str) and text.strip():
-            events.append(("thinking", message_id, "", text, None, timestamp, model_id, provider))
+            events.append(ss.RawEvent("thinking", message_id, "", text, None, timestamp, model_id, provider))
     elif part_type == "tool":
         raw_tool = part_data.get("tool")
         tool_name = raw_tool if isinstance(raw_tool, str) else ""
@@ -218,13 +218,19 @@ def zcode_row_events(message_data: dict[str, object],
         call_id = raw_call_id if isinstance(raw_call_id, str) and raw_call_id else message_id
         state = part_data.get("state")
         arguments = state.get("input") if isinstance(state, dict) else None
-        events.append(("tool_call", call_id, tool_name,
+        events.append(ss.RawEvent("tool_call", call_id, tool_name,
                        ss.summarize_tool_call(tool_name, arguments), arguments,
                        timestamp, model_id, provider))
         output = state.get("output") if isinstance(state, dict) else None
         if output is not None and not (isinstance(output, str) and not output.strip()):
-            events.append(("tool_result", call_id, tool_name, output, None,
-                           timestamp, model_id, provider))
+            status = state.get("status") if isinstance(state, dict) else None
+            timing = state.get("time") if isinstance(state, dict) else None
+            duration: object = None
+            if isinstance(timing, dict) and all(isinstance(timing.get(k), (int, float)) for k in ("start", "end")):
+                duration = timing["end"] - timing["start"]
+            events.append(ss.RawEvent("tool_result", call_id, tool_name, output, None,
+                                      timestamp, model_id, provider,
+                                      status == "error" if isinstance(status, str) else None, duration))
     return events
 
 
@@ -247,14 +253,10 @@ def _iter_rows(conn: sqlite3.Connection, session_id: str) -> Iterator[tuple[dict
 
 def zcode_events(conn: sqlite3.Connection, session_id: str) -> Iterator[ss.Event]:
     """Full normalized event stream for one zcode session."""
-    index = 0
-    for message_data, part_data, message_id, message_sequence, part_sequence in _iter_rows(conn, session_id):
-        for kind, event_id, tool, text, arguments, timestamp, model, provider in zcode_row_events(
-                message_data, part_data, message_id):
-            yield ss.make_event(index, kind, timestamp, event_id, tool, text, arguments,
-                                model=model, provider=provider,
-                                source_ref=f"msg {message_sequence} part {part_sequence}")
-            index += 1
+    yield from ss.raw_events(
+        (f"msg {message_sequence} part {part_sequence}",
+         zcode_row_events(message_data, part_data, message_id))
+        for message_data, part_data, message_id, message_sequence, part_sequence in _iter_rows(conn, session_id))
 
 
 def zcode_session_events(db: Path, reference: str,

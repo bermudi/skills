@@ -10,7 +10,7 @@ description: >
   read-only recovery when the normal picker cannot find it.
 license: Apache-2.0
 metadata:
-  version: "1.3"
+  version: "1.4"
   topic: harness-sessions
 ---
 # Harness Session Navigation
@@ -78,11 +78,21 @@ delete sessions:
   subagent sessions are excluded as noise. Use it before running
   `search_session.py` over individual files.
   - `--query` matches full event text, tool names, and full tool-call
-    arguments; `--tool edit --tool-arg path=AGENTS.md` answers "which
-    sessions — and which models — changed a file"
+    arguments; repeat it to AND terms. `--regex` (Python, case-insensitive;
+    repeatable, ANDs with `--query`) for alternations like
+    `'wtf|why did you|not what i'`. `--tool edit --tool-arg path=AGENTS.md`
+    answers "which sessions — and which models — changed a file"
+  - `--with-result` pairs each tool_call hit with its result (`preview`,
+    `is_error`, `elapsed_ms`, `elapsed_source`) and each tool_result hit with
+    its call. `elapsed_source` is `recorded` (harness duration), `timestamps`
+    (call→result record times), or `unknown` — Devin/Freebuff keep call and
+    result in one step, so their elapsed is never reported as 0
   - scope with `--harness` (repeatable), `--since 30d`, `--project
     <path-substring>`; a full-history scan over gigabytes can take a minute,
-    so prefer `--since` when recency bounds the question
+    so prefer `--since` when recency bounds the question. Every word of a
+    `--query` phrase must appear in a record, so multi-word queries scan
+    fastest; a regex with no literal on every branch forces a full parse
+    (stderr says so)
   - `--since` filters by transcript modification time, not event time — for
     zcode it uses the session's recorded `time_updated`, which is real
     activity time. `--project` filters the transcript's path on disk, not
@@ -95,9 +105,11 @@ delete sessions:
     summaries may require extra parsing rather than risk missing a match
   - exit 3 means no matches; zero-hit searches still emit valid empty JSON
   - **read the coverage fields**: JSON carries `total_matches`, `returned`,
-    `truncated`, `warnings`, and `hints` (what to raise or narrow); each
-    session has `hits_capped` when it stopped at `--max-hits`. Treat
-    `truncated: true` as "not everything is shown", never as the full answer
+    `truncated`, `next_offset`, `warnings`, and `hints` (what to raise or
+    narrow); each session has `hits_capped` when it stopped at `--max-hits`.
+    Treat `truncated: true` as "not everything is shown", never as the full
+    answer; page with `--offset` (`--limit` max 500). JSONL/TSV carry only
+    rows — their counts are on stderr
   - `--here` is shorthand for `--project <cwd>`; the same flag and meaning
     exist in `find_sessions.py`. A real path (`/home/me/app`) also matches
     slug-keyed harnesses (`--home-me-app--`)
@@ -149,6 +161,25 @@ delete sessions:
   `--extract-field <name>` pulls plain-text values from tool-call arguments —
   e.g., recovering all file paths written by a session. JSON output reports
   `returned`, `truncated`, and `next_offset` for paging with `--offset`.
+  `--query` (repeatable, AND), `--regex`, and `--with-result` work as in
+  `search_sessions.py`. `--around L<n> [--before 5] [--after 10]` shows the
+  events around a position instead of searching — take `L<n>`/`step <n>`/
+  `item <n>`/`msg <n> part <n>` from a hit's `source_ref`, or `#<index>`;
+  `--type` narrows which kinds appear, rows at the position have `anchor: true`.
+- `scripts/session_children.py` — child agent sessions an orchestrator
+  transcript observed or drove through herdr. Reads herdr pane objects from
+  tool results: `agent_session` ids/paths resolve directly (devin, pi, piz →
+  zcode, claude, command-code); panes without one (usually Claude) are
+  `inferred` from the pane's cwd plus the time window the orchestrator saw it,
+  with every candidate listed. `driven_calls` counts the orchestrator's own
+  tool calls naming the pane/terminal/session — 0 means it only appeared in a
+  listing; `--driven-only` keeps the rest out. Its own pane is dropped.
+- `scripts/turn_usage.py` — per-user-turn API calls, tool calls/errors, API
+  errors, output tokens, peak context, compactions, models, and duration for
+  one Claude Code or Pi session (`--query` filters turns by prompt preview,
+  `--min-calls` drops no-op turns). Claude writes one record per content
+  block, each repeating the request's usage, so calls/tokens are counted per
+  `message.id` — counting records inflates both about 2×.
 
 Run them from the skill directory with `uv`:
 
@@ -169,6 +200,10 @@ uv run scripts/search_session.py /path/to/session.jsonl --type tool --tool bash 
 uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --type tool_call --tool write
 uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --tool write --extract --extract-field file_path
 uv run scripts/search_session.py ~/.local/share/devin/cli/transcripts/brawny-relish.json --type tool_call --tool-arg file_path=html-communication
+uv run scripts/search_sessions.py --tool bash --query 'herdr agent wait' --with-result --since 7d
+uv run scripts/search_session.py <id> --around L1520 --before 5 --after 10
+uv run scripts/session_children.py <orchestrator-id> --driven-only --format tsv
+uv run scripts/turn_usage.py <claude-or-pi-id> --min-calls 1 --format tsv
 ```
 
 Tool calls and tool results are separate records; `--type tool` includes both.
