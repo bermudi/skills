@@ -54,6 +54,18 @@ New repo skills are NOT linked automatically (every install adds every-turn desc
 ln -s "$PWD/<name>" ~/.agents/skills/<name>
 ```
 
+Every skill installed into `~/.agents/skills/` is also mirrored for Claude Code
+into `~/.claude/skills/` (same real target, resolved — repo path for repo skills,
+the tool-managed dir for `terminal-browser`). When linking a new skill, repeat
+the link there:
+
+```bash
+ln -sfn "$(readlink -f ~/.agents/skills/<name>)" ~/.claude/skills/<name>
+```
+
+`~/.claude/skills/synced/` is an unrelated machine-synced bucket of Anthropic
+built-ins (nested too deep to be discovered) — leave it alone.
+
 If `skills update -g` (or a fresh `skills add`) replaces a symlink with a
 directory copy, `./scripts/link-local-skills [--skill=<name>]` repairs it:
 trashes the displaced copy (via `trash`, never `rm`) and relinks — but only for
