@@ -42,6 +42,14 @@ Allowed frontmatter keys: `name`, `description`, `license`, `allowed-tools`, `me
 
 **Keep descriptions lean.** The `description` is loaded into context *every single turn* so the agent can decide whether to trigger the skill. Bloat it and you pay that token cost forever, on every message, whether the skill fires or not.
 
+## Source-first Authoring
+
+When a skill request includes a design document or pasted attachment, read it
+before drafting. A visible attachment marker is not its contents. If the
+contents are unavailable, search local files by the supplied basename and
+topic before asking the operator to resend them. Missing source material is
+a blocker, not permission to invent the intended workflow.
+
 ## Deploying Skills
 
 This repo is the **source of truth** for skills. We do NOT use the `skills` CLI to manage this repo's installs — installed copies are **plain symlinks** into this checkout (`~/.agents/skills/*`; `pi-docs` scoped to pi at `~/.pi/agent/skills/pi-docs`; external ones like `terminal-browser` and local-only ones like `filing-supervisor` stay tool-managed). The installed copy IS the working tree: **edits are live immediately**, no install/update step, nothing needs to "register" anywhere.
@@ -112,7 +120,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 `agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-handoff`, `create-project-agentsmd`, `create-subagents`, `harness-session-navigation`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `plannotator` (adopted from a standalone install, then rewritten from the official docs at docs.plannotator.ai — owned here; docs can lag or lead the installed binary, trust `plannotator <cmd> --help` when they disagree). Binary-only install: `curl -fsSL https://plannotator.ai/install.sh | bash -s -- --minimal`. Never run `plannotator uninstall` — it would delete the `~/.agents/skills/plannotator` symlink into this repo along with the binary; check with `--dry-run` first. `herdr plugin uninstall` leaves the plugin's keybindings behind in `~/.config/herdr/config.toml` — remove those blocks by hand. No plannotator extensions are installed; last-message review for pi/devin/opencode runs through the herdr `prefix+shift+o` hook script with per-harness transcript extractors (`~/.config/herdr/scripts/plannotator-last.sh`) — adding a harness is one extractor function, not an upstream dependency. `PLANNOTATOR_BROWSER` points at a herdr side-pane wrapper., `poe-provider`, `pty-handling`, `terminal-sessions`.
 
-`fusion` is locally authored: one cross-harness sidekick in a Herdr sibling pane, with bounded delegation and lead-owned verification. It layers on the installed Herdr command reference; creating the skill does not install it.
+`fusion` is adapted from the operator's `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01): the lead retains design, authority, correctness-critical authoring, and full-diff review; one persistent cheaper sidekick handles implementation, verification, and environment work through a Herdr sibling pane. Herdr is the transport, not the collaboration policy. Creating the skill does not install it.
 
 `forking-projects` is locally authored from the operator's wiki notes `fork-patch-stack-maintenance.md` and `fork-to-independent-project.md`; it encodes shared fork-maintenance conventions with separate patch-carrying and independent-project modes.
 

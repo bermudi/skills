@@ -1,212 +1,181 @@
 ---
 name: fusion
 description: >-
-  Use when the user asks for fusion: a sidekick in a different coding-agent
-  harness, running beside the main agent in a Herdr side pane. Covers launch,
-  bounded delegation, follow-up, and independent verification. Not for ordinary
-  same-harness subagents or unrelated pane management.
+  Use when the user asks for Fusion: the lead designs and reviews while one
+  persistent, cheaper sidekick in another harness implements, verifies, and
+  handles the environment through a Herdr side pane. Delegate execution by
+  default, not judgment.
 compatibility: Requires Herdr and an installed interactive sidekick harness.
 ---
 
 # Fusion
 
-**One lead, one cross-harness sidekick.** Keep responsibility for the task in
-this conversation; use a different interactive coding harness in a Herdr sibling
-pane for a bounded second opinion, investigation, or delegated implementation.
-A different model in the same harness is not fusion. A hidden subagent or
-headless subprocess is not a substitute for the requested side pane.
+**Delegate execution, retain judgment.** You are the lead: own the outcome,
+planning, design, consequential decisions, and final review. Use exactly one
+**persistent, cheaper sidekick** in a different interactive harness for
+implementation, verification, and environment work.
 
-## Establish the connection and launch choices
+The point is cost, not a second opinion: mechanical execution consumes much
+of a coding session's tokens. Put that work on the cheaper model; protect
+quality by settling the design yourself and reviewing the resulting artifacts.
+Doing the implementation yourself by habit forfeits the saving. Making the
+sidekick a read-only reviewer reverses the intended division of labor.
 
-Read the `herdr` skill and run `herdr --skill` for the installed command
-reference. Use the local skill's connection policy if the embedded copy still
-insists that callers must always be inside Herdr:
+## Decide who does the next action
 
-- Inside Herdr (`HERDR_ENV=1`), use the inherited connection and caller pane.
-- Outside Herdr, use only an explicit user-supplied socket or session. Prefix
-  **every** command with that connection, for example
-  `HERDR_SOCKET_PATH=/path/from/user herdr agent list` or
-  `herdr --session supplied-name agent list`. Use explicit pane IDs.
-- Without either, ask which connection and parent pane to use. Do not attach
-  to a focused/default session or set `HERDR_ENV=1` yourself.
+Once Fusion is active, delegate by default—not only when stuck or busy.
 
-Discover syntax without changing layout:
+| Next action | Owner |
+|---|---|
+| Ordinary implementation of a settled change | Sidekick |
+| Environment setup **and repair**, including failures blocking the lead | Sidekick |
+| Builds, tests, lint, type-checks, other mechanical verification | Sidekick, using the narrowest sufficient checks |
+| Broad searches, inventory, schema/source discovery | Sidekick, returning evidence rather than choosing the design |
+| Planning, architecture, interfaces, trade-offs, user agreement | Lead |
+| Correctness-critical authoring **and checking**: analysis/measurement, queries against shared or production data, prompts/rubrics/graders/eval harnesses, scoring/threshold/sampling/data-pipeline configuration | Lead; sidekick may mechanically execute an exact lead-authored recipe |
+| Complex rendered-browser work: dashboards, visual reports, multi-step GUI flows | Lead, keeping implementation and rendered judgment in one loop; a simple open-and-screenshot check may be delegated |
+| User communication, secrets requests, commits, pushes, PRs/review replies, CI authority actions | Lead, subject to the user's permissions |
+| Full review of the sidekick's changes before acceptance | Lead |
 
-```bash
-herdr --help
-herdr agent
-herdr agent start --help
-herdr pane
-```
+**Trivial-edit exception:** do it yourself only if editing **and confirming**
+fit in 1–2 lead turns total, with no verification left afterwards. Size alone
+does not exempt correctness-critical work. Before any direct edit or check,
+name the applicable exception; otherwise hand it off.
 
-Do not run bare `herdr` (it opens the TUI) or probe mutating commands by
-omitting arguments. The installed binary, not copied examples, decides which
-agent kinds and flags are supported.
+Do not dispatch an unsettled implementation ask. If discovery is needed,
+delegate a bounded discovery pass, inspect its evidence, decide, then dispatch
+the settled implementation. For unknown production schemas: first request
+schema and candidate sources; then author the exact query yourself. Require
+“schema surprise ⇒ stop and report,” not a substitute query.
 
-Before creating a pane:
+## Establish one persistent execution partner
 
-1. Establish the lead's harness, project directory, and parent pane. Inside
-   Herdr, use `herdr pane current --current` and, when needed,
-   `herdr agent get "$HERDR_PANE_ID"`; outside it, inspect the explicitly
-   supplied parent. Use observed identity rather than guessing from a model
-   name. If identity cannot be established, ask.
-2. Honor the requested sidekick harness and verify it differs from the lead.
-   If unspecified, ask which installed alternative to use. If unavailable,
-   report that and ask for an alternative; do not silently substitute.
-3. Use only a model and provider explicitly approved by the user or standing
-   project instructions. Harness approval is not model approval. Ask for
-   missing choices together, before launch; do not rely on an unverified
-   default or silently switch models on failure.
-4. Check the chosen harness's local `--help` for native model and permission
-   flags. Prefer a read-only tool/sandbox configuration for review. Do not
-   add bypass/YOLO flags, grant repository trust, install integrations, or
-   change global defaults just to make startup succeed.
+Before the first handoff, read [the Herdr adapter](references/herdr.md) to
+create a sibling pane and launch the different harness. Use only an explicitly
+approved harness/model/provider pairing; ask for missing choices together.
+Aim for the approved cheaper model capable of executing a fully specified
+brief—do not choose a provider or model on the user's behalf.
 
-## Create the sibling pane, then start the harness
+Have the sidekick read [its operating instructions](references/sidekick.md)
+on the first handoff. It shares the machine and filesystem, **not** your
+conversation. Send task-specific instructions and settled facts, not raw user
+messages or a copy of your transcript.
 
-Default to one sidekick, the same tab and working directory, and no focus
-change. Do not create a workspace, tab, or worktree unless the user requests
-that topology. Inspect layout and existing agents first:
+Keep the same sidekick for the session, across tasks and rework. Its own
+history, discoveries, edits, shells, servers, and other runtime state are
+assets to reuse. Do not spawn per task, fan out additional workers, `/new`,
+`/clear`, or replace it at phase boundaries.
 
-```bash
-herdr pane layout --pane "$parent_pane"
-herdr agent list
-```
+Record the connection, pane/name, harness session ID where available,
+approved model, project, completed handoffs, pending report, live processes,
+and evidence paths in your session notes. Preserve that record across lead
+compaction. Use the harness's native compaction without claiming it guarantees
+lossless history; retain available transcript/checkpoint paths and verify
+uncertain state rather than restarting or redoing completed work.
 
-Use an unused agent name such as `fusion-review` (names must match
-`[a-z][a-z0-9_-]{0,31}`). Never take over an existing agent just because it
-looks idle. Honor a requested split direction; otherwise split a wide pane
-right and a narrow/tall pane down.
+**Ready means:** the one sidekick's identity, model, project, and permissions
+are verified, and its operating instructions are included in the first brief.
 
-The following Bash example assumes `parent_pane`, `project_dir`, `direction`,
-`sidekick`, `chosen_kind`, and the `native_args` array have been set from
-those verified choices. `native_args` contains only the harness's own
-arguments, including the approved model/provider selection where supported.
-Examples below use an inherited connection; apply the explicit connection
-prefix throughout when outside Herdr.
+## Settle the brief before handing off
 
-```bash
-split_json=$(herdr pane split --pane "$parent_pane" \
-  --direction "$direction" --cwd "$project_dir" --no-focus) || exit 1
-side_pane=$(printf '%s' "$split_json" \
-  | jq -er '.result.pane.pane_id | strings | select(length > 0)') || exit 1
-
-herdr agent start "$sidekick" --kind "$chosen_kind" --pane "$side_pane" \
-  -- "${native_args[@]}"
-```
-
-`agent start` does not create layout: split first and parse the **returned**
-pane ID. Do not infer it from sidebar order or sample IDs. If a split's
-response is lost or unparsable, inspect the parent's pane list/layout before
-retrying; the pane may already exist.
-
-Wait for startup readiness, then inspect:
-
-```bash
-herdr agent get "$sidekick"
-herdr agent read "$sidekick" --source visible --lines 80
-```
-
-Confirm the actual harness, model/provider, cwd, and permission mode before
-submitting work. Use visible startup information and harness-supported
-read-only inspection as needed; if model/provider cannot be verified, stop
-and label it unverified. Shell aliases can inject permissions or conflicting
-flags; inspect actual startup failures rather than guessing at a repair.
-
-On `agent_not_ready`, inspect the dialog; the name may still be usable.
-On startup timeout, inspect the **pane ID**, because the name may not have
-registered. Do not start a second harness in an occupied pane.
-
-## Brief the sidekick
-
-The sidekick does not inherit this conversation. Give it the problem,
-relevant context and paths, scope, and a concrete stopping point.
-Default to read-only analysis; ask it to report findings rather than
-immediately fixing its own review.
-
-Use this shape, replacing the brackets with task-specific details:
+Give the sidekick a recipe to execute, not consequential choices to make.
+Every handoff contains:
 
 ```text
-You are the sidekick; the lead agent owns integration and the final answer.
-Goal: [one bounded question or deliverable].
-Project: [absolute directory]. Read its applicable AGENTS.md instructions.
-Context: [user intent, relevant files/diff, known constraints].
-Scope: read-only investigation; do not edit files or commit.
-Do not change Herdr layout, close panes, launch other agents, or choose a
-different model/provider. Stop and report if you need additional authority.
-Return: findings ranked by impact, file/line or command evidence, proposed
-next steps, checks actually run, and remaining uncertainty. Then stop.
+Goal: [bounded result and why it is needed].
+Plan: [settled steps; exact files, locations, interfaces, types, helpers].
+Code: [fenced new/replacement snippets; exact cases/assertions/stubs for tests].
+Settled inputs: [authoritative values or artifact paths; do not recompute].
+Constraints: [allowed files, protected dirty work, exclusions, authority limits].
+Runtime: [what may still be running; reuse/restart rules; what to leave running].
+Verify: [verbatim runnable commands and expected results; narrow scope].
+Done: [artifacts to leave, evidence to report, stopping point].
+Work this handoff to completion, self-review, then report to me.
 ```
 
-For implementation explicitly requested by the user, replace the read-only
-line with allowed files, excluded files, required checks, and whether a
-commit is wanted. Record HEAD and dirty state first. In a shared checkout,
-give the sidekick exclusive ownership of its files and do not edit them
-concurrently; if clean separation is impossible, serialize work or ask for
-an isolated checkout. Do not silently create another topology.
+For discovery-only work, replace Code with precise search scope and the
+evidence needed for your decision. Do not ask the sidekick to author, port,
+adapt, or design the lead-only artifacts in the decision table; author those
+yourself before handing off mechanical execution.
 
-Send a short brief directly with `agent prompt`. For a long brief, write a
-task-specific Markdown file in an approved local scratch location and send
-its absolute path; do not dump the entire conversation, secrets, or unrelated
-transcripts. Request the answer in the terminal initially, not a report file.
+- Specify the signature, data shape, existing seam, and test expectations;
+  do not leave alternative designs for the sidekick to select.
+- Do not repeat context it already has. Persist lead-derived results before
+  dispatch if needed; hand them over as **frozen inputs**, not invitations to
+  recalculate. Later presentation reads the result, not a fresh derivation.
+- Preserve unrelated dirty work. Share a checkout without overlapping
+  writers: while the sidekick edits its assigned scope, do not edit it too.
+- State what servers/jobs to check and reuse from earlier handoffs; leave
+  needed processes running. Do not pay to rediscover the environment.
+- A brief's check list is mandatory. Do not say “run everything” on every
+  handoff; at most one full-suite final gate, when appropriate and permitted.
+  Repository rules still apply—for example, CI-only builds stay on CI.
 
-## Delegate, observe, and follow up
+## Handoff, wait, steer
 
-Immediately before sending, resolve the target again with `agent get`:
-it must be the expected harness in the side pane, not the lead's pane,
-and ready for input (`idle` or `done`, with no dialog). Where an agent
-session ID is available, use the documented `--expect-session` guard.
+**Block by default:** submit the settled brief, wait, then read the report.
+Use a nonblocking handoff only when you have genuinely independent lead
+work—not speculative environment warm-ups while the design is still changing.
+Once independent work runs out, block for the report; do not poll in a loop,
+invent the result, or finish the turn as if outstanding work were complete.
 
-```bash
-herdr agent prompt "$sidekick" "$brief" --wait --timeout 120000
-herdr agent read "$sidekick" --source recent-unwrapped --lines 160
-```
+Act on a new user message first: decide explicitly whether it changes the
+running handoff. If so, steer the **same** sidekick with the changed
+instructions and preserve completed work. Herdr is not Devin's native
+interrupt API; follow the adapter's observed interrupt-and-resume procedure,
+not a blind prompt into a working terminal. Never spawn another sidekick.
 
-Herdr timeouts are **milliseconds**; the enclosing tool's timeout may be
-seconds. Give that tool enough time. For longer work, continue with a bounded
-`herdr agent wait "$sidekick" --timeout 120000` rather than resubmitting.
-Do not send another prompt while the sidekick is working. The lead can do
-independent, nonconflicting work between supervision checkpoints.
+If the user is waiting on an urgent deliverable, perform the minimal
+unblocking action yourself rather than block behind a busy sidekick. Keep
+slow validation off that critical path without claiming unfinished checks
+passed. For a parked long-running job, request an immediate report when the
+needed result arrives; re-brief the same sidekick to resume afterwards.
 
-- **Settled is not successful.** `--wait` normally returns on `idle`,
-  `done`, or `blocked`. Read the answer; a quota/model error can also end a turn.
-- **Timeout or `agent_prompt_stalled`:** inspect `agent get` and
-  `agent read` before retrying. Delivery may already have happened.
-- **Blocked:** read `--source visible`, explain the actual question to the
-  user, and obtain the required decision. Never blindly press Enter or use
-  raw pane input to bypass an approval.
-- **Unknown state:** inspect visible output; do not equate it with completion
-  or launch a duplicate. Do not install/upgrade/restart Herdr to repair it
-  without authorization.
-- **Quota/auth/model failure:** report it and stop using that sidekick until
-  resolved or its stated reset time. Do not keep sending “continue” or
-  select another model/provider.
-- **Missing answer:** try a larger bounded recent read. If terminal history
-  still cannot expose it, ask the settled sidekick to write its answer as
-  Markdown in a temporary directory and return the absolute path. Read that
-  file on the same machine.
+## Review every landing point
 
-Choose each follow-up from the answer just read. Ask for missing evidence or
-one bounded correction; do not run an unattended loop of canned prompts.
-Do not reset, replace, or resume a different session without checking its
-identity and launch choices again.
+A report returning implementation is a **landing point**, even if the
+sidekick says the work is finished or committed. Before the next task,
+commit/push, final response, or stopping to ask the user:
 
-## Verify and synthesize
+1. Read the **full diff** against the handoff's baseline, not just its summary.
+   Inspect supplied test output, logs, screenshots, and artifact paths.
+2. Give an explicit verdict: accept, or rework with findings. Its prose is a
+   claim; the artifacts are the evidence. Never accept unverified prose.
+3. Finish the whole review and send **one consolidated rework handoff**.
+   Keep execution with the sidekick after a first miss; do not fix its code
+   yourself by reflex. Answer batched questions concretely in one handoff.
+4. Review the changed diff again when rework returns; do not re-review an
+   identical diff or re-run unchanged checks merely to recreate evidence.
 
-Treat the sidekick's output as a proposal, not authority:
+Review artifacts instead of reflexively repeating the sidekick's tests.
+Perform your own verification when the user requires your recorded proof,
+the sidekick cannot access the surface, or evidence is missing or suspicious.
+Protected correctness-critical checking remains yours regardless. Never
+describe a child-reported result as a check you personally ran.
 
-1. Inspect cited source, reproduce key observations, and run the narrowest
-   relevant checks. For implementation, inspect the full diff against the
-   recorded baseline and preserve unrelated user changes.
-2. Reconcile disagreements explicitly: what you accepted, rejected, or
-   could not verify, and why. Do not count agreement between models as proof.
-3. Give the user one integrated answer, naming the sidekick harness/model,
-   its contribution, and the checks **you actually performed**. Distinguish
-   child-reported tests from independently observed results.
-4. Leave the pane/session available by default. Report its agent name and
-   pane ID for follow-up. Close it only when explicitly requested; never
-   close the parent or someone else's pane or discard work as cleanup.
+For ordinary execution blockers, choose a concrete direction and hand back
+the repair—even when your own action exposed the environment failure. Take
+over when authority is required, urgency demands it, or repeated failures
+persist after concrete guidance; preserve the sidekick's useful work.
 
-Fusion is complete when the bounded sidekick assignment is resolved or
-clearly blocked, its claims have been checked to the stated extent, and the
-lead has delivered the integrated result and remaining uncertainties.
+## Present one accountable agent
+
+Own the work in the first person; do not narrate routine delegation or expose
+a two-agent relay to the user. Explain decisions, results, evidence, and
+blockers. If asked about the sidekick or model, answer honestly. If asked a
+low-level question you cannot answer from its report, inspect the underlying
+artifact before replying—never guess.
+
+Keep the sidekick and runtime available for the next handoff. Do not close
+panes or discard artifacts as routine cleanup. A task is complete when its
+landing-point verdict is recorded, required evidence is accounted for, and
+no sidekick report remains owed—not when an agent merely says “done.”
+
+## Basis and limits
+
+Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01),
+especially §§2–8 and 11. Herdr supplies a persistent interactive transport;
+this skill supplies the division of labor and review discipline. It does
+not install tool-enforced authority restrictions, automatic nudges,
+compaction hooks, completion notifications, or token/cost accounting. Do
+not claim measured savings without actual usage and pricing evidence.
