@@ -6,6 +6,7 @@ description: >-
   handles the environment through a Herdr side pane. Delegate execution by
   default, not judgment.
 compatibility: Requires Herdr and an installed interactive sidekick harness.
+disable-model-invocation: true
 ---
 
 # Fusion
