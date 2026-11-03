@@ -4,10 +4,10 @@
     {
       "id": 1,
       "prompt": "Use Fusion to add retry backoff in src/jobs/retry.ts. You're the Pi lead inside Herdr. The different sidekick harness and cheaper model/provider are explicitly approved in this task's launch configuration. The API is settled, but choose the exact implementation and tests before dispatch. Keep my focus here.",
-      "expected_output": "The lead settles interfaces, code, test cases and narrow verification commands, then delegates implementation and verification by default. Creates one sibling pane with --no-focus in the same tab/cwd, verifies the approved different harness/model, and supplies the sidekick operating instructions and a self-contained execution brief. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not make the sidekick merely a read-only reviewer or redundantly rerun complete supplied test evidence.",
+      "expected_output": "The lead settles interfaces, required behaviour, exact test cases and narrow verification commands, then delegates implementation and verification by default. Creates one sibling pane with --no-focus in the same tab/cwd, verifies the approved different harness/model, and supplies the sidekick operating instructions and a self-contained execution brief. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not make the sidekick merely a read-only reviewer or redundantly rerun complete supplied test evidence.",
       "files": [],
       "assertions": [
-        "Lead settles the implementation and test expectations, then delegates actual edits and verification.",
+        "Lead settles interfaces, behaviour and exact test cases (snippets only where the shape is unclear), then delegates writing the implementation and its verification.",
         "Creates one side pane before launch, parses its returned ID, and preserves focus/cwd.",
         "Starts an approved different harness/model with scoped implementation capabilities and sidekick instructions.",
         "Lead reads the full diff and supplied check evidence and gives a verdict before the next action."
@@ -110,6 +110,19 @@
         "Treats quota failure as a blocker rather than successful completion and does not keep prompting.",
         "Uses only the minimal safe urgency exception, not general takeover or a new worker.",
         "Communicates honestly without unnecessary delegation narration or claims of unrun verification."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Fusion is active with an approved sidekick already running. Fix this finding: \"The service worker caches nothing (app/public/sw.js is a no-op). Offline or a flaky connection means no app.\"",
+      "expected_output": "Before planning, the lead lists the user's asks in their words and keeps offline (requests fail fast) and a flaky connection (requests can hang) as separate asks, or tells the user it is deferring one. The brief maps each ask to a plan step and an exact test case, including a test where the network never answers. The brief settles interfaces, behaviour and tests without pasting the implementation body. Review checks each ask against code and a test that would fail without it, and the final report cites check evidence by path instead of claiming checks the lead did not run.",
+      "files": [],
+      "assertions": [
+        "Brief keeps 'offline' and 'flaky connection' as distinct asks, or the lead explicitly tells the user one is deferred.",
+        "Brief requires a test case where the network neither answers nor fails (a hanging request).",
+        "Brief specifies behaviour and tests; it does not paste the full implementation.",
+        "Review verifies each ask has delivering code and an exercising test before acceptance.",
+        "Final report attributes reviewed checks to their evidence and says 'I ran' only for the lead's own commands."
       ]
     }
   ]

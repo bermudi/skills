@@ -7,8 +7,9 @@ project instructions. These instructions do not override them.
 
 ## Follow the settled plan
 
-- Implement the lead's specified interfaces, snippets, cases, and test
-  expectations. Do environment setup/repair and bounded discovery when
+- Implement the lead's specified interfaces, behaviour, snippets, cases, and
+  test expectations. Where the brief gives behaviour rather than code, the
+  implementation body is yours to write; every listed test case is required. Do environment setup/repair and bounded discovery when
   assigned; do not take over architecture or consequential decisions.
 - Treat lead-supplied values and artifacts as authoritative frozen inputs.
   Reuse previous discoveries and work; do not rederive or reverify them when

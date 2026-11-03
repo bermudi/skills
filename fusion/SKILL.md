@@ -84,8 +84,10 @@ Every handoff contains:
 
 ```text
 Goal: [bounded result and why it is needed].
-Plan: [settled steps; exact files, locations, interfaces, types, helpers].
-Code: [fenced new/replacement snippets; exact cases/assertions/stubs for tests].
+Asks: [each distinct thing the user asked for or named, in their words → the plan step and test case covering it].
+Plan: [settled steps; exact files, locations, interfaces, types, helpers, required behaviour].
+Tests: [exact cases, assertions, and where to stub — one per ask and edge case].
+Code: [optional: fenced snippets only where the shape is not obvious from the plan].
 Settled inputs: [authoritative values or artifact paths; do not recompute].
 Constraints: [allowed files, protected dirty work, exclusions, authority limits].
 Runtime: [what may still be running; reuse/restart rules; what to leave running].
@@ -94,13 +96,25 @@ Done: [artifacts to leave, evidence to report, stopping point].
 Work this handoff to completion, self-review, then report to me.
 ```
 
-For discovery-only work, replace Code with precise search scope and the
-evidence needed for your decision. Do not ask the sidekick to author, port,
+For discovery-only work, replace Tests and Code with precise search scope
+and the evidence needed for your decision. Do not ask the sidekick to author, port,
 adapt, or design the lead-only artifacts in the decision table; author those
 yourself before handing off mechanical execution.
 
-- Specify the signature, data shape, existing seam, and test expectations;
-  do not leave alternative designs for the sidekick to select.
+- Build Asks from the user's own words before planning, not from your
+  summary of them. Do not merge two asks because they look alike (“offline”
+  and “a flaky connection” fail differently) or drop one silently; if you
+  defer an ask, tell the user. Every ask needs a plan step and a test case
+  that exercises it.
+- Specify the signature, data shape, existing seam, required behaviour, and
+  test cases; do not leave alternative designs for the sidekick to select.
+  Leave the implementation body to the sidekick unless a snippet is the
+  clearest way to pin a shape — writing the code into the brief moves the
+  costliest output back to you. Rework briefs carry findings and the
+  expected behaviour, not a rewrite.
+- Snippets and comments you hand over state only what has been verified;
+  label anything else unverified. A comment the sidekick pastes in becomes
+  a claim in the codebase.
 - Do not repeat context it already has. Persist lead-derived results before
   dispatch if needed; hand them over as **frozen inputs**, not invitations to
   recalculate. Later presentation reads the result, not a fresh derivation.
@@ -140,6 +154,8 @@ commit/push, final response, or stopping to ask the user:
 
 1. Read the **full diff** against the handoff's baseline, not just its summary.
    Inspect supplied test output, logs, screenshots, and artifact paths.
+   Check the change against the user's asks, not just your brief: each ask
+   needs code that delivers it and a test that would fail without it.
 2. Give an explicit verdict: accept, or rework with findings. Its prose is a
    claim; the artifacts are the evidence. Never accept unverified prose.
 3. Finish the whole review and send **one consolidated rework handoff**.
@@ -152,7 +168,10 @@ Review artifacts instead of reflexively repeating the sidekick's tests.
 Perform your own verification when the user requires your recorded proof,
 the sidekick cannot access the surface, or evidence is missing or suspicious.
 Protected correctness-critical checking remains yours regardless. Never
-describe a child-reported result as a check you personally ran.
+describe a child-reported result as a check you personally ran. Single
+identity does not require blurring this: report a check you reviewed by its
+evidence (“the test run at <path> shows 13 pass”) and reserve “I ran” for
+commands you executed. Neither form needs to mention the sidekick.
 
 For ordinary execution blockers, choose a concrete direction and hand back
 the repair—even when your own action exposed the environment failure. Take
@@ -175,7 +194,11 @@ no sidekick report remains owed—not when an agent merely says “done.”
 ## Basis and limits
 
 Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01),
-especially §§2–8 and 11. Herdr supplies a persistent interactive transport;
+especially §§2–8 and 11. Briefs follow Devin's design-level variant
+(interfaces and exact tests settled, snippets optional), not its
+“specify the code” variant: observed runs showed the code-pasting lead paying
+for the code itself while the user's named failure modes still went
+untested (2026-11-03). Herdr supplies a persistent interactive transport;
 this skill supplies the division of labor and review discipline. It does
 not install tool-enforced authority restrictions, automatic nudges,
 compaction hooks, completion notifications, or token/cost accounting. Do
