@@ -92,12 +92,13 @@ Settled inputs: [authoritative values or artifact paths; do not recompute].
 Constraints: [allowed files, protected dirty work, exclusions, authority limits].
 Runtime: [what may still be running; reuse/restart rules; what to leave running].
 Verify: [verbatim runnable commands and expected results; narrow scope].
-Done: [artifacts to leave, evidence to report, stopping point].
-Work this handoff to completion, self-review, then report to me.
+Done: [artifacts to leave, evidence to report, stopping point, report file path].
+Work this handoff to completion, self-review, write your report to that file, then finish.
 ```
 
 For discovery-only work, replace Tests and Code with precise search scope
-and the evidence needed for your decision. Do not ask the sidekick to author, port,
+and the evidence needed for your decision. Ask only what the decision needs:
+you read the whole result, so a broad question costs you twice. Do not ask the sidekick to author, port,
 adapt, or design the lead-only artifacts in the decision table; author those
 yourself before handing off mechanical execution.
 
@@ -120,9 +121,12 @@ yourself before handing off mechanical execution.
   recalculate. Later presentation reads the result, not a fresh derivation.
 - Preserve unrelated dirty work. Share a checkout without overlapping
   writers: while the sidekick edits its assigned scope, do not edit it too.
+  Tell it about files you add during a handoff before it finds them.
 - State what servers/jobs to check and reuse from earlier handoffs; leave
   needed processes running. Do not pay to rediscover the environment.
-- A brief's check list is mandatory. Do not say “run everything” on every
+- A brief's check list is mandatory, and its commands and test inputs are not
+  substitutable. Name the ones that matter: the sidekick reports a command
+  that cannot run as written instead of swapping in one that passes. Do not say “run everything” on every
   handoff; at most one full-suite final gate, when appropriate and permitted.
   Repository rules still apply—for example, CI-only builds stay on CI.
 
@@ -133,6 +137,8 @@ Use a nonblocking handoff only when you have genuinely independent lead
 work—not speculative environment warm-ups while the design is still changing.
 Once independent work runs out, block for the report; do not poll in a loop,
 invent the result, or finish the turn as if outstanding work were complete.
+Wait so that you wake once, on completion: every wake re-reads your context at
+your rate. Read the report from its file, not from the terminal.
 
 Act on a new user message first: decide explicitly whether it changes the
 running handoff. If so, steer the **same** sidekick with the changed
@@ -155,7 +161,9 @@ commit/push, final response, or stopping to ask the user:
 1. Read the **full diff** against the handoff's baseline, not just its summary.
    Inspect supplied test output, logs, screenshots, and artifact paths.
    Check the change against the user's asks, not just your brief: each ask
-   needs code that delivers it and a test that would fail without it.
+   needs code that delivers it and a test that would fail without it. Check
+   that the tests run what the code or prompt really uses; a substituted
+   command or input passes while proving nothing.
 2. Give an explicit verdict: accept, or rework with findings. Its prose is a
    claim; the artifacts are the evidence. Never accept unverified prose.
 3. Finish the whole review and send **one consolidated rework handoff**.

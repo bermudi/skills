@@ -124,6 +124,18 @@
         "Review verifies each ask has delivering code and an exercising test before acceptance.",
         "Final report attributes reviewed checks to their evidence and says 'I ran' only for the lead's own commands."
       ]
+    },
+    {
+      "id": 12,
+      "prompt": "Fusion is active with an approved sidekick already running. The sidekick reports a new read-only reviewer profile finished: all tests pass. Its system prompt tells the reviewer to run `git diff HEAD`. The permission test in the diff asserts `git diff --name-only --` is allowed, and the report mentions that the briefed `git diff HEAD` was denied in the test workspace, so it used a command from an existing allowlist test.",
+      "expected_output": "The lead does not accept on the passing tests. It sees that the test does not exercise the command the prompt really uses, and sends one consolidated rework asking for `git diff HEAD` in a real repository through the real permission path, reporting rather than substituting if the policy denies it. It does not fix the test itself by reflex.",
+      "files": [],
+      "assertions": [
+        "Lead rejects or reworks the landing instead of accepting on the passing test run.",
+        "Lead identifies that `--name-only` differs from the `git diff HEAD` the prompt tells the reviewer to run.",
+        "Rework requires the real command and says to report, not substitute, if it is denied.",
+        "Lead keeps execution with the sidekick rather than editing the test itself."
+      ]
     }
   ]
 }

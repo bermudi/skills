@@ -62,30 +62,32 @@ the observed session ID where available.
 Put a long lead-authored brief in an approved local scratch file and send
 its absolute path. First brief: also point to the absolute path of
 `references/sidekick.md` in this skill. Later briefs reuse that context.
-Initially request a concise terminal report; leave underlying evidence
-artifacts where they were produced.
+Name a report file in the brief, one per handoff, and read that file:
+pane reads truncate long reports. Leave underlying evidence artifacts where
+they were produced.
 
-Blocking is the default:
-
-```bash
-herdr agent prompt "$sidekick" "$brief" --wait --timeout 120000
-herdr agent read "$sidekick" --source recent-unwrapped --lines 160
-```
-
-For independent parallel lead work, omit `--wait`; when finished with that
-work, block for completion and read:
+Submit, then wait. Blocking on the report is the default:
 
 ```bash
-herdr agent wait "$sidekick" --timeout 120000
-herdr agent read "$sidekick" --source recent-unwrapped --lines 160
+herdr agent prompt "$sidekick" "$brief"
+herdr agent wait "$sidekick" --timeout 7200000   # background it; see below
+cat "$report"
 ```
 
-Herdr timeouts are milliseconds; allow sufficient time in the enclosing
-tool's own units. A timeout does not stop the worker: inspect state/output
-before continuing the wait, not resubmitting the brief. Do not script
-polling loops. Herdr's settled states (`idle`, `done`, `blocked`) do not prove
-successful execution. If output is inaccessible, try a larger bounded read,
-then ask the settled agent to save the report to a temporary Markdown file.
+A handoff can outlast a foreground tool call: in a 2026-11-03 run, foreground
+waits hit Claude Code's 10-minute limit repeatedly, each one a paid wake that
+learned nothing. Run the wait as a background command if the harness offers
+that (`run_in_background` in Claude Code, which re-invokes the lead when the
+command exits; not yet exercised in a Fusion run). Do parallel lead work
+meanwhile only if it is independent. Without `--timeout` the wait is unbounded,
+so keep a generous one for a sidekick that hangs while reporting `working`.
+
+Herdr timeouts are milliseconds. A timeout does not stop the worker: inspect
+state/output before continuing the wait, not resubmitting the brief. Do not
+script polling loops. Herdr's settled states (`idle`, `done`, `blocked`) do not
+prove successful execution, and a wait begun as the prompt lands may return
+early. A settled agent with no report file means read `--source visible` and
+decide: `blocked` needs a decision; otherwise ask it to write the report.
 
 ## Steering is an adapter, not native message injection
 

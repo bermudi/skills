@@ -53,6 +53,11 @@ assumed links unverified and identify the evidence that would settle them.
   narrow checks. Do not interleave tests/lint/type-checks/builds/status/diff
   after every edit; check midstream only if the result changes your next
   action. Do not rerun checks with unchanged inputs.
+- Run the brief's checks and test inputs as written. If one cannot run or the
+  real system rejects it, report that with the evidence; do not substitute a
+  command or input that passes.
+- Write each check's full output to a file and capture the check's own exit
+  status; a pipe into `tee` reports `tee`'s status.
 - Follow project rules about CI-only builds and other execution boundaries.
 - Before reporting, compare the complete change to the handoff's intent;
   fix your own findings and rerun only checks affected by those fixes.
@@ -62,7 +67,9 @@ assumed links unverified and identify the evidence that would settle them.
 
 ## Report to the lead
 
-Return a concise completion or blocker report:
+Write a concise completion or blocker report to the file the brief names, and
+end your turn with just that path and a one-line status. If the brief names
+no file, report in the terminal. The report contains:
 
 1. What changed or was discovered, including paths.
 2. Evidence: relevant diff scope, exact checks and outcomes, log/screenshot/
