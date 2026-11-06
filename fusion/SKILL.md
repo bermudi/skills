@@ -11,81 +11,43 @@ disable-model-invocation: true
 
 # Fusion
 
-**Delegate execution, retain judgment.** You are the lead: own the outcome,
-planning, design, consequential decisions, and final review. Use a
-**persistent, cheaper sidekick** in a different interactive harness for
-implementation, verification, and environment work. When settled work
-streams are genuinely independent, split extra panes and run more sidekick
-agents in parallel (see "Split panes for parallel work").
+**Delegate execution, retain judgment.** You are the lead: you own the outcome, planning, design, consequential decisions and final review. A **persistent, cheaper sidekick** in a different interactive harness does implementation, verification and environment work.
 
-The point is cost, not a second opinion: mechanical execution consumes much
-of a coding session's tokens. Put that work on the cheaper model; protect
-quality by settling the design yourself and reviewing the resulting artifacts.
-Doing the implementation yourself by habit forfeits the saving. Making the
-sidekick a read-only reviewer reverses the intended division of labor.
+The point is cost, not a second opinion: mechanical execution eats much of a session's tokens. Settle the design yourself, review the artifacts, and put the rest on the cheaper model. Implementing by habit forfeits the saving; making the sidekick a read-only reviewer inverts the division of labor.
 
-## Decide who does the next action
+## Who does the next action
 
-Once Fusion is active, delegate by default—not only when stuck or busy.
+Once active, delegate by default, not only when stuck or busy.
 
 | Next action | Owner |
 |---|---|
-| Ordinary implementation of a settled change | Sidekick |
-| Environment setup **and repair**, including failures blocking the lead | Sidekick |
-| Builds, tests, lint, type-checks, other mechanical verification | Sidekick, using the narrowest sufficient checks |
-| Broad searches, inventory, schema/source discovery | Sidekick, returning evidence rather than choosing the design |
+| Implementation of a settled change | Sidekick |
+| Environment setup **and repair**, including failures blocking you | Sidekick |
+| Builds, tests, lint, type-checks, mechanical verification | Sidekick, narrowest sufficient checks |
+| Broad search, inventory, schema/source discovery | Sidekick, returning evidence, not design choices |
 | Planning, architecture, interfaces, trade-offs, user agreement | Lead |
-| Correctness-critical authoring **and checking**: analysis/measurement, queries against shared or production data, prompts/rubrics/graders/eval harnesses, scoring/threshold/sampling/data-pipeline configuration | Lead; sidekick may mechanically execute an exact lead-authored recipe |
-| Complex rendered-browser work: dashboards, visual reports, multi-step GUI flows | Lead, keeping implementation and rendered judgment in one loop; a simple open-and-screenshot check may be delegated |
-| User communication, secrets requests, commits, pushes, PRs/review replies, CI authority actions | Lead, subject to the user's permissions |
-| Full review of the sidekick's changes before acceptance | Lead |
+| Correctness-critical authoring **and checking**: analysis/measurement, queries on shared or production data, prompts/rubrics/graders/eval harnesses, scoring/threshold/sampling/pipeline config | Lead; sidekick may execute an exact lead-authored recipe |
+| Complex rendered-browser work (dashboards, visual reports, multi-step GUI flows) | Lead; a plain open-and-screenshot may be delegated |
+| User communication, secret requests, commits, pushes, PRs, CI authority actions | Lead, within the user's permissions |
+| Full review of the sidekick's changes | Lead |
 
-**Trivial-edit exception:** do it yourself only if editing **and confirming**
-fit in 1–2 lead turns total, with no verification left afterwards. Size alone
-does not exempt correctness-critical work. Before any direct edit or check,
-name the applicable exception; otherwise hand it off.
+**Trivial-edit exception:** only if editing **and confirming** fit in 1–2 lead turns with no verification left; size alone never exempts correctness-critical work. Name the exception before any direct edit or check; otherwise hand off.
 
-Do not dispatch an unsettled implementation ask. If discovery is needed,
-delegate a bounded discovery pass, inspect its evidence, decide, then dispatch
-the settled implementation. For unknown production schemas: first request
-schema and candidate sources; then author the exact query yourself. Require
-“schema surprise ⇒ stop and report,” not a substitute query.
+Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its evidence, decide, then dispatch. For unknown production schemas: get schema and candidate sources first, then write the exact query yourself, and require "schema surprise ⇒ stop and report", not a substitute query.
 
-## Establish one persistent execution partner
+## One persistent sidekick
 
-Before the first handoff, read [the Herdr adapter](references/herdr.md) to
-create a sibling pane and launch the different harness. Use only an explicitly
-approved harness/model/provider pairing; ask for missing choices together.
-Aim for the approved cheaper model capable of executing a fully specified
-brief—do not choose a provider or model on the user's behalf.
+Before the first handoff, read [the Herdr adapter](references/herdr.md) to create a sibling pane and launch the other harness. Use only an explicitly approved harness/model/provider pairing and ask for missing choices together; never choose for the user. The sidekick reads [its operating instructions](references/sidekick.md) with the first brief. It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
 
-Have the sidekick read [its operating instructions](references/sidekick.md)
-on the first handoff. It shares the machine and filesystem, **not** your
-conversation. Send task-specific instructions and settled facts, not raw user
-messages or a copy of your transcript.
+Keep the same sidekick all session, across tasks and rework: its history, edits, shells and servers are assets. Never spawn per task, replace it at phase boundaries, or reset it (`/new`, `/clear`). Extra panes are for parallel work only (below).
 
-Keep the same sidekick for the session, across tasks and rework. Its own
-history, discoveries, edits, shells, servers, and other runtime state are
-assets to reuse. Do not spawn per task, replace it at phase boundaries, or
-reset it with `/new` or `/clear`. Additional panes and agents are for
-genuinely parallel settled work only (see "Split panes for parallel work"),
-never per-task spin-ups or replacements.
+Keep in your notes (and across your own compaction): connection, pane/name, harness session ID, approved model, project, completed handoffs, pending report, live processes, evidence paths. Native compaction isn't lossless: keep transcript/checkpoint paths and verify uncertain state instead of restarting or redoing work.
 
-Record the connection, pane/name, harness session ID where available,
-approved model, project, completed handoffs, pending report, live processes,
-and evidence paths in your session notes. Preserve that record across lead
-compaction. Use the harness's native compaction without claiming it guarantees
-lossless history; retain available transcript/checkpoint paths and verify
-uncertain state rather than restarting or redoing completed work.
+**Ready** = each sidekick's identity, model, project and permissions are verified, and its operating instructions went in its first brief.
 
-**Ready means:** each sidekick's identity, model, project, and permissions
-are verified, and its operating instructions are included in its first
-brief.
+## Settle the brief first
 
-## Settle the brief before handing off
-
-Give the sidekick a recipe to execute, not consequential choices to make.
-Every handoff contains:
+Give a recipe to execute, not consequential choices to make:
 
 ```text
 Goal: [bounded result and why it is needed].
@@ -101,141 +63,49 @@ Done: [artifacts to leave, evidence to report, stopping point, report file path]
 Work this handoff to completion, self-review, write your report to that file, then finish.
 ```
 
-For discovery-only work, replace Tests and Code with precise search scope
-and the evidence needed for your decision. Ask only what the decision needs:
-you read the whole result, so a broad question costs you twice. Do not ask the sidekick to author, port,
-adapt, or design the lead-only artifacts in the decision table; author those
-yourself before handing off mechanical execution.
+Discovery-only: replace Tests and Code with search scope and the evidence you need. Ask only what the decision needs; you read the whole result, so a broad question costs you twice. Never have the sidekick author or adapt the lead-only artifacts above.
 
-- Build Asks from the user's own words before planning, not from your
-  summary of them. Do not merge two asks because they look alike (“offline”
-  and “a flaky connection” fail differently) or drop one silently; if you
-  defer an ask, tell the user. Every ask needs a plan step and a test case
-  that exercises it.
-- Specify the signature, data shape, existing seam, required behaviour, and
-  test cases; do not leave alternative designs for the sidekick to select.
-  Leave the implementation body to the sidekick unless a snippet is the
-  clearest way to pin a shape — writing the code into the brief moves the
-  costliest output back to you. Rework briefs carry findings and the
-  expected behaviour, not a rewrite.
-- Snippets and comments you hand over state only what has been verified;
-  label anything else unverified. A comment the sidekick pastes in becomes
-  a claim in the codebase.
-- Do not repeat context it already has. Persist lead-derived results before
-  dispatch if needed; hand them over as **frozen inputs**, not invitations to
-  recalculate. Later presentation reads the result, not a fresh derivation.
-- Preserve unrelated dirty work. Share a checkout without overlapping
-  writers: while the sidekick edits its assigned scope, do not edit it too.
-  Tell it about files you add during a handoff before it finds them.
-- State what servers/jobs to check and reuse from earlier handoffs; leave
-  needed processes running. Do not pay to rediscover the environment.
-- A brief's check list is mandatory, and its commands and test inputs are not
-  substitutable. Name the ones that matter: the sidekick reports a command
-  that cannot run as written instead of swapping in one that passes. Do not say “run everything” on every
-  handoff; at most one full-suite final gate, when appropriate and permitted.
-  Repository rules still apply—for example, CI-only builds stay on CI.
+- **Asks come from the user's own words**, not your summary. Don't merge look-alikes ("offline" vs "flaky connection" fail differently) or drop one silently; tell the user if you defer one. Each needs a plan step and a test that would fail without it.
+- Pin signature, data shape, seam, behaviour and test cases; leave no alternative designs. Leave the implementation body to the sidekick unless a snippet is the clearest way to pin a shape: writing code into the brief moves the costliest output back to you. Rework briefs carry findings and expected behaviour, not a rewrite.
+- Snippets and comments you hand over state only verified facts, labelled otherwise: a pasted comment becomes a claim in the codebase.
+- Don't repeat context it has. Hand lead-derived results over as **frozen inputs**, not invitations to recompute.
+- Preserve unrelated dirty work. No overlapping writers in a shared checkout: don't edit its scope while it does, and tell it about files you add mid-handoff.
+- Say which servers/jobs to reuse and leave needed processes running.
+- The check list is mandatory and its commands and inputs aren't substitutable: a command that can't run as written gets reported, not swapped for one that passes. No "run everything" on every handoff; at most one full-suite final gate. Repo rules still apply (CI-only builds stay on CI).
 
 ## Handoff, wait, steer
 
-**Block by default:** submit the settled brief, wait, then read the report.
-Use a nonblocking handoff only when you have genuinely independent lead
-work—not speculative environment warm-ups while the design is still changing.
-Once independent work runs out, block for the report; do not poll in a loop,
-invent the result, or finish the turn as if outstanding work were complete.
-Wait so that you wake once, on completion: every wake re-reads your context at
-your rate. Read the report from its file, not from the terminal.
+**Block by default:** submit the brief, wait, read the report from its file (not the terminal). Go nonblocking only with genuinely independent lead work, not speculative warm-ups while design still moves. When that runs out, block for the report: no poll loops, no invented results, no ending the turn with work outstanding. Wait so you wake once, on completion; every wake re-reads your context at your rate.
 
-Act on a new user message first: decide explicitly whether it changes the
-running handoff. If so, steer the **same** sidekick with the changed
-instructions and preserve completed work. Herdr is not Devin's native
-interrupt API; follow the adapter's observed interrupt-and-resume procedure,
-not a blind prompt into a working terminal. Never spawn a replacement
-sidekick.
+On a new user message, decide first whether it changes the running handoff. If so, steer the **same** sidekick with the changed instructions, preserving completed work, via the adapter's observed interrupt-and-resume procedure (Herdr is not Devin's native interrupt API), not a blind prompt into a working terminal. Never spawn a replacement.
 
-If the user is waiting on an urgent deliverable, perform the minimal
-unblocking action yourself rather than block behind a busy sidekick. Keep
-slow validation off that critical path without claiming unfinished checks
-passed. For a parked long-running job, request an immediate report when the
-needed result arrives; re-brief the same sidekick to resume afterwards.
+If the user waits on something urgent, do the minimal unblocking action yourself rather than block behind a busy sidekick; keep slow validation off that path and never claim unfinished checks passed. For a parked long job, ask for an immediate report when the result arrives, then re-brief the same sidekick.
 
-## Split panes for parallel work
+## Parallel panes
 
-The persistent sidekick is the anchor, not a single-lane bottleneck. When
-the settled plan contains genuinely independent streams—separate modules, a
-documentation build alongside a test suite, per-file refactors with disjoint
-scopes—split additional panes and launch more sidekick agents rather than
-queueing every stream behind one.
+The persistent sidekick is the anchor, not a bottleneck. For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), split more panes. Per the adapter: one unused name per pane, one split per agent, `--no-focus`, same approved harness/model, operating instructions in each first brief, a connection record per pane. Disjoint write scopes, no checks colliding on the same artifacts, each agent its own brief and report file; each report is reviewed like any other and the turn isn't complete while any is outstanding.
 
-Follow the Herdr adapter's launch procedure for each agent: one unused name
-per pane, one split per agent, `--no-focus`, the same approved
-harness/model, the operating instructions in each agent's first brief, and a
-connection record per pane in your session notes. Give parallel agents
-disjoint write scopes: no overlapping files, no checks that collide on the
-same artifacts. Each agent gets its own brief and report file; each report
-is a landing point reviewed like any other, and the turn is not complete
-while any report is outstanding.
-
-Parallelism scales settled execution only. It is never a route around a
-blocked, hung, or failed sidekick: resolve the blocker through steering or
-recovery, or take over per the urgency rules. Only the lead splits panes and
-starts agents; a sidekick never launches another worker.
+Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick never launches workers.
 
 ## Review every landing point
 
-A report returning implementation is a **landing point**, even if the
-sidekick says the work is finished or committed. Before the next task,
-commit/push, final response, or stopping to ask the user:
+A report returning implementation is a **landing point** even if the sidekick says it's finished or committed. Before the next task, commit/push, final reply, or asking the user:
 
-1. Read the **full diff** against the handoff's baseline, not just its summary.
-   Inspect supplied test output, logs, screenshots, and artifact paths.
-   Check the change against the user's asks, not just your brief: each ask
-   needs code that delivers it and a test that would fail without it. Check
-   that the tests run what the code or prompt really uses; a substituted
-   command or input passes while proving nothing.
-2. Give an explicit verdict: accept, or rework with findings. Its prose is a
-   claim; the artifacts are the evidence. Never accept unverified prose.
-3. Finish the whole review and send **one consolidated rework handoff**.
-   Keep execution with the sidekick after a first miss; do not fix its code
-   yourself by reflex. Answer batched questions concretely in one handoff.
-4. Review the changed diff again when rework returns; do not re-review an
-   identical diff or re-run unchanged checks merely to recreate evidence.
+1. Read the **full diff** against the handoff baseline, not the summary, plus test output, logs, screenshots and artifact paths. Check against the user's asks, not just your brief: each ask needs code delivering it and a test that would fail without it, and the tests must run what the code or prompt really uses (a substituted command or input passes while proving nothing).
+2. Give an explicit verdict: accept, or rework with findings. Prose is a claim; artifacts are evidence.
+3. Finish the whole review and send **one consolidated rework handoff**. Keep execution with the sidekick after a first miss; don't fix its code by reflex. Answer its batched questions concretely in one handoff.
+4. When rework returns, review the changed diff; don't re-review an identical diff or re-run unchanged checks to recreate evidence.
 
-Review artifacts instead of reflexively repeating the sidekick's tests.
-Perform your own verification when the user requires your recorded proof,
-the sidekick cannot access the surface, or evidence is missing or suspicious.
-Protected correctness-critical checking remains yours regardless. Never
-describe a child-reported result as a check you personally ran. Single
-identity does not require blurring this: report a check you reviewed by its
-evidence (“the test run at <path> shows 13 pass”) and reserve “I ran” for
-commands you executed. Neither form needs to mention the sidekick.
+Review artifacts instead of repeating the sidekick's tests, but verify yourself when the user requires your recorded proof, the sidekick can't reach the surface, or evidence is missing or suspicious; protected correctness-critical checks stay yours. Never describe a child-reported result as a check you ran: say "the test run at <path> shows 13 pass" and keep "I ran" for commands you executed. Neither form mentions the sidekick.
 
-For ordinary execution blockers, choose a concrete direction and hand back
-the repair—even when your own action exposed the environment failure. Take
-over when authority is required, urgency demands it, or repeated failures
-persist after concrete guidance; preserve the sidekick's useful work.
+For ordinary execution blockers, pick a concrete direction and hand the repair back, even when your own action exposed the failure. Take over when authority is required, urgency demands it, or repeated failures persist after concrete guidance; keep its useful work.
 
-## Present one accountable agent
+## One accountable agent
 
-Own the work in the first person; do not narrate routine delegation or expose
-a two-agent relay to the user. Explain decisions, results, evidence, and
-blockers. If asked about the sidekick or model, answer honestly. If asked a
-low-level question you cannot answer from its report, inspect the underlying
-artifact before replying—never guess.
+Speak in the first person; don't narrate routine delegation or expose a two-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick or model, answer honestly. For a low-level question its report can't answer, inspect the artifact; never guess.
 
-Keep the sidekick and runtime available for the next handoff. Do not close
-panes or discard artifacts as routine cleanup. A task is complete when its
-landing-point verdict is recorded, required evidence is accounted for, and
-no sidekick report remains owed—not when an agent merely says “done.”
+Keep the sidekick and runtime for the next handoff; don't close panes or discard artifacts as cleanup. A task is complete when the landing-point verdict is recorded, evidence is accounted for and no report is owed, not when an agent says "done".
 
 ## Basis and limits
 
-Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01),
-especially §§2–8 and 11. Briefs follow Devin's design-level variant
-(interfaces and exact tests settled, snippets optional), not its
-“specify the code” variant: observed runs showed the code-pasting lead paying
-for the code itself while the user's named failure modes still went
-untested (2026-11-03). Herdr supplies a persistent interactive transport;
-this skill supplies the division of labor and review discipline. It does
-not install tool-enforced authority restrictions, automatic nudges,
-compaction hooks, completion notifications, or token/cost accounting. Do
-not claim measured savings without actual usage and pricing evidence.
+Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). Herdr supplies the persistent transport; this skill supplies division of labor and review. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.

@@ -7,60 +7,33 @@ description: >
 disable-model-invocation: false
 ---
 
-# Pass CLI — Safe Secret Consumption
+# Pass CLI — safe secret consumption
 
-Use Proton Pass secrets by the least-exposing route. This skill covers finding
-an accessible secret, passing it to a process, or rendering a requested local
-config file. It does **not** administer vaults, shares, agents, or access
-permissions: those are owner actions with a larger blast radius.
+Use secrets by the least-exposing route. Scope: find an accessible secret, hand it to a process, or render a requested config file. Not vault, share, agent or permission administration: those are owner actions.
 
-All native `pass-cli` usage runs as a scoped, audited Agent token in an isolated
-session directory—never as the account owner's logged-in session.
+## Rule zero: agents never read secret values
 
-## Choose the route before reading anything
+If a task seems to need the value in context, restructure it so the consuming process reads the secret. If that is impossible, stop and ask bermudi to fetch it outside agent context. Never put a resolved value in a command, source file, commit, ticket or reply. Once a secret enters context it has leaked.
 
-| Need | Use |
+## Choose the route
+
+| Need | Route |
 | --- | --- |
-| A program needs keys already in a configured encrypted snapshot | `pass-keys run PROFILE -- ./consumer`. Prefer this local route; no native Pass call or authentication guard. |
-| A program needs another secret reference on demand | Guarded `pass-cli run` with a `pass://` reference. Native output masking stays enabled. |
-| A requested config artifact needs a secret | Guarded `pass-cli inject` to an explicit file path. This writes secret material to disk. |
-| An interactive login needs a current TOTP code | Guarded `pass-cli item totp`. The only value allowed into context—it expires in seconds. |
+| Program needs keys already in a configured encrypted snapshot | `pass-keys run PROFILE -- ./consumer`. Local; no native Pass call, no guard. |
+| Program needs another secret on demand | Guarded `pass-cli run` with a `pass://` reference (output masking stays on). |
+| A requested config file needs a secret | Guarded `pass-cli inject` to an explicit path. Writes secret material to disk. |
+| Interactive login needs a TOTP code | Guarded `pass-cli item totp`. The only value allowed into context; it dies in seconds. |
 
-Agents never read secret values. If a task seems to require the value in
-context, restructure it so the consuming process reads the secret itself. If
-no restructuring avoids it, stop and ask bermudi to retrieve the value himself,
-outside agent context. Do not put a resolved value in a shell command, source
-file, commit, ticket, or final response.
+## pass-keys (local)
 
-`pass-keys run` exports the selected profile's keys to its child and **does not
-mask stdout or stderr**. Use a consumer that will not print credentials. Never
-use it for `printenv`, `env`, secret echoes, or diagnostic dumps in an agent tool
-call. `pass-keys get PROFILE KEY_NAME` prints a secret: it is for an application
-pipe only, never an agent tool call or a way to inspect a value.
+- `run` exports the profile's keys to its child and **does not mask stdout/stderr**: use consumers that don't print credentials; never for `env`, `printenv`, echoes or diagnostic dumps. `get PROFILE KEY` prints the secret: application pipes only, never an agent tool call.
+- `get`, `run`, `status` read the encrypted snapshot locally: no native Pass call, no login, no refresh at launch. A missing/locked/corrupt snapshot fails locally; add no online fallback. `status` shows availability and age, never values.
+- A last-good snapshot can outlive token expiry or revocation, so local use is not a fresh access check. `pass-keys warm pi` is for task repair or a requested refresh, never a launch bootstrap.
+- Never `pass-cli run --no-masking`. Never `pass-cli item view` (prints the value or the whole item).
 
-Local `get`, `run`, and `status` use the encrypted per-profile snapshot without
-calling native Pass, logging in, or refreshing on application launch. A
-missing/locked/corrupt snapshot fails locally; do not add an online fallback.
-`pass-keys status` reports local availability and refresh age without values.
-A last-good snapshot may outlive token expiry or grant revocation; local use is
-not a fresh remote access check. Explicit `pass-keys warm pi` is a task repair
-or requested refresh, **not** an application-launch bootstrap.
+## Native pass-cli: Agent session guard (mandatory)
 
-Never use `pass-cli run --no-masking`. Never use `pass-cli item view`—it
-prints the value (or whole item) to stdout, and once a secret has entered
-context it has already leaked.
-
-## Agent session is mandatory for native Pass
-
-Agents never use the account owner's session. The native default session
-belongs to the logged-in human account: an unguarded `pass-cli` call executes
-with the owner's full access—every vault, no reason prompt, no audit trail—and
-silently defeats the point of Agent tokens.
-
-Every native `pass-cli` invocation runs behind this guard, in **Bash**, in the
-same shell as the command it precedes (separate shell or tool calls do not
-retain exports). Do not run it before local `pass-keys run` application launches.
-Never enable shell tracing or dump the environment.
+The default native session is the owner's: an unguarded call runs with full access, no reason prompt, no audit trail. Every native `pass-cli` call runs behind this guard, in Bash, **in the same shell** as the command (exports don't survive separate tool calls). No shell tracing, no environment dumps, and never before a `pass-keys run` launch.
 
 ```bash
 # --- native pass-cli Agent session guard ---
@@ -116,38 +89,16 @@ unset pass_cli_info
 # --- the actual native command, with its own task-specific reason, goes here ---
 ```
 
-The private `info` check is authentication, not discovery. Sessions expire, so
-repair is routine, but **both** `Personal Access Token` and `[Agent]` must be
-present; a plain PAT is not enough. During repair, `pass-keys warm pi` verifies
-the profile's configured expected named Agent identity using its existing Go
-authentication path. The guard then rechecks the **selected** session's Agent
-role, not the owner's account. A profile's explicit `sessionDir` can override
-the environment for warm; if the selected session still fails verification,
-stop and have the owner align the directories—never silently switch sessions.
+The `info` check is authentication, not discovery. Sessions expire, so repair is routine, but **both** `Personal Access Token` and `[Agent]` must appear (a plain PAT is not enough). `pass-keys warm pi` verifies the profile's expected named Agent identity; the guard then rechecks the *selected* session. If a profile's `sessionDir` overrides the environment and verification still fails, stop and have the owner align the directories. Never switch sessions silently.
 
-Bootstrap PATs are encrypted Secret Service records selected by `patKey`.
-Never read, print, or parse those records, write a new JWT/keyring parser, or
-source `~/.pass-cli-env`. The legacy plaintext PAT files were deleted with
-the owner's approval on 2026-10-10; do not recreate them. Inherited
-`PROTON_PASS_*` variables are stripped, not sourced from another file.
+- Bootstrap PATs are encrypted Secret Service records chosen by `patKey`. Never read, print or parse them, never write a JWT/keyring parser, never source `~/.pass-cli-env` (legacy plaintext PAT files deleted 2026-10-10; don't recreate). Inherited `PROTON_PASS_*` vars are stripped, not sourced elsewhere.
+- Keep warm's operational output on stderr; don't inspect raw login output or credentials to diagnose it. Missing credentials, an expired/revoked PAT, or unavailable/locked secure storage need owner repair. No insecure filesystem key provider, no owner-session fallback. Not-found and permission errors need scoped discovery or an owner access change, not re-authentication.
 
-Warm's authentication/network failures are reported by the core as public-safe
-errors; keep its operational output on stderr, do not inspect raw login output
-or credentials to diagnose them. Missing credentials, an expired/revoked PAT,
-or unavailable/locked secure storage require owner repair. Do not enable the
-insecure filesystem key provider or fall back to the owner session. Item- or
-vault-not-found and permission errors need scoped discovery or an owner access
-change, not repeated re-authentication.
+## Native calls
 
-## Discover precise identifiers
+Every data-access call needs a command-local `PROTON_PASS_AGENT_REASON` (≤300 chars, no secrets) naming *this* access. The guard clears inherited reasons; set it on the command after the guard.
 
-Discovery exposes item metadata, so list only the scope needed for the task.
-Use JSON when parsing it. After the guard, attach a non-empty reason describing
-**this actual access**, not an inherited or blanket reason. Use a command-local
-`PROTON_PASS_AGENT_REASON` assignment (at most 300 characters, no secrets) for
-each native data-access call. The guard clears inherited reasons; set the
-reason on the actual command **after** it. Warm supplies its own per-access
-reasons through the core.
+**Discovery** exposes metadata only (`title`, `item_type`, IDs, timestamps); list just the scope you need and use JSON:
 
 ```bash
 PROTON_PASS_AGENT_REASON="Locate the vault for the requested deployment credential" \
@@ -156,125 +107,36 @@ PROTON_PASS_AGENT_REASON="Find the token item for the requested deployment" \
   pass-cli item list --vault-name "Vault Name" --output json
 ```
 
-Once found, prefer the vault share ID and item ID for automation. Names are
-convenient for an interactive one-off, but duplicate vault or item names can
-resolve to the wrong object — and **trashed items are eligible for title
-resolution**: a hidden duplicate in trash silently shadows the active item, so
-the CLI keeps serving an old value no re-login can fix (observed 2026-10-25).
-Diagnose with `item list <vault> --output json` (`state`, `modify_time`) and
-pin references to `share_id` + `id`.
+Pin automation to `share_id` + item `id`. Names can collide, and **trashed items take part in title resolution**: a hidden trashed duplicate silently shadows the active item and keeps serving an old value that no re-login fixes (seen 2026-10-25). Diagnose with `item list <vault> --output json` (`state`, `modify_time`). `--show-secrets` is refused in Agent sessions; don't work around it.
 
-## Give a process a secret without exposing it
-
-For known snapshot keys, use the configured profile whose environment-variable
-names the consumer expects. No Native Pass guard is needed for this local read:
-
-```bash
-pass-keys run PROFILE -- ./consumer
-```
-
-For other references needed on demand, use guarded native `pass-cli run`. It
-replaces field-level references only for the child and masks resolved values in
-its output by default. Never ask the child to print secrets even with masking.
+**Run** (references resolve only for the child; output masked; still never have the child print secrets):
 
 ```bash
 export DEPLOY_TOKEN='pass://SHARE_ID/ITEM_ID/token'
 PROTON_PASS_AGENT_REASON="Authenticate the deployment requested by the user" \
   pass-cli run -- ./deploy.sh
-```
-
-For project configuration, keep only references in a gitignored env file:
-
-```dotenv
-DATABASE_PASSWORD=pass://SHARE_ID/ITEM_ID/password
-```
-
-```bash
+# or keep only references in a gitignored env file: DATABASE_PASSWORD=pass://SHARE_ID/ITEM_ID/password
 PROTON_PASS_AGENT_REASON="Connect the requested server to its database" \
   pass-cli run --env-file .env.secrets -- ./start-server
 ```
 
-A native TOTP reference resolves to the current code. Use `?totp=uri` only when
-the task explicitly requires the underlying `otpauth://` URI, and pass it only
-to the consumer, never into context. Do not treat a cached snapshot as a source
-of current TOTP codes.
+A TOTP reference resolves to the current code; use `?totp=uri` (the `otpauth://` URI) only when the task requires it, and only to the consumer. A cached snapshot is not a source of current codes.
 
-## Render a requested configuration file
-
-`inject` materializes secrets. Only use it when the task explicitly needs that
-file, choose an explicit output path, and keep the default `0600` permissions.
-Never write the result to stdout.
-
-```yaml
-# app-config.yaml.template
-api_token: '{{ pass://SHARE_ID/ITEM_ID/token }}'
-```
+**Inject** materializes secrets: only when the task needs that file, explicit output path, default `0600`, never stdout, no `--force` without approval for that specific file, never commit the result.
 
 ```bash
+# template: api_token: '{{ pass://SHARE_ID/ITEM_ID/token }}'
 PROTON_PASS_AGENT_REASON="Render the service configuration requested by the user" \
-  pass-cli inject \
-    --in-file app-config.yaml.template \
-    --out-file .runtime/app-config.yaml
+  pass-cli inject --in-file app-config.yaml.template --out-file .runtime/app-config.yaml
 ```
 
-Do not use `--force` unless the user has explicitly approved overwriting that
-specific file. Treat the generated file as secret material: do not commit it.
-
-## Discover structure without reading values
-
-Field names, item types, and identifiers come from metadata, which never
-contains secrets:
-
-```bash
-PROTON_PASS_AGENT_REASON="Identify the available fields for the requested deployment token" \
-  pass-cli item list --output json --vault-name "Vault Name"
-```
-
-The JSON payload carries only `title`, `item_type`, IDs, and timestamps.
-`--show-secrets` would embed full item content, but pass-cli refuses it in
-Agent sessions—do not try to work around that guard (e.g. via the owner's
-session).
-
-For an interactive login that needs a one-time code, `pass-cli item totp`
-prints the current TOTP value. This is the one sanctioned read: the code
-dies within seconds. Use it immediately, never log, store, or repeat it.
-
-An Agent-token `item totp` call requires a non-empty reason (at most 300
-characters). State the concrete task purpose; never include a secret in the
-reason. Run after the native guard:
+**TOTP** for an interactive login: use immediately; never log, store or repeat it.
 
 ```bash
 PROTON_PASS_AGENT_REASON="Complete the interactive login requested by the user" \
   pass-cli item totp --share-id ID --item-id ID
 ```
 
-## Audit boundary
+## Audit and access
 
-The account owner can inspect Agent accesses with:
-
-```bash
-pass-cli agent monitor "agent-name" --output json
-```
-
-`agent monitor` requires the owner's session, so agents do not run it—ask the
-owner to inspect the trail. Cached reads do not create a new native access;
-source accesses are audited during explicit warm. Do not create, renew,
-delete, grant, or revoke Agents/PATs, or use `pass-keys add`/`drop` to change
-items or permissions as part of a secret retrieval task. Ask the owner to
-provision the narrowest possible, expiring viewer access—ideally to the single
-required item—when access is missing.
-
-## Quick reference
-
-Local routes (no native guard, no launch-time warm):
-
-```bash
-pass-keys status
-pass-keys run PROFILE -- ./consumer
-```
-
-Native routes require the guard and a concrete per-call reason as above:
-metadata-only `vault list` / `item list`, masked `run`, explicit-file `inject`,
-and current-code `item totp`. `info` is a private authentication check, not a
-secret read. Repair uses `pass-keys warm pi` with operational output on stderr;
-never use a credential file or the owner session as a fallback.
+`pass-cli agent monitor "agent-name" --output json` needs the owner's session: ask the owner. Cached reads create no native access record; sources are audited during explicit warm. Never create, renew, delete, grant or revoke Agents/PATs, and never use `pass-keys add`/`drop` for permissions during retrieval. If access is missing, ask the owner for the narrowest expiring viewer access, ideally the single item.

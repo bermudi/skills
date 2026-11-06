@@ -17,79 +17,39 @@ allowed-tools:
 
 # agent-browser
 
-Fast browser automation CLI for AI agents. Native Rust, Chrome/Chromium via CDP with accessibility-tree snapshots and compact `@eN` element refs.
-
-Install: `npm i -g agent-browser && agent-browser install`
-
-## Start here
-
-This file is a discovery stub, not the usage guide. Before running any `agent-browser` command, load the actual workflow content from the CLI:
+Stub: before any `agent-browser` command, load the real workflow from the CLI, which always matches the installed version:
 
 ```bash
-agent-browser skills get core             # start here — workflows, common patterns, troubleshooting
-agent-browser skills get core --full      # include full command reference and templates
+agent-browser skills get core             # workflows, patterns, troubleshooting
+agent-browser skills get core --full      # plus full command reference
 ```
 
-The CLI serves skill content that always matches the installed version, so instructions never go stale. The content in this stub cannot change between releases, which is why it just points at `skills get core`.
-
-If `skills get` is unavailable (older CLI), fall back to `agent-browser --help` and `agent-browser snapshot --help`.
+Older CLI without `skills get`: `agent-browser --help`.
 
 ## Launch preferences on this machine
 
-Two modes — pick by task nature, say which one you're running, and never escalate without asking:
+Two modes: pick by task, say which you're running, never escalate without asking.
 
-**Mode 1 — headless managed Chrome (default).** Anything that doesn't need bermudi's session or auth: testing, dev, scraping public pages. Plain `agent-browser <command>`; the CLI manages its own Chrome. Always headless — never pass `--headed`; if a task seems to need a visible window, ask bermudi. Managed Chrome trips Cloudflare regardless of flags, so never point it at his personal accounts.
+**Mode 1 — headless managed Chrome (default).** Anything not needing bermudi's session: testing, dev, public scraping. Plain `agent-browser <command>`. Never `--headed` (ask if a visible window seems needed). Managed Chrome trips Cloudflare regardless of flags, so never aim it at his personal accounts.
 
-**Mode 2 — bermudi's browser, attach-only.** Anything needing his real session or auth (personal accounts, Cloudflare-protected services like luma.com) — his profile's real cookies and fingerprint are the only thing that passes. The browser is his: **he launches it, he closes it.** Agents attach, work in their own tab, clean up, and get out.
+**Mode 2 — bermudi's browser, attach-only.** For his real session or auth (personal accounts, Cloudflare-protected sites like luma.com); only his profile's cookies and fingerprint pass. Attach, work in your own tab, clean up, leave.
 
-> **Update 2026-10-10:** bermudi ruled that when a task genuinely needs his session and the port is closed, agents MAY launch it themselves (`/usr/bin/chromium --remote-debugging-port=9222`, background) instead of asking — the "he launches it" default applies only when nobody asked for the work. Everything else stands: never `close`/`quit`/`--all` on his browser, close only your own tabs, never read credentials.
+Needs Chromium running with `--remote-debugging-port=9222`. If port 9222 is closed: when nobody asked for the work, tell bermudi and wait; when the task genuinely needs his session (ruled 2026-10-10), launch it yourself (`/usr/bin/chromium --remote-debugging-port=9222`, background). If Chromium is already running without the flag, the launch is absorbed and no port opens; he must quit it fully first. Never pass `--profile` or `AGENT_BROWSER_EXECUTABLE_PATH`.
 
-He launches Chromium with remote debugging:
-
-```bash
-/usr/bin/chromium --remote-debugging-port=9222
-```
-
-If Chromium is already running without that flag, the launch is absorbed by the running instance and no CDP port opens — he must quit Chromium fully first. Agents never launch it themselves, and never pass `--profile` or `AGENT_BROWSER_EXECUTABLE_PATH`.
-
-Attach before the first command, then work normally:
+Attach before the first command:
 
 ```bash
 export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix task)"
 export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 ```
 
-- `--pin-tab` is not optional: it makes attach open a **fresh tab** instead of adopting his active one, and a lost binding fails with `tab_gone` instead of silently acting on his other tabs.
-- Do all work in that tab. Cleanup = `tab close` on every tab you opened, then stop issuing commands. Never close, navigate, reload, or sign out of tabs you didn't open; never change settings or clear data.
-- Never run `close`, `quit`, or `close --all` in this mode — that's his browser, not yours. (Attached browsers are exempt from the daemon's idle shutdown anyway.)
-- Nothing listening on 9222? Don't launch, don't retry forever — tell bermudi and wait.
-- RED LINE: his profile holds Proton Pass. Never read passwords — not from the vault UI, not from filled login fields (not even to "verify" a fill), never via eval or screenshots. Logins happen through the extension's own autofill; the agent may click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
-- An open CDP port lets any local process drive his browser — accepted on this machine, which is exactly why the port exists only when he launches it.
+- `PIN_TAB` is mandatory: attach opens a fresh tab instead of adopting his active one, and a lost binding fails with `tab_gone` instead of acting on his other tabs.
+- Cleanup = `tab close` on each tab you opened, then stop. Never close, navigate, reload or sign out of other tabs; never change settings or clear data. Never `close`, `quit` or `close --all`.
+- RED LINE: his profile holds Proton Pass. Never read passwords (vault UI, filled fields even to "verify", eval, screenshots). Logins go through the extension's autofill: click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
+- An open CDP port lets any local process drive his browser; accepted here, which is why the port exists only while this work does.
 
 ## Specialized skills
 
-Load a specialized skill when the task falls outside browser web pages:
+`agent-browser skills get <name>` for non-web-page targets: `electron`, `slack`, `dogfood` (exploratory QA), `derive-client` (HAR → API client), `vercel-sandbox`, `agentcore`. `agent-browser skills list` shows all.
 
-```bash
-agent-browser skills get electron          # Electron desktop apps (VS Code, Slack, Discord, Figma, ...)
-agent-browser skills get slack             # Slack workspace automation
-agent-browser skills get dogfood           # Exploratory testing / QA / bug hunts
-agent-browser skills get derive-client     # Record a HAR, derive a standalone API client for a site
-agent-browser skills get vercel-sandbox    # agent-browser inside Vercel Sandbox microVMs
-agent-browser skills get agentcore         # AWS Bedrock AgentCore cloud browsers
-```
-
-Run `agent-browser skills list` to see everything available on the installed version.
-
-## Why agent-browser
-
-- Fast native Rust CLI, not a Node.js wrapper
-- Works with any AI agent (Cursor, Claude Code, Codex, Continue, Windsurf, etc.)
-- Chrome/Chromium via CDP with no Playwright or Puppeteer dependency
-- Accessibility-tree snapshots with element refs for reliable interaction
-- Sessions, authentication vault, state persistence, video recording
-- Specialized skills for Electron apps, Slack, exploratory testing, cloud providers
-
-## Observability Dashboard
-
-The dashboard runs independently of browser sessions on port 4848 and can also be opened through a proxied or forwarded URL such as `https://dashboard.agent-browser.localhost`. Agents should stay on the dashboard origin: session tabs, status, and stream traffic are proxied internally, so session ports do not need to be exposed.
+The dashboard runs on port 4848 independent of sessions; stay on its origin, since session tabs and streams are proxied through it.

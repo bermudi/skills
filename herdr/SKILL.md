@@ -1,41 +1,22 @@
 ---
 name: herdr
-description: "Control Herdr, a terminal multiplexer for coding agents. Use only when the user explicitly mentions Herdr or asks to use Herdr to inspect or control panes, tabs, workspaces, commands, or another agent. Do not use merely because a task could benefit from a background terminal, delegation, or parallel work. Use the inherited Herdr context or a socket/session explicitly supplied by the user."
+description: "Control Herdr, a terminal multiplexer for coding agents. Use only when the user explicitly mentions Herdr or asks to inspect or control its panes, tabs, workspaces, or another agent. Not for generic background terminals, delegation, or parallel work."
 ---
 
 # Herdr
 
-This is a discovery stub — the installed `herdr` binary is the authority and its embedded skill always matches the running version.
+Stub: the installed binary is the authority. Load the real instructions with `herdr --skill`; for any command group's syntax, run the group bare (`herdr agent`, `herdr pane`, `herdr workspace`, ...).
 
-Before any control command, establish the intended Herdr connection:
+If `herdr --skill` still demands `HERDR_ENV=1` unconditionally, the connection policy below overrides it.
 
-- Inside Herdr (`HERDR_ENV=1`), use the inherited connection context.
-- Outside Herdr, an explicit user-provided socket or session is sufficient authorization to connect. Pass that connection explicitly on every command; for example, `HERDR_SOCKET_PATH=/path/from/user herdr agent list`.
-- If neither inherited context nor an explicit user-provided connection is available, ask which session to use. Do not silently attach to the user's focused session.
+## Connection
 
-Do not set `HERDR_ENV=1` to pretend this agent is inside Herdr. Use explicit pane IDs or agent names when operating from outside Herdr; do not use `--current` or implicit focus.
+- Inside Herdr (`HERDR_ENV=1`): use the inherited context.
+- Outside: an explicit user-supplied socket/session is enough. Pass it on every command (`HERDR_SOCKET_PATH=/path herdr agent list`).
+- Neither available: ask which session. Never attach to the user's focused session silently.
+- Never set `HERDR_ENV=1` to pose as inside. Outside Herdr, use explicit pane IDs or agent names, never `--current` or implicit focus.
 
-## Get the real instructions
+## Traps
 
-Load the full skill from the binary (pane vs agent model, IDs, start/prompt/wait, safety). Its command documentation is authoritative for the installed version. If its embedded skill still requires `HERDR_ENV=1` unconditionally, use the explicit-connection policy above instead; being outside Herdr alone is not a reason to refuse a user-specified connection:
-
-```bash
-herdr --skill
-```
-
-For syntax of any group, run the group without a subcommand:
-
-```bash
-herdr --help
-herdr agent
-herdr pane
-herdr workspace
-herdr tab
-herdr worktree
-herdr terminal
-herdr notification
-herdr integration
-herdr session
-```
-
-Most commands return JSON — parse IDs from the response, never guess them. Do not run bare `herdr` for discovery (it launches the TUI) and do not probe mutating commands like `herdr workspace create` without arguments — they execute with defaults.
+- Most commands return JSON: parse IDs, never guess them.
+- Bare `herdr` launches the TUI. Mutating commands run with defaults when given no arguments (`herdr workspace create`), so don't probe them.
