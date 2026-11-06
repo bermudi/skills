@@ -8,10 +8,26 @@ requires `HERDR_ENV=1` unconditionally.
 
 ## Connect and launch once
 
-Inside Herdr, use inherited connection/caller context. Outside it, require
-a user-supplied socket/session and parent pane; prefix **every** command
-with that connection and use explicit IDs, never `--current` or implicit
-focus. Do not forge `HERDR_ENV=1` or attach to a focused/default session.
+Inside Herdr, use inherited connection/caller context. Outside it, prefer a
+user-supplied socket/session and parent pane; prefix **every** command with
+that connection and use explicit IDs, never `--current` or implicit focus.
+Do not forge `HERDR_ENV=1`.
+
+With no supplied connection, use the default session, which answers
+commands without a prefix. Find the workspace for the lead's checkout:
+match `worktree.checkout_path` to the CWD, or `worktree.repo_root` to the
+main checkout when the CWD is itself a linked worktree. Open a fresh shell
+pane there without disturbing its existing panes:
+
+```bash
+herdr workspace list        # match .result.workspaces[].worktree
+herdr tab create --workspace "$ws_id" --cwd "$project_dir" --no-focus
+```
+
+No match: `herdr workspace create --cwd "$project_dir" --no-focus`, then
+use its pane. Parse the new pane's ID from each response or `herdr pane
+list`; never infer it. If the default session is not running, ask which
+session to use rather than attaching to another silently.
 
 Inspect `herdr agent`, `herdr agent start --help`, and `herdr pane` for syntax
 and supported kinds. Do not run bare `herdr` or probe a mutating command by
@@ -32,7 +48,8 @@ workspace or worktree unless requested. Never adopt an unrelated idle agent.
 
 In this Bash example, set `parent_pane`, `project_dir`, `direction`,
 `sidekick`, `chosen_kind`, and the `native_args` array from verified choices.
-Commands assume an inherited connection; add the explicit prefix outside it.
+Commands assume an inherited or default-session connection; add the explicit
+prefix for a supplied non-default session.
 
 ```bash
 split_json=$(herdr pane split --pane "$parent_pane" \
