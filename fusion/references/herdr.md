@@ -70,6 +70,16 @@ approval. On startup timeout use the pane ID: a name may not have registered.
 Shell aliases can inject conflicting flags or bypass modes; do not assume
 the startup banner matches the intended launch arguments.
 
+## Extra panes for parallel work
+
+Independent, settled work streams may run on more than one sidekick: split
+one pane per agent with the same procedure and flags as the first launch,
+give each an unused name and `--no-focus`, use the same approved
+harness/model, and record every pane, name, and harness session ID in the
+connection notes. Never launch an extra pane as a workaround for a blocked
+or hung sidekick (see Recovery), and never let one sidekick manage another:
+only the lead creates panes and agents.
+
 ## Handoffs to the same session
 
 Resolve `agent get` before a send: same sidekick, same project/session, not

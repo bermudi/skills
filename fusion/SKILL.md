@@ -1,10 +1,10 @@
 ---
 name: fusion
 description: >-
-  Use when the user asks for Fusion: the lead designs and reviews while one
-  persistent, cheaper sidekick in another harness implements, verifies, and
-  handles the environment through a Herdr side pane. Delegate execution by
-  default, not judgment.
+  Use when the user asks for Fusion: the lead designs and reviews while
+  persistent cheaper sidekicks in another harness implement, verify, and
+  handle the environment through Herdr side panes, split into parallel
+  panes for independent work. Delegate execution by default, not judgment.
 compatibility: Requires Herdr and an installed interactive sidekick harness.
 disable-model-invocation: true
 ---
@@ -12,9 +12,11 @@ disable-model-invocation: true
 # Fusion
 
 **Delegate execution, retain judgment.** You are the lead: own the outcome,
-planning, design, consequential decisions, and final review. Use exactly one
+planning, design, consequential decisions, and final review. Use a
 **persistent, cheaper sidekick** in a different interactive harness for
-implementation, verification, and environment work.
+implementation, verification, and environment work. When settled work
+streams are genuinely independent, split extra panes and run more sidekick
+agents in parallel (see "Split panes for parallel work").
 
 The point is cost, not a second opinion: mechanical execution consumes much
 of a coding session's tokens. Put that work on the cheaper model; protect
@@ -64,8 +66,10 @@ messages or a copy of your transcript.
 
 Keep the same sidekick for the session, across tasks and rework. Its own
 history, discoveries, edits, shells, servers, and other runtime state are
-assets to reuse. Do not spawn per task, fan out additional workers, `/new`,
-`/clear`, or replace it at phase boundaries.
+assets to reuse. Do not spawn per task, replace it at phase boundaries, or
+reset it with `/new` or `/clear`. Additional panes and agents are for
+genuinely parallel settled work only (see "Split panes for parallel work"),
+never per-task spin-ups or replacements.
 
 Record the connection, pane/name, harness session ID where available,
 approved model, project, completed handoffs, pending report, live processes,
@@ -74,8 +78,9 @@ compaction. Use the harness's native compaction without claiming it guarantees
 lossless history; retain available transcript/checkpoint paths and verify
 uncertain state rather than restarting or redoing completed work.
 
-**Ready means:** the one sidekick's identity, model, project, and permissions
-are verified, and its operating instructions are included in the first brief.
+**Ready means:** each sidekick's identity, model, project, and permissions
+are verified, and its operating instructions are included in its first
+brief.
 
 ## Settle the brief before handing off
 
@@ -144,13 +149,36 @@ Act on a new user message first: decide explicitly whether it changes the
 running handoff. If so, steer the **same** sidekick with the changed
 instructions and preserve completed work. Herdr is not Devin's native
 interrupt API; follow the adapter's observed interrupt-and-resume procedure,
-not a blind prompt into a working terminal. Never spawn another sidekick.
+not a blind prompt into a working terminal. Never spawn a replacement
+sidekick.
 
 If the user is waiting on an urgent deliverable, perform the minimal
 unblocking action yourself rather than block behind a busy sidekick. Keep
 slow validation off that critical path without claiming unfinished checks
 passed. For a parked long-running job, request an immediate report when the
 needed result arrives; re-brief the same sidekick to resume afterwards.
+
+## Split panes for parallel work
+
+The persistent sidekick is the anchor, not a single-lane bottleneck. When
+the settled plan contains genuinely independent streams—separate modules, a
+documentation build alongside a test suite, per-file refactors with disjoint
+scopes—split additional panes and launch more sidekick agents rather than
+queueing every stream behind one.
+
+Follow the Herdr adapter's launch procedure for each agent: one unused name
+per pane, one split per agent, `--no-focus`, the same approved
+harness/model, the operating instructions in each agent's first brief, and a
+connection record per pane in your session notes. Give parallel agents
+disjoint write scopes: no overlapping files, no checks that collide on the
+same artifacts. Each agent gets its own brief and report file; each report
+is a landing point reviewed like any other, and the turn is not complete
+while any report is outstanding.
+
+Parallelism scales settled execution only. It is never a route around a
+blocked, hung, or failed sidekick: resolve the blocker through steering or
+recovery, or take over per the urgency rules. Only the lead splits panes and
+starts agents; a sidekick never launches another worker.
 
 ## Review every landing point
 
