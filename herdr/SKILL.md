@@ -1,6 +1,10 @@
 ---
 name: herdr
-description: "Control Herdr, a terminal multiplexer for coding agents. Use only when the user explicitly mentions Herdr or asks to inspect or control its panes, tabs, workspaces, or another agent. Not for generic background terminals, delegation, or parallel work."
+description: >
+  Control Herdr, a terminal multiplexer for coding agents. Only when the user
+  explicitly mentions Herdr or asks to inspect or control its panes, tabs,
+  workspaces or another agent; not for generic background terminals,
+  delegation or parallel work.
 ---
 
 # Herdr

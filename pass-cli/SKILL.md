@@ -1,9 +1,8 @@
 ---
 name: pass-cli
 description: >
-  Safely retrieve Proton Pass secrets or inject them into a command or protected
-  config file with pass-cli, always through a scoped, audited Agent-token
-  session.
+  Retrieve Proton Pass secrets or inject them into a command or config file
+  with pass-cli, through a scoped, audited Agent-token session.
 disable-model-invocation: false
 ---
 

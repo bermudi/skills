@@ -1,10 +1,9 @@
 ---
 name: content-retrieval
 description: >
-  Use this skill when acquiring, extracting, searching, or understanding
-  external content: documents, audio, video, images, URLs, websites, web
-  search, online research, library documentation, or even remote GitHub
-  repos.
+  Use when acquiring, extracting, searching or understanding external content:
+  documents, audio, video, images, URLs, websites, web search, online
+  research, library docs, remote GitHub repos.
 license: MIT
 metadata:
   version: "1.3"

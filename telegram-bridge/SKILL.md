@@ -1,9 +1,9 @@
 ---
 name: telegram-bridge
 description: >
-  Use when bermudi asks to send something to his Telegram — "send X to
-  telegram", "telegram me this", "voice-note me this", "notify me on
-  telegram". Sends text, files, or TTS voice notes to his phone.
+  Use when bermudi asks to send something to Telegram: "telegram me this",
+  "voice-note me this", "notify me on telegram". Sends text, files or TTS
+  voice notes.
 ---
 
 Scripts live in `/home/daniel/build/telegram-bridge/`; call them by absolute path. Dispatch on what X is:

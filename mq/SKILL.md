@@ -1,8 +1,8 @@
 ---
 name: mq
 description: >
-  `mq` is `jq` for Markdown: query, filter and transform headings, code blocks,
-  links, sections and frontmatter via the AST instead of regex or line parsing.
+  `mq` is jq for Markdown: query, filter and transform headings, code blocks,
+  links, sections and frontmatter via the AST, not regex.
 compatibility: Requires the mq CLI (https://mqlang.org/install.sh)
 metadata:
   topic: markdown-processing

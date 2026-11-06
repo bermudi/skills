@@ -1,13 +1,10 @@
 ---
 name: harness-session-navigation
 description: >
-  Use this skill when finding, identifying, resuming, switching, branching, or
-  navigating sessions in Pi, Claude Code, Devin CLI, Command Code (`cmd`/`commandcode`),
-  ZCode (`zcode`), or Freebuff, when identifying which of those harnesses
-  owns an unknown coding session, or when searching session history — by
-  content, tool actions, or file edits — across one or all of them. Covers
-  project scoping, IDs, transcript locations, pickers, trees, forks, and safe
-  read-only recovery when the normal picker cannot find it.
+  Find, identify, resume, switch, branch or navigate sessions in Pi, Claude
+  Code, Devin CLI, Command Code (`cmd`/`commandcode`), ZCode (`zcode`) or
+  Freebuff; identify which harness owns an unknown session; search history by
+  content, tool action or file edit; recover a session the picker can't find.
 license: Apache-2.0
 metadata:
   version: "1.5"

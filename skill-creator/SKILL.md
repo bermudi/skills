@@ -1,6 +1,8 @@
 ---
 name: skill-creator
-description: Create and iteratively improve Agent Skills. Use when users want to create a skill from scratch, edit or improve an existing skill, run evals or benchmarks, or optimize a skill's description for better triggering accuracy.
+description: >
+  Create and improve Agent Skills: write from scratch, run evals or
+  benchmarks, optimize a description's triggering.
 disable-model-invocation: true
 ---
 

@@ -1,9 +1,8 @@
 ---
 name: pi-docs
 description: >
-  Use when the user asks about pi itself — its SDK, extensions, themes, skills,
-  TUI, prompt templates, keybindings, custom providers, models, or packages.
-  Points to pi's installed docs and examples.
+  Use when asked about pi itself: SDK, extensions, themes, skills, TUI, prompt
+  templates, keybindings, custom providers, models, packages.
 ---
 
 Pi is a managed install (not npm). Docs root:

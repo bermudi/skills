@@ -1,10 +1,9 @@
 ---
 name: fusion
-description: >-
+description: >
   Use when the user asks for Fusion: the lead designs and reviews while
-  persistent cheaper sidekicks in another harness implement, verify, and
-  handle the environment through Herdr side panes, split into parallel
-  panes for independent work. Delegate execution by default, not judgment.
+  cheaper sidekicks in another harness implement and verify in Herdr side
+  panes.
 compatibility: Requires Herdr and an installed interactive sidekick harness.
 disable-model-invocation: true
 ---

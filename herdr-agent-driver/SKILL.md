@@ -1,12 +1,10 @@
 ---
 name: herdr-agent-driver
-description: >-
-  Drive interactive coding-agent harnesses as child workers from a parent orchestrator
-  agent via the herdr CLI: launch harnesses (claude, codex, pi, devin, and more),
-  submit bounded prompts, wait on lifecycle states, read output, verify results,
-  handle blocked dialogs, and fan out parallel agents in git worktrees. Use when
-  supervising or orchestrating coding agents with herdr. For plain herdr pane and
-  workspace control, use the herdr skill instead.
+description: >
+  Drive coding-agent harnesses (claude, codex, pi, devin and more) as child
+  workers via the herdr CLI: launch, prompt, wait, read output, handle blocked
+  dialogs, fan out in git worktrees. For plain pane and workspace control, use
+  the herdr skill.
 disable-model-invocation: true
 ---
 

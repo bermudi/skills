@@ -1,10 +1,8 @@
 ---
 name: create-project-agentsmd
 description: >
-  Generate a well-structured AGENTS.md (or CLAUDE.md, .cursorrules) instruction
-  file for a project — encoding goals, shape, and stable project knowledge while
-  avoiding volatile implementation specifics, so the file stays accurate as the
-  codebase evolves. Invoked explicitly.
+  Generate a project AGENTS.md (or CLAUDE.md, .cursorrules) encoding goals,
+  shape and stable knowledge, not volatile implementation details.
 license: Apache-2.0
 metadata:
   version: "1.1"

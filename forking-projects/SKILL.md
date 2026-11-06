@@ -1,8 +1,8 @@
 ---
 name: forking-projects
 description: >
-  Use when creating, organizing, maintaining, or syncing a fork, cleaning up
-  downstream patches, or turning a fork into an independent project.
+  Use when creating, maintaining or syncing a fork, cleaning up downstream
+  patches, or turning a fork into an independent project.
 ---
 
 # Forking projects
