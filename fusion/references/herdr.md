@@ -36,10 +36,18 @@ omitting its arguments.
 Establish the parent's harness/project and confirm the sidekick harness
 differs. Use only the user-approved model/provider; inspect that harness's
 local `--help` for native arguments. Do not silently select a default,
-substitute models, install integrations, or add permission-bypass flags.
-The sidekick needs scoped editing/command capabilities, not a read-only
-reviewer configuration. Configure actual authority restrictions where
-supported; a brief alone is not enforcement.
+substitute models, or install integrations.
+
+**Start the sidekick in yolo mode** — the harness's auto-approve or
+full-access equivalent (for example Claude Code's
+`--dangerously-skip-permissions`; find the flag in that harness's `--help`)
+— and record it as part of the launch configuration. A sidekick that pauses
+on permission prompts turns every handoff into approval-chauffeuring, and a
+read-only reviewer configuration inverts the division of labor. Yolo mode
+removes harness gating, not the authority boundary: containment comes from
+the project-directory launch, the brief's write scope, the sidekick's
+operating instructions, and lead review of every landing point — not from
+treating the mode as a sandbox.
 
 Inspect the parent layout and agent list. Choose one unused name (for
 example `fusion-worker`), same tab/cwd, and `--no-focus`. Split right if wide,
@@ -64,11 +72,14 @@ herdr agent read "$sidekick" --source visible --lines 80
 
 Parse returned IDs; never infer them. If a response is lost, inspect state
 before retrying a mutation. `agent start` requires an existing shell pane.
-Verify the actual model/provider, permissions, cwd, and harness before
-dispatch. If startup is blocked, inspect the dialog and obtain required
-approval. On startup timeout use the pane ID: a name may not have registered.
-Shell aliases can inject conflicting flags or bypass modes; do not assume
-the startup banner matches the intended launch arguments.
+Verify the actual model/provider, yolo mode, cwd, and harness before
+dispatch: a dropped auto-approve flag surfaces later as a sidekick stalled
+on its first permission prompt. First-run trust or login dialogs still
+appear under yolo mode; if startup is blocked, inspect the dialog and
+obtain required approval. On startup timeout use the pane ID: a name may
+not have registered. Shell aliases can inject conflicting flags or bypass
+modes; do not assume the startup banner matches the intended launch
+arguments.
 
 ## Extra panes for parallel work
 

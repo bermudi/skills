@@ -36,13 +36,13 @@ Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its 
 
 ## One persistent sidekick
 
-Before the first handoff, read [the Herdr adapter](references/herdr.md) to create a sibling pane and launch the other harness. Use only an explicitly approved harness/model/provider pairing and ask for missing choices together; never choose for the user. The sidekick reads [its operating instructions](references/sidekick.md) with the first brief. It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
+Before the first handoff, read [the Herdr adapter](references/herdr.md) to create a sibling pane and launch the other harness **in yolo mode** (its auto-approve/full-access equivalent), so execution never stalls on permission prompts. Use only an explicitly approved harness/model/provider pairing and ask for missing choices together; never choose for the user. The sidekick reads [its operating instructions](references/sidekick.md) with the first brief. It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
 
 Keep the same sidekick all session, across tasks and rework: its history, edits, shells and servers are assets. Never spawn per task, replace it at phase boundaries, or reset it (`/new`, `/clear`). Extra panes are for parallel work only (below).
 
 Keep in your notes (and across your own compaction): connection, pane/name, harness session ID, approved model, project, completed handoffs, pending report, live processes, evidence paths. Native compaction isn't lossless: keep transcript/checkpoint paths and verify uncertain state instead of restarting or redoing work.
 
-**Ready** = each sidekick's identity, model, project and permissions are verified, and its operating instructions went in its first brief.
+**Ready** = each sidekick's identity, model, project and yolo (auto-approve) mode are verified, and its operating instructions went in its first brief.
 
 ## Settle the brief first
 

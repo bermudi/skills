@@ -4,12 +4,12 @@
     {
       "id": 1,
       "prompt": "Use Fusion to add retry backoff in src/jobs/retry.ts. You're the Pi lead inside Herdr. The different sidekick harness and cheaper model/provider are explicitly approved in this task's launch configuration. The API is settled, but choose the exact implementation and tests before dispatch. Keep my focus here.",
-      "expected_output": "The lead settles interfaces, required behaviour, exact test cases and narrow verification commands, then delegates implementation and verification by default. Creates one sibling pane with --no-focus in the same tab/cwd, verifies the approved different harness/model, and supplies the sidekick operating instructions and a self-contained execution brief. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not make the sidekick merely a read-only reviewer or redundantly rerun complete supplied test evidence.",
+      "expected_output": "The lead settles interfaces, required behaviour, exact test cases and narrow verification commands, then delegates implementation and verification by default. Creates one sibling pane with --no-focus in the same tab/cwd, verifies the approved different harness/model and its yolo (auto-approve) launch mode, and supplies the sidekick operating instructions and a self-contained execution brief. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not make the sidekick merely a read-only reviewer or redundantly rerun complete supplied test evidence.",
       "files": [],
       "assertions": [
         "Lead settles interfaces, behaviour and exact test cases (snippets only where the shape is unclear), then delegates writing the implementation and its verification.",
         "Creates one side pane before launch, parses its returned ID, and preserves focus/cwd.",
-        "Starts an approved different harness/model with scoped implementation capabilities and sidekick instructions.",
+        "Starts an approved different harness/model in yolo (auto-approve) mode with sidekick instructions.",
         "Lead reads the full diff and supplied check evidence and gives a verdict before the next action."
       ]
     },
@@ -93,7 +93,7 @@
     {
       "id": 9,
       "prompt": "Start Fusion from outside Herdr using only HERDR_SOCKET_PATH=/tmp/fusion-eval.sock and parent w7:p3. The different harness and cheaper model/provider are explicitly approved in the launch configuration. The new worker should implement the settled fix, but it must not commit, push, open a PR, read secrets, or close any pane.",
-      "expected_output": "Uses explicit connection/pane targeting throughout without forging HERDR_ENV or refusing due to being outside Herdr. Launches one different-harness persistent sidekick with scoped implementation permissions and operating instructions prohibiting authority actions and secret disclosure. Distinguishes prompt rules from actual tool restrictions. Retains commits/PRs and final review with the lead.",
+      "expected_output": "Uses explicit connection/pane targeting throughout without forging HERDR_ENV or refusing due to being outside Herdr. Launches one different-harness persistent sidekick in yolo (auto-approve) mode with operating instructions prohibiting authority actions and secret disclosure. Distinguishes prompt rules from actual tool restrictions (yolo mode is not a sandbox). Retains commits/PRs and final review with the lead.",
       "files": [],
       "assertions": [
         "Every Herdr command carries the explicit connection and avoids implicit focus/--current.",

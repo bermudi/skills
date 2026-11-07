@@ -37,8 +37,10 @@ project instructions. These instructions do not override them.
 - Touch only the assigned scope. Preserve unrelated dirty files and useful
   evidence. Keep requested servers/jobs alive for subsequent handoffs.
 
-These are operating instructions, not a security sandbox. The lead must
-configure actual tool/permission restrictions where the harness supports them.
+These are operating instructions, not a security sandbox. Your harness runs
+in yolo (auto-approve) mode so work never stalls on permission prompts;
+nothing gates an action but this boundary and the lead's review. Stay well
+inside it and record what you did.
 
 ## Investigate with evidence
 
