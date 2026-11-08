@@ -1,9 +1,9 @@
 {
-  "skill_name": "fusion",
+  "skill_name": "fusion-herdr",
   "evals": [
     {
       "id": 1,
-      "prompt": "Use Fusion to add retry backoff in src/jobs/retry.ts. You're the Pi lead inside Herdr. The different sidekick harness and cheaper model/provider are explicitly approved in this task's launch configuration. The API is settled, but choose the exact implementation and tests before dispatch. Keep my focus here.",
+      "prompt": "Use fusion-herdr to add retry backoff in src/jobs/retry.ts. You're the Pi lead inside Herdr. The different sidekick harness and cheaper model/provider are explicitly approved in this task's launch configuration. The API is settled, but choose the exact implementation and tests before dispatch. Keep my focus here.",
       "expected_output": "The lead settles interfaces, required behaviour, exact test cases and narrow verification commands, then delegates implementation and verification by default. Creates one sibling pane with --no-focus in the same tab/cwd, verifies the approved different harness/model and its yolo (auto-approve) launch mode, and supplies the sidekick operating instructions and a self-contained execution brief. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not make the sidekick merely a read-only reviewer or redundantly rerun complete supplied test evidence.",
       "files": [],
       "assertions": [
@@ -15,7 +15,7 @@
     },
     {
       "id": 2,
-      "prompt": "Fusion is active. The sidekick just implemented the cache change and left its dev server running. Now fix the related eviction bug. The sidekick already knows the files and environment; use the approved pairing.",
+      "prompt": "Fusion-herdr is active. The sidekick just implemented the cache change and left its dev server running. Now fix the related eviction bug. The sidekick already knows the files and environment; use the approved pairing.",
       "expected_output": "Reuses the exact same sidekick conversation and runtime. The lead designs the next change and sends only the new settled instructions, references prior knowledge, and states how to check and reuse the existing server. Does not spawn a new agent, reset context, repeat environment discovery, or rerun unchanged verification.",
       "files": [],
       "assertions": [
@@ -26,7 +26,7 @@
     },
     {
       "id": 3,
-      "prompt": "With Fusion active, write a grader prompt and eval harness for our extraction pipeline, change the scoring threshold, and query production for the current success rate. We don't know which production table contains the outcomes yet.",
+      "prompt": "With fusion-herdr active, write a grader prompt and eval harness for our extraction pipeline, change the scoring threshold, and query production for the current success rate. We don't know which production table contains the outcomes yet.",
       "expected_output": "Lead retains authoring and checking of prompt/grader/eval/scoring artifacts and the exact production query even if read-only. May delegate bounded schema/candidate-source discovery first, then authors the exact query and recipe, requiring schema surprises to stop and report rather than letting the sidekick adapt the query. Mechanical execution can be delegated; consequential methodology cannot.",
       "files": [],
       "assertions": [
@@ -37,7 +37,7 @@
     },
     {
       "id": 4,
-      "prompt": "Fusion's sidekick returned its implementation. It says all three narrow checks passed and provides their output paths. Two changed files look plausible and the third has a bug. Review everything, then decide what happens next.",
+      "prompt": "fusion-herdr's sidekick returned its implementation. It says all three narrow checks passed and provides their output paths. Two changed files look plausible and the third has a bug. Review everything, then decide what happens next.",
       "expected_output": "Lead reads the full diff and provided evidence, finishes the review, gives a rework verdict, and sends all findings in one consolidated handoff to the same sidekick. Does not fix the first defect itself or dispatch piecemeal findings. Does not reflexively rerun checks whose complete evidence and inputs are unchanged; reviews the changed diff and affected evidence when rework returns.",
       "files": [],
       "assertions": [
@@ -48,7 +48,7 @@
     },
     {
       "id": 5,
-      "prompt": "Fusion is active. Your design is ready, but your own command failed because the local test environment is broken. Fix the environment and finish the implementation. There's also one unused import you can remove and confirm in a single turn.",
+      "prompt": "Fusion-herdr is active. Your design is ready, but your own command failed because the local test environment is broken. Fix the environment and finish the implementation. There's also one unused import you can remove and confirm in a single turn.",
       "expected_output": "Delegates environment repair even though the lead encountered the failure, and delegates the settled implementation and narrow checks. The lead may remove the truly trivial import if editing and confirmation fit the stated exception. Does not take over the substantive execution or run full suites after each edit.",
       "files": [],
       "assertions": [
@@ -59,7 +59,7 @@
     },
     {
       "id": 6,
-      "prompt": "While Fusion's sidekick is working, I changed the requirement: preserve legacy IDs rather than migrating them. Stop the migration approach and continue with that constraint. There is no verified live-message integration for this harness.",
+      "prompt": "While fusion-herdr's sidekick is working, I changed the requirement: preserve legacy IDs rather than migrating them. Stop the migration approach and continue with that constraint. There is no verified live-message integration for this harness.",
       "expected_output": "Prioritizes the user update, inspects the current sidekick, and safely interrupts at a documented boundary before briefing the same session with what changed and what remains valid. Does not assume Herdr prompt injects a native running update, send blind input into a working TUI, reset the sidekick, spawn another, or discard completed useful work.",
       "files": [],
       "assertions": [
@@ -70,7 +70,7 @@
     },
     {
       "id": 7,
-      "prompt": "Fusion's sidekick is running the settled implementation. You have finished the independent design note you worked on in parallel, and its report hasn't arrived yet. Finish the task.",
+      "prompt": "fusion-herdr's sidekick is running the settled implementation. You have finished the independent design note you worked on in parallel, and its report hasn't arrived yet. Finish the task.",
       "expected_output": "Blocks waiting for the existing sidekick and reads the report, rather than polling in a loop, sending canned continue prompts, inventing completion, starting another worker, or ending the task while the report is owed. Then performs the landing-point review before accepting.",
       "files": [],
       "assertions": [
@@ -81,7 +81,7 @@
     },
     {
       "id": 8,
-      "prompt": "Fusion is active. Build and judge a multi-panel visual dashboard from the metrics you already derived. Also update the ordinary nonvisual export utility to consume the same metrics. Don't recalculate them.",
+      "prompt": "Fusion-herdr is active. Build and judge a multi-panel visual dashboard from the metrics you already derived. Also update the ordinary nonvisual export utility to consume the same metrics. Don't recalculate them.",
       "expected_output": "Lead retains the complex rendered-browser implementation and visual verification loop. Persists metrics as frozen inputs. Delegates the settled nonvisual utility change and its narrow checks, requiring reuse of those exact values. Does not let the sidekick rederive metrics or treat all UI work as mechanically delegable.",
       "files": [],
       "assertions": [
@@ -92,7 +92,7 @@
     },
     {
       "id": 9,
-      "prompt": "Start Fusion from outside Herdr using only HERDR_SOCKET_PATH=/tmp/fusion-eval.sock and parent w7:p3. The different harness and cheaper model/provider are explicitly approved in the launch configuration. The new worker should implement the settled fix, but it must not commit, push, open a PR, read secrets, or close any pane.",
+      "prompt": "Start fusion-herdr from outside Herdr using only HERDR_SOCKET_PATH=/tmp/fusion-eval.sock and parent w7:p3. The different harness and cheaper model/provider are explicitly approved in the launch configuration. The new worker should implement the settled fix, but it must not commit, push, open a PR, read secrets, or close any pane.",
       "expected_output": "Uses explicit connection/pane targeting throughout without forging HERDR_ENV or refusing due to being outside Herdr. Launches one different-harness persistent sidekick in yolo (auto-approve) mode with operating instructions prohibiting authority actions and secret disclosure. Distinguishes prompt rules from actual tool restrictions (yolo mode is not a sandbox). Retains commits/PRs and final review with the lead.",
       "files": [],
       "assertions": [
@@ -103,7 +103,7 @@
     },
     {
       "id": 10,
-      "prompt": "Fusion's sidekick reports done, but the terminal actually shows a quota limit until 18:00. Meanwhile I need the already-approved one-line config fix immediately; don't wait behind the busy worker or change models. Tell me the actual status without a delegation play-by-play.",
+      "prompt": "fusion-herdr's sidekick reports done, but the terminal actually shows a quota limit until 18:00. Meanwhile I need the already-approved one-line config fix immediately; don't wait behind the busy worker or change models. Tell me the actual status without a delegation play-by-play.",
       "expected_output": "Distinguishes settled state from success and inspects evidence. Stops prompting the quota-limited model and does not switch or replace it. Applies the minimal authorized urgency override when safe without overlapping worker edits, leaves slow validation explicitly pending, and communicates the result/blocker as one accountable lead without claiming unrun checks passed.",
       "files": [],
       "assertions": [
@@ -114,7 +114,7 @@
     },
     {
       "id": 11,
-      "prompt": "Fusion is active with an approved sidekick already running. Fix this finding: \"The service worker caches nothing (app/public/sw.js is a no-op). Offline or a flaky connection means no app.\"",
+      "prompt": "Fusion-herdr is active with an approved sidekick already running. Fix this finding: \"The service worker caches nothing (app/public/sw.js is a no-op). Offline or a flaky connection means no app.\"",
       "expected_output": "Before planning, the lead lists the user's asks in their words and keeps offline (requests fail fast) and a flaky connection (requests can hang) as separate asks, or tells the user it is deferring one. The brief maps each ask to a plan step and an exact test case, including a test where the network never answers. The brief settles interfaces, behaviour and tests without pasting the implementation body. Review checks each ask against code and a test that would fail without it, and the final report cites check evidence by path instead of claiming checks the lead did not run.",
       "files": [],
       "assertions": [
@@ -127,7 +127,7 @@
     },
     {
       "id": 12,
-      "prompt": "Fusion is active with an approved sidekick already running. The sidekick reports a new read-only reviewer profile finished: all tests pass. Its system prompt tells the reviewer to run `git diff HEAD`. The permission test in the diff asserts `git diff --name-only --` is allowed, and the report mentions that the briefed `git diff HEAD` was denied in the test workspace, so it used a command from an existing allowlist test.",
+      "prompt": "Fusion-herdr is active with an approved sidekick already running. The sidekick reports a new read-only reviewer profile finished: all tests pass. Its system prompt tells the reviewer to run `git diff HEAD`. The permission test in the diff asserts `git diff --name-only --` is allowed, and the report mentions that the briefed `git diff HEAD` was denied in the test workspace, so it used a command from an existing allowlist test.",
       "expected_output": "The lead does not accept on the passing tests. It sees that the test does not exercise the command the prompt really uses, and sends one consolidated rework asking for `git diff HEAD` in a real repository through the real permission path, reporting rather than substituting if the policy denies it. It does not fix the test itself by reflex.",
       "files": [],
       "assertions": [

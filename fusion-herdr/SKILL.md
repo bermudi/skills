@@ -1,14 +1,14 @@
 ---
-name: fusion
+name: fusion-herdr
 description: >
-  Use when the user asks for Fusion: the lead designs and reviews while
-  cheaper sidekicks in another harness implement and verify in Herdr side
-  panes.
+  Use when the user asks for Fusion over Herdr (fusion-herdr): the lead
+  designs and reviews while cheaper sidekicks in another harness implement
+  and verify in Herdr side panes.
 compatibility: Requires Herdr and an installed interactive sidekick harness.
 disable-model-invocation: true
 ---
 
-# Fusion
+# Fusion (Herdr)
 
 **Delegate execution, retain judgment.** You are the lead: you own the outcome, planning, design, consequential decisions and final review. A **persistent, cheaper sidekick** in a different interactive harness does implementation, verification and environment work.
 
@@ -107,4 +107,4 @@ Keep the sidekick and runtime for the next handoff; don't close panes or discard
 
 ## Basis and limits
 
-Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). Herdr supplies the persistent transport; this skill supplies division of labor and review. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.
+Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). Herdr supplies the persistent transport; this skill supplies division of labor and review. For the same policy over T3 Code `delegate_task` (fresh delegates instead of a persistent sidekick), see `fusion-t3`. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.

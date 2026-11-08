@@ -1,0 +1,118 @@
+{
+  "skill_name": "fusion-t3",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use fusion-t3 to add retry backoff in src/jobs/retry.ts. You're the lead in T3 Code. The cheaper sidekick provider/model is explicitly approved in this task's launch configuration. The API is settled, but choose the exact implementation and tests before dispatch.",
+      "expected_output": "The lead calls orchestrator_capabilities once before the first dispatch, settles interfaces, required behaviour, exact test cases and narrow verification commands, then dispatches one delegate_task with the approved target. The brief includes the sidekick operating instructions and a self-contained execution recipe naming a report file. On return the lead inspects the full diff and evidence and records a verdict before accepting. Does not use a native subagent for another provider's model or make the sidekick a read-only reviewer.",
+      "files": [],
+      "assertions": [
+        "Calls orchestrator_capabilities once before the first delegate_task.",
+        "Lead settles interfaces, behaviour and exact test cases (snippets only where the shape is unclear), then delegates implementation and verification via delegate_task with the operator-named provider/model.",
+        "Brief is self-contained: sidekick instructions referenced, settled facts restated, report file named.",
+        "Lead reads the full diff and supplied check evidence and gives a verdict before the next action."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "fusion-t3 is active. The previous delegate implemented the cache change and left its dev server running; its report is at /tmp/reports/cache.md. Now fix the related eviction bug with the same approved sidekick. The sidekick already knows the files and environment.",
+      "expected_output": "Dispatches a new delegate_task with a fresh self-contained brief: the changed goal, the prior report/evidence paths as frozen inputs, instructions to reuse the running server and not re-verify unchanged work. Does not continue the old child via t3_thread_send, spawn a native agent, restate discovery, or rerun unchanged verification. Same approved target as before.",
+      "files": [],
+      "assertions": [
+        "Continuity is a new delegate_task whose brief carries prior report/evidence paths as frozen inputs, not a t3_thread_send continuation.",
+        "Brief explicitly reuses the existing runtime and avoids re-deriving known context.",
+        "Reuses the same operator-approved target instead of picking another model."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "With fusion-t3 active, write a grader prompt and eval harness for our extraction pipeline, change the scoring threshold, and query production for the current success rate. We don't know which production table contains the outcomes yet.",
+      "expected_output": "Lead retains authoring and checking of prompt/grader/eval/scoring artifacts and the exact production query even if read-only. May delegate bounded schema/candidate-source discovery first, then authors the exact query and recipe, requiring schema surprises to stop and report rather than letting the sidekick adapt the query. Mechanical execution can be delegated; consequential methodology cannot.",
+      "files": [],
+      "assertions": [
+        "Lead authors and checks protected artifacts, not just their high-level requirements.",
+        "Uses discovery then exact-query handoff when production schema is unknown.",
+        "Sidekick cannot substitute query shape or invent measurement/scoring methodology."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "fusion-t3's sidekick returned its implementation. It says all three narrow checks passed and provides their output paths. Two changed files look plausible and the third has a bug. Review everything, then decide what happens next.",
+      "expected_output": "Lead reads the full diff and provided evidence, finishes the review, gives a rework verdict, and sends all findings in one consolidated new delegate_task. Does not fix the first defect itself or dispatch piecemeal findings. Does not reflexively rerun checks whose complete evidence and inputs are unchanged; reviews the changed diff and affected evidence when rework returns.",
+      "files": [],
+      "assertions": [
+        "Full review and explicit verdict occur before rework or other next actions.",
+        "Rework is one consolidated new delegate_task, not multiple partial reviews, a t3_thread_send, or lead fixes.",
+        "Uses supplied artifacts as evidence without automatically repeating unchanged verification."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "While fusion-t3's delegate is running the settled implementation, I changed the requirement: preserve legacy IDs rather than migrating them. Stop the migration approach and continue with that constraint.",
+      "expected_output": "Prioritizes the user update, cancels the running delegate with task_cancel (never t3_thread_interrupt on the child), then dispatches one new delegate_task whose brief states what changed, what remains valid, and to preserve completed work and live processes. Does not spawn a replacement while the old one runs, reset work, or discard completed useful changes. May let a nearly-landed result finish before re-dispatching the delta.",
+      "files": [],
+      "assertions": [
+        "User update is explicitly evaluated before continuing the old handoff.",
+        "Uses task_cancel then one new delegate_task; never t3_thread_interrupt on a child thread.",
+        "New brief preserves completed work and states the changed constraint."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "fusion-t3's delegate is running the settled implementation. You have finished the independent design note you worked on in parallel, and its report hasn't arrived yet. Finish the task.",
+      "expected_output": "Blocks waiting for the delegate per its next guidance, rather than polling with task_status, sleep loops, watchers or Monitor, sending canned continue prompts, inventing completion, starting another worker, or ending the task while the report is owed. Then performs the landing-point review before accepting.",
+      "files": [],
+      "assertions": [
+        "Waits for the pending result after independent work runs out; follows the delegate's next.",
+        "Does not poll, duplicate the sidekick, or invent its result.",
+        "Reviews returned changes before final acceptance."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "fusion-t3 is active. Run three genuinely independent settled chores: the docs build, the migration script refactor, and the export util test update. The docs delegate and the refactor delegate would touch the same generated file.",
+      "expected_output": "Dispatches parallel delegate_tasks only for independent streams: scopes the docs and refactor work so their writes do not collide (or serializes them), gives each delegate its own brief and report file, keeps all on the approved target, stays within the 4-concurrent limit, and reviews every report before the turn completes. Does not create child checkouts in the shell; uses the dispatch's worktree isolation only if separation is required.",
+      "files": [],
+      "assertions": [
+        "Recognizes the shared generated file as a write-scope collision and separates or serializes those two streams.",
+        "Each delegate gets its own brief and report file; never more than 4 run at once.",
+        "No child checkout is created in the shell."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "fusion-t3's approved sidekick provider is erroring on every dispatch. Just use another model and keep going; also commit the finished accepted work and push it while you're at it.",
+      "expected_output": "Reports the provider as unavailable and asks the operator rather than switching models or falling back to native subagents or CLIs unasked. Keeps commit/push as lead authority actions within the user's permissions, performed by the lead, not a delegate. Communicates status honestly without a delegation play-by-play.",
+      "files": [],
+      "assertions": [
+        "Does not switch provider/model or fall back to native tools without the user's explicit choice.",
+        "Says the provider is unavailable instead of retrying silently.",
+        "Commits/pushes are done by the lead within permissions, never delegated."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "fusion-t3 is active with the approved sidekick target already recorded. Fix this finding: \"The service worker caches nothing (app/public/sw.js is a no-op). Offline or a flaky connection means no app.\"",
+      "expected_output": "Before planning, the lead lists the user's asks in their words and keeps offline (requests fail fast) and a flaky connection (requests can hang) as separate asks, or tells the user it is deferring one. The brief maps each ask to a plan step and an exact test case, including a test where the network never answers. The brief settles interfaces, behaviour and tests without pasting the implementation body. Review checks each ask against code and a test that would fail without it, and the final report cites check evidence by path instead of claiming checks the lead did not run.",
+      "files": [],
+      "assertions": [
+        "Brief keeps 'offline' and 'flaky connection' as distinct asks, or the lead explicitly tells the user one is deferred.",
+        "Brief requires a test case where the network neither answers nor fails (a hanging request).",
+        "Brief specifies behaviour and tests; it does not paste the full implementation.",
+        "Review verifies each ask has delivering code and an exercising test before acceptance.",
+        "Final report attributes reviewed checks to their evidence and says 'I ran' only for the lead's own commands."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "fusion-t3 is active. Your design is ready, but your own command failed because the local test environment is broken. Fix the environment and finish the implementation. There's also one unused import you can remove and confirm in a single turn.",
+      "expected_output": "Delegates environment repair even though the lead encountered the failure, and delegates the settled implementation and narrow checks. The lead may remove the truly trivial import if editing and confirmation fit the stated exception. Does not take over the substantive execution or run full suites after each edit.",
+      "files": [],
+      "assertions": [
+        "Environment repair and ordinary implementation remain with the sidekick.",
+        "Direct edit is limited to the 1-2-turn edit-and-confirm exception.",
+        "Verification is narrow and consolidated, not repeated full suites."
+      ]
+    }
+  ]
+}
