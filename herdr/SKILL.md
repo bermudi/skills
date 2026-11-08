@@ -17,7 +17,7 @@ If `herdr --skill` still demands `HERDR_ENV=1` unconditionally, the connection p
 
 - Inside Herdr (`HERDR_ENV=1`): use the inherited context.
 - Outside: an explicit user-supplied socket/session is enough. Pass it on every command (`HERDR_SOCKET_PATH=/path herdr agent list`).
-- Neither available: ask which session. Never attach to the user's focused session silently.
+- Neither available: use the `default` session — bare `herdr` commands already target it. Only pass `--session <name>` or `HERDR_SOCKET_PATH` when the user names one.
 - Never set `HERDR_ENV=1` to pose as inside. Outside Herdr, use explicit pane IDs or agent names, never `--current` or implicit focus.
 
 ## Traps
