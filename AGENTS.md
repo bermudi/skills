@@ -120,6 +120,8 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 `agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`.
 
+`review` is the operator's code-review guidelines (pasted 2026-11-09), kept verbatim — don't paraphrase or "improve" the body.
+
 `fusion-herdr` (renamed from `fusion`, 2026-11-07) is adapted from the operator's `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01): the lead retains design, authority, correctness-critical authoring, and full-diff review; one persistent cheaper sidekick handles implementation, verification, and environment work through a Herdr sibling pane. `fusion-t3` (2026-11-07) is the same division of labor over T3 Code `delegate_task`: fresh delegates per handoff, continuity via the shared filesystem and report files. The transport is not the collaboration policy. Creating a skill does not install it.
 
 `forking-projects` is locally authored from the operator's wiki notes `fork-patch-stack-maintenance.md` and `fork-to-independent-project.md`; it encodes shared fork-maintenance conventions with separate patch-carrying and independent-project modes.
