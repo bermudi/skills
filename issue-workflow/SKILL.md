@@ -28,7 +28,7 @@ Each test runs once; the operator's machine can't take repeat runs:
 
 - Implementer: only the tests for what changed, plus typecheck and lint on those files. Never the full suite.
 - CI: the full suite, on every branch push.
-- Verifier (a clean-session agent, not the builder): drives the feature live and reads the CI result. If the repo has no CI, it runs the full suite once.
+- Verifier (a clean-session agent: not the builder, not the lead): drives the feature live and reads the CI result. If the repo has no CI, it runs the full suite once.
 - Reviewer (whichever tool is available): reads the diff, runs no tests.
 - Merge: runs nothing if CI is green on that exact commit and `main` hasn't moved; otherwise only the tests for what changed since. If CI couldn't run, the report says so and the operator decides.
 

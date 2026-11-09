@@ -1,18 +1,28 @@
 ---
-name: fusion-herdr
+name: fusion
 description: >
-  Use when the user asks for Fusion over Herdr (fusion-herdr): the lead
-  designs and reviews while cheaper sidekicks in another harness implement
-  and verify in Herdr side panes.
-compatibility: Requires Herdr and an installed interactive sidekick harness.
+  Use when the user asks for Fusion: the lead designs, reviews and owns the
+  shipped result; one cheaper sidekick in another harness implements and
+  fights the errors; a clean-session verifier checks the result. Works over
+  Herdr or T3 Code.
 disable-model-invocation: true
 ---
 
-# Fusion (Herdr)
+# Fusion
 
-**Delegate execution, retain judgment.** You are the lead: you own the outcome, planning, design, consequential decisions and final review. A **persistent, cheaper sidekick** in a different interactive harness does implementation, verification and environment work.
+**Delegate execution, retain judgment.** You are the lead: you own the outcome, planning, design, consequential decisions, the final review, and every reply. A **cheaper sidekick** in a different harness implements, runs the checks and fights the errors. A **clean-session verifier** checks what you accepted before it ships.
 
-The point is cost, not a second opinion: mechanical execution eats much of a session's tokens. Settle the design yourself, review the artifacts, and put the rest on the cheaper model. Implementing by habit forfeits the saving; making the sidekick a read-only reviewer inverts the division of labor.
+The point is cost, not a second opinion: mechanical execution eats most of a session's tokens. Settle the design yourself, review the artifacts, and put the rest on the cheaper model. Implementing by habit forfeits the saving; making the sidekick a read-only reviewer inverts the division of labor.
+
+## Surface
+
+Detect where you are, then use that surface's own instructions for every mechanic (launching, sending, waiting, cancelling, worktrees):
+
+- `HERDR_ENV=1` → Herdr. Run `herdr --skill` for the commands; it matches the installed binary.
+- T3 Code orchestration tools in your tool list → T3. Its rules are in your system prompt.
+- Neither → stop and ask the operator which surface to use.
+
+Both surfaces start the same harnesses (`claude`, `pi`, `codex`, …) with the same models. Use only the operator-named harness and model for each role; ask for missing choices together, never pick or fall back yourself.
 
 ## Who does the next action
 
@@ -28,21 +38,22 @@ Once active, delegate by default, not only when stuck or busy.
 | Correctness-critical authoring **and checking**: analysis/measurement, queries on shared or production data, prompts/rubrics/graders/eval harnesses, scoring/threshold/sampling/pipeline config | Lead; sidekick may execute an exact lead-authored recipe |
 | Complex rendered-browser work (dashboards, visual reports, multi-step GUI flows) | Lead; a plain open-and-screenshot may be delegated |
 | User communication, secret requests, commits, pushes, PRs, CI authority actions | Lead, within the user's permissions |
-| Full review of the sidekick's changes | Lead |
+| Accepting the sidekick's change | Lead |
+| Independent check of the accepted change | Verifier |
 
 **Trivial-edit exception:** only if editing **and confirming** fit in 1–2 lead turns with no verification left; size alone never exempts correctness-critical work. Name the exception before any direct edit or check; otherwise hand off.
 
 Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its evidence, decide, then dispatch. For unknown production schemas: get schema and candidate sources first, then write the exact query yourself, and require "schema surprise ⇒ stop and report", not a substitute query.
 
-## One persistent sidekick
+## One sidekick per brief
 
-Before the first handoff, read [the Herdr adapter](references/herdr.md) to create a sibling pane and launch the other harness **in yolo mode** (its auto-approve/full-access equivalent), so execution never stalls on permission prompts. Use only an explicitly approved harness/model/provider pairing and ask for missing choices together; never choose for the user. The sidekick reads [its operating instructions](references/sidekick.md) with the first brief. It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
+Start one sidekick for the brief, in its auto-approve mode so it never stalls on permission prompts. Its first brief points at [its operating instructions](references/sidekick.md). It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
 
-Keep the same sidekick all session, across tasks and rework: its history, edits, shells and servers are assets. Never spawn per task, replace it at phase boundaries, or reset it (`/new`, `/clear`). Extra panes are for parallel work only (below).
+Reuse that same sidekick for every rework round of the brief: its history, edits, shells and servers are assets. Don't spawn a new one per round or reset its context. Extra sidekicks are for parallel work only (below). If the surface can't continue a finished sidekick, say so and restate settled facts in the next brief.
 
-Keep in your notes (and across your own compaction): connection, pane/name, harness session ID, approved model, project, completed handoffs, pending report, live processes, evidence paths. Native compaction isn't lossless: keep transcript/checkpoint paths and verify uncertain state instead of restarting or redoing work.
+Keep in your notes (and across compaction): surface, sidekick id/name, session id, approved models, project, completed handoffs, pending report, live processes, evidence paths. Compaction isn't lossless: verify uncertain state instead of restarting or redoing work.
 
-**Ready** = each sidekick's identity, model, project and yolo (auto-approve) mode are verified, and its operating instructions went in its first brief.
+**Ready** = sidekick identity, model, project and auto-approve mode verified, and its operating instructions in its first brief.
 
 ## Settle the brief first
 
@@ -76,15 +87,15 @@ Discovery-only: replace Tests and Code with search scope and the evidence you ne
 
 **Block by default:** submit the brief, wait, read the report from its file (not the terminal). Go nonblocking only with genuinely independent lead work, not speculative warm-ups while design still moves. When that runs out, block for the report: no poll loops, no invented results, no ending the turn with work outstanding. Wait so you wake once, on completion; every wake re-reads your context at your rate.
 
-On a new user message, decide first whether it changes the running handoff. If so, steer the **same** sidekick with the changed instructions, preserving completed work, via the adapter's observed interrupt-and-resume procedure (Herdr is not Devin's native interrupt API), not a blind prompt into a working terminal. Never spawn a replacement.
+On a new user message, decide first whether it changes the running handoff. If so, steer the **same** sidekick with the changed instructions, preserving completed work, using the surface's interrupt or next-turn mechanism, never a blind prompt into a working terminal. Never run two sidekicks on one scope.
 
-If the user waits on something urgent, do the minimal unblocking action yourself rather than block behind a busy sidekick; keep slow validation off that path and never claim unfinished checks passed. For a parked long job, ask for an immediate report when the result arrives, then re-brief the same sidekick.
+If the user waits on something urgent, do the minimal unblocking action yourself rather than block behind a busy sidekick; keep slow validation off that path and never claim unfinished checks passed.
 
-## Parallel panes
+## Parallel sidekicks
 
-The persistent sidekick is the anchor, not a bottleneck. For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), split more panes. Per the adapter: one unused name per pane, one split per agent, `--no-focus`, same approved harness/model, operating instructions in each first brief, a connection record per pane. Disjoint write scopes, no checks colliding on the same artifacts, each agent its own brief and report file; each report is reviewed like any other and the turn isn't complete while any is outstanding.
+For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file, never more than 4 at once. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
 
-Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick never launches workers.
+Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick or verifier never launches workers.
 
 ## Review every landing point
 
@@ -99,12 +110,22 @@ Review artifacts instead of repeating the sidekick's tests, but verify yourself 
 
 For ordinary execution blockers, pick a concrete direction and hand the repair back, even when your own action exposed the failure. Take over when authority is required, urgency demands it, or repeated failures persist after concrete guidance; keep its useful work.
 
+## Verify before shipping
+
+After you accept a change, start a **verifier**: a fresh session that is neither you nor the sidekick, on the operator-named verifier model. Start a new one for every round, so it never inherits its own earlier conclusions.
+
+- Its brief: the user's asks in their words, the intent, the branch and baseline, how to run the feature. Not your design reasoning, not the sidekick's report.
+- Its job: drive the feature live and try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. Style, naming, and "could break if someone later…" are out. "No findings" is a valid result.
+- You answer every finding: send a proven defect to the sidekick as rework, or reject it with a concrete disproof. Never accept or dismiss one unread.
+- After rework, the next verifier checks the changed diff and the earlier findings. It is a re-check, not a fresh hunt for new defects.
+- The work ships when a verifier round ends with no open proven findings.
+
 ## One accountable agent
 
-Speak in the first person; don't narrate routine delegation or expose a two-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick or model, answer honestly. For a low-level question its report can't answer, inspect the artifact; never guess.
+Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
 
-Keep the sidekick and runtime for the next handoff; don't close panes or discard artifacts as cleanup. A task is complete when the landing-point verdict is recorded, evidence is accounted for and no report is owed, not when an agent says "done".
+Keep the sidekick and runtime until the brief is done; don't discard artifacts as cleanup. A task is complete when the landing-point verdict and the verifier's pass are recorded, evidence is accounted for and no report is owed, not when an agent says "done".
 
 ## Basis and limits
 
-Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). Herdr supplies the persistent transport; this skill supplies division of labor and review. For the same policy over T3 Code `delegate_task` (fresh delegates instead of a persistent sidekick), see `fusion-t3`. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.
+Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). The verifier stage and its proof rule follow pstack's `interrogate` (cursor/plugins @ 236e548). Merged from `fusion-herdr` and `fusion-t3` (2026-11-09): the policy is surface-agnostic, and each surface documents its own mechanics. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.
