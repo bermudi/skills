@@ -24,6 +24,16 @@ Detect where you are, then use that surface's own instructions for every mechani
 
 Both surfaces start the same harnesses (`claude`, `pi`, `codex`, …) with the same models. Use only the operator-named harness and model for each role; ask for missing choices together, never pick or fall back yourself.
 
+Operator-named roles (2026-11-09), used unless the brief names others:
+
+| Role | Harness | Model |
+|---|---|---|
+| Lead | `claude` | Opus 5.5, effort low |
+| Sidekick | `piz` | `glm-5.3-flash` |
+| Verifier | `devin` | `swe-2`, thinking max |
+
+If one is unavailable, say so and stop; never substitute.
+
 ## Who does the next action
 
 Once active, delegate by default, not only when stuck or busy.
