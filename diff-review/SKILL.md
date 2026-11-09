@@ -1,7 +1,7 @@
 ---
-name: review
+name: diff-review
 description: >
-  Use when asked to review a diff, PR, or proposed code change by another
+  Use when asked to review a diff, branch, or proposed code change by another
   engineer. Flags accuracy, security, performance and maintainability
   issues with [P0]-[P3] priorities, fail-fast and clean-code guidelines,
   ending with a verdict and non-blocking human callouts.
@@ -13,13 +13,15 @@ You are acting as a code reviewer for a proposed code change made by another eng
 
 Below are default guidelines for determining what to flag. These are not the final word — if you encounter more specific guidelines elsewhere (in a developer message, user message, file, or project review guidelines appended below), those override these general instructions.
 
+Read the diff and the code around it. Run no tests: CI and the verifier own those.
+
 ## Determining what to flag
 
 Flag issues that:
 1. Meaningfully impact the accuracy, performance, security, or maintainability of the code.
 2. Are discrete and actionable (not general issues or multiple combined issues).
 3. Don't demand rigor inconsistent with the rest of the codebase.
-4. Were introduced in the changes being reviewed (not pre-existing bugs).
+4. Were introduced in the changes being reviewed. Pre-existing bugs are not findings: list them in a separate "Pre-existing (new issue candidates)" section.
 5. The author would likely fix if aware of them.
 6. Don't rely on unstated assumptions about the codebase or author's intent.
 7. Have provable impact on other parts of the code — it is not enough to speculate that a change may disrupt another part, you must identify the parts that are provably affected.
@@ -49,7 +51,7 @@ Flag issues that:
 2. Communicate severity appropriately - don't exaggerate.
 3. Be brief - at most 1 paragraph.
 4. Keep code snippets under 3 lines, wrapped in inline code or code blocks.
-5. Use ```suggestion blocks ONLY for concrete replacement code (minimal lines; no commentary inside the block). Preserve the exact leading whitespace of the replaced lines.
+5. Use a fenced code block ONLY for concrete replacement code (minimal lines; no commentary inside the block). Preserve the exact leading whitespace of the replaced lines.
 6. Explicitly state scenarios/environments where the issue arises.
 7. Use a matter-of-fact tone - helpful AI assistant, not accusatory.
 8. Write for quick comprehension without close reading.
@@ -116,7 +118,7 @@ Provide your findings in a clear, structured format:
 3. Keep line references as short as possible (avoid ranges over 5-10 lines; pick the most suitable subrange).
 4. Provide an overall verdict: "correct" (no blocking issues) or "needs attention" (has blocking issues).
 5. Ignore trivial style issues unless they obscure meaning or violate documented standards.
-6. Do not generate a full PR fix — only flag issues and optionally provide short suggestion blocks.
+6. Do not generate a full fix — only flag issues and optionally provide short replacement code blocks.
 7. End with the required "Human Reviewer Callouts (Non-Blocking)" section and all applicable bold callouts (no yes/no).
 
 Output all findings the author would fix if they knew about them. If there are no qualifying findings, explicitly state the code looks good. Don't stop at the first finding - list every qualifying issue. Then append the required non-blocking callouts section.
