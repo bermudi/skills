@@ -38,5 +38,14 @@ First work in an actively used repo with no CI: open a separate issue and branch
 
 ## Review and merge
 
-- Review findings go in an issue comment: "fix before merge" (fix on this branch) or "later" (file a new issue only if the operator approves; it keeps the finding's priority).
-- On the operator's green light, merge to `main` with `Closes #N` in the merge commit. GitHub closes the issue when `main` is pushed; don't close it by hand.
+Every finding is sorted by where the problem came from, never by priority, effort or taste. There is no third bucket.
+
+| Finding | Goes to |
+|---|---|
+| Introduced by this branch's diff | **Fix before merge**, even a P3. The branch made it, so the branch owns it. |
+| Already on `main` before the branch | **Separate issue**, standalone, not a sub-issue (this issue didn't cause it). Keeps the finding's priority. Skip it if it is standing policy. |
+| The fix needs a design or product decision | **Ask the operator** before filing or fixing. |
+
+- Each fix-before-merge finding becomes a **sub-issue** of the branch's issue, with its own type and priority labels. Sub-issues share the parent's branch; they get no branch of their own. Link with `gh api -X POST repos/OWNER/REPO/issues/PARENT/sub_issues -F sub_issue_id=CHILD_ID`, where `CHILD_ID` is the child's `.id` from `gh api repos/OWNER/REPO/issues/CHILD --jq .id` (not its number).
+- The review comment holds only the verdict and the list of created issues; the findings' detail lives in each issue.
+- On the operator's green light, merge to `main` with `Closes #N, #S1, #S2` (parent plus every sub-issue) in the merge commit. GitHub closes them when `main` is pushed; don't close them by hand.
