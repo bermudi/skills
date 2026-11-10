@@ -125,10 +125,15 @@ For ordinary execution blockers, pick a concrete direction and hand the repair b
 After you accept a change, start a **verifier**: a fresh session that is neither you nor the sidekick, on the operator-named verifier model. Start a new one for every round, so it never inherits its own earlier conclusions.
 
 - Its brief: the user's asks in their words, the intent, the branch and baseline, how to run the feature. Not your design reasoning, not the sidekick's report.
-- Its job: drive the feature live and try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. Style, naming, and "could break if someone later…" are out. "No findings" is a valid result.
-- You answer every finding: send a proven defect to the sidekick as rework, or reject it with a concrete disproof. Never accept or dismiss one unread.
+- Its driver: the repo's `verify-<app>` skill (`.agents/skills/verify-*`). None → `agent-browser` for web and Electron, a `tmux` session it starts itself for CLI/TUI, `curl` for services, and its report says no verify skill exists. Offer the operator `/create-verification-skill`; don't run it unasked.
+- Its job: drive the feature live and try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. Style, naming, and "could break if someone later…" are out. It lists every finding it can prove, not only the first.
+- Its verdict, one line at the top of its report:
+  - `PASS`: every ask driven, no findings.
+  - `PASS+NOTES`: no proven defect, but notes you must read: an ask it couldn't reach (with the missing prerequisite and the route it tried), or a gap between the verify skill's map and the app.
+  - `FAIL`: at least one proven finding.
+- You answer every finding: send a proven defect to the sidekick as rework, or reject it with a concrete disproof. Never accept or dismiss one unread. Answer every note too; an unreached ask goes to the operator, never ships as verified.
 - After rework, the next verifier checks the changed diff and the earlier findings. It is a re-check, not a fresh hunt for new defects.
-- The work ships when a verifier round ends with no open proven findings.
+- The work ships on `PASS`, or on `PASS+NOTES` with every note answered. Green tests and your own review are not verdicts: neither runs the change as a user would.
 
 ## One accountable agent
 
@@ -138,4 +143,4 @@ Keep the sidekick and runtime until the brief is done; don't discard artifacts a
 
 ## Basis and limits
 
-Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). The verifier stage and its proof rule follow pstack's `interrogate` (cursor/plugins @ 236e548). Merged from `fusion-herdr` and `fusion-t3` (2026-11-09): the policy is surface-agnostic, and each surface documents its own mechanics. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.
+Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). The verifier stage and its proof rule follow pstack's `interrogate`; the verdict format and the non-author rule follow its `shipping` playbook (cursor/plugins @ 236e548). Merged from `fusion-herdr` and `fusion-t3` (2026-11-09): the policy is surface-agnostic, and each surface documents its own mechanics. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.
