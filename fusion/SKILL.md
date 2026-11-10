@@ -127,7 +127,7 @@ After you accept a change, start a **verifier**: a fresh session that is neither
 - Its brief: the user's asks in their words, the intent, the branch and baseline, how to run the feature. Not your design reasoning, not the sidekick's report.
 - Its driver: the repo's `verify-<app>` skill (`.agents/skills/verify-*`). None → `agent-browser` for web and Electron, a `tmux` session it starts itself for CLI/TUI, `curl` for services, and its report says no verify skill exists. Offer the operator `/create-verification-skill`; don't run it unasked.
 - Its job: drive the feature live and try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. Style, naming, and "could break if someone later…" are out. It lists every finding it can prove, not only the first.
-- Its verdict, one line at the top of its report:
+- Its verdict, one line at the top of its report, which you post verbatim as a PR comment:
   - `PASS`: every ask driven, no findings.
   - `PASS+NOTES`: no proven defect, but notes you must read: an ask it couldn't reach (with the missing prerequisite and the route it tried), or a gap between the verify skill's map and the app.
   - `FAIL`: at least one proven finding.
