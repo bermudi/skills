@@ -24,6 +24,12 @@ Answer from the code. Ask only what you can't observe.
 
 If the checkout doesn't build or start, fix that or report it exactly before you write anything: a skill written against a broken base teaches wrong steps. An unrelated missing asset that blocks startup (a static dir the API never serves, a sample config) may be created as marked verification scaffolding and removed in cleanup.
 
+**Stop and ask the operator first**, with your pick, before building:
+
+- Anything that stands in for a real dependency (fake models, mock services, stub APIs). A stand-in can make a journey pass while proving nothing; often the better answer is a skill that says plainly what it can't prove.
+- Real credentials or paid services. Never copy them from the real environment; models and providers are the operator's to name.
+- Product changes needed to make the repo drivable. Those are their own issue.
+
 ## 2. Write the skill
 
 Path: `.agents/skills/verify-<app>/SKILL.md` (devin loads project skills from there; checked 2026-11-09), plus a link for Claude Code: `ln -s ../../.agents/skills/verify-<app> .claude/skills/verify-<app>`.
