@@ -51,6 +51,7 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 ## Gotchas
 
 - `screenshot <path>`: always pass an absolute path. A relative path resolves against the daemon's cwd (where it first launched), not your shell's, so files land in a repo and get committed.
+- To prove something is clickable, use `mouse move/down/up` at its coordinates. `eval el.click()` skips hit-testing and passes even when an overlay covers the element.
 
 ## Specialized skills
 
