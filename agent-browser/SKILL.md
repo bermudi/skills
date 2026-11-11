@@ -48,6 +48,10 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 - RED LINE: his profile holds Proton Pass. Never read passwords (vault UI, filled fields even to "verify", eval, screenshots). Logins go through the extension's autofill: click, never extract. Credentials needed outside the browser go through the `pass-cli` skill.
 - An open CDP port lets any local process drive his browser; accepted here, which is why the port exists only while this work does.
 
+## Gotchas
+
+- `screenshot <path>`: always pass an absolute path. A relative path resolves against the daemon's cwd (where it first launched), not your shell's, so files land in a repo and get committed.
+
 ## Specialized skills
 
 `agent-browser skills get <name>` for non-web-page targets: `electron`, `slack`, `dogfood` (exploratory QA), `derive-client` (HAR → API client), `vercel-sandbox`, `agentcore`. `agent-browser skills list` shows all.
