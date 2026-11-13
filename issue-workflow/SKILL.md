@@ -50,7 +50,7 @@ Each test runs once; the operator's machine can't take repeat runs:
 
 ## Repo with no CI
 
-First work in an actively used repo with no CI: open a separate issue and branch to add it (existing tests, typecheck, lint, on every branch push), without holding up the feature. If the suite needs real credentials or paid services, ask the operator first.
+First work in an actively used repo with no CI: open a separate, labelled issue and branch to add it (existing tests, typecheck, lint, on every branch push), without holding up the feature. If the suite needs real credentials or paid services, ask the operator first.
 
 ## Review and merge
 
@@ -61,7 +61,7 @@ Every proven finding is sorted by where the problem came from, never by priority
 | Finding | Goes to |
 |---|---|
 | Introduced by this branch's diff | **Fix before merge**, even a P3. The branch made it, so the branch owns it. |
-| Already on `main` before the branch | **Separate issue** (this branch didn't cause it). Keeps the finding's priority. Skip it if it is standing policy. |
+| Already on `main` before the branch | **Separate issue** (this branch didn't cause it), labelled per Labels. Keeps the finding's priority as its priority label. Skip it if it is standing policy. |
 | The fix needs a design or product decision | **Ask the operator** before filing or fixing. |
 
 - Fix-before-merge findings go in **one checklist comment on the PR**, one `- [ ]` item each with its proof. No issue per finding. Fix them on the same branch, tick each item with the commit that fixed it, and edit that comment (`gh api -X PATCH repos/OWNER/REPO/issues/comments/ID -f body=...`) instead of adding a new one per round.
