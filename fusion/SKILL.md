@@ -29,8 +29,8 @@ Operator-named roles (2026-11-09), used unless the brief names others:
 | Role | Harness | Model |
 |---|---|---|
 | Lead | `claude` | Opus 5.5, effort low |
-| Sidekick | `piz` | `glm-5.3-flash` |
-| Verifier | `devin` | `swe-2`, thinking max |
+| Sidekick | `devin` | `swe-2-high` |
+| Verifier | `piz` | `glm-5.3` |
 
 If one is unavailable, say so and stop; never substitute.
 
@@ -122,25 +122,15 @@ For ordinary execution blockers, pick a concrete direction and hand the repair b
 
 ## Verify before shipping
 
-After you accept a change, start a **verifier**: a fresh session that is neither you nor the sidekick, on the operator-named verifier model. Start a new one for every round, so it never inherits its own earlier conclusions.
+After you accept a change, verify it with the `verify-pr` skill: its brief, proof rule, verdict and re-check rules apply as written. Two fusion specifics:
 
-- Its brief: the user's asks in their words, the intent, the branch and baseline, how to run the feature. Not your design reasoning, not the sidekick's report.
-- Its driver: the repo's `verify-<app>` skill (`.agents/skills/verify-*`). None → `agent-browser` for web and Electron, a `tmux` session it starts itself for CLI/TUI, `curl` for services, and its report says no verify skill exists. Offer the operator `/create-verification-skill`; don't run it unasked.
-- Its job: drive the feature live and try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. Style, naming, and "could break if someone later…" are out. It lists every finding it can prove, not only the first.
-- Its verdict, one line at the top of its report, which you post verbatim as a PR comment:
-  - `PASS`: every ask driven, no findings.
-  - `PASS+NOTES`: no proven defect, but notes you must read: an ask it couldn't reach (with the missing prerequisite and the route it tried), or a gap between the verify skill's map and the app.
-  - `FAIL`: at least one proven finding.
-- You answer every finding: send a proven defect to the sidekick as rework, or reject it with a concrete disproof. Never accept or dismiss one unread. Answer every note too; an unreached ask goes to the operator, never ships as verified.
-- After rework, the next verifier checks the changed diff and the earlier findings. It is a re-check, not a fresh hunt for new defects.
-- The work ships on `PASS`, or on `PASS+NOTES` with every note answered. Green tests and your own review are not verdicts: neither runs the change as a user would.
+- The verifier is the operator-named one in the roles table, started as a fresh session, not your subagent. Neither you nor the sidekick.
+- Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
+
+No verify skill in the repo: offer the operator `/create-verification-skill`; don't run it unasked.
 
 ## One accountable agent
 
 Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
 
 Keep the sidekick and runtime until the brief is done; don't discard artifacts as cleanup. A task is complete when the landing-point verdict and the verifier's pass are recorded, evidence is accounted for and no report is owed, not when an agent says "done".
-
-## Basis and limits
-
-Adapted from `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01), §§2–8, 11. Briefs follow Devin's design-level variant (interfaces and exact tests settled, snippets optional), not "specify the code": runs showed the code-pasting lead paying for the code while the user's named failure modes went untested (2026-11-03). The verifier stage and its proof rule follow pstack's `interrogate`; the verdict format and the non-author rule follow its `shipping` playbook (cursor/plugins @ 236e548). Merged from `fusion-herdr` and `fusion-t3` (2026-11-09): the policy is surface-agnostic, and each surface documents its own mechanics. It adds no tool-enforced authority limits, nudges, compaction hooks, completion notifications or cost accounting; claim no measured savings without usage and pricing evidence.

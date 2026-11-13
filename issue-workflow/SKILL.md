@@ -17,6 +17,16 @@ operator) still apply. This skill holds the procedures.
   - Priorities: `P0` drop everything, blocks release or operations · `P1` urgent, next cycle · `P2` normal, fix eventually · `P3` low, nice to have.
 - If no area label fits, create one with a description and say so in your report. No label-like prefixes in titles (`[P3]`, `[arch]`, `telegram:`).
 
+## Worktree
+
+Make it with the surface you're on, so it shows up there:
+
+- Herdr (`HERDR_ENV=1`): `herdr worktree create --cwd <repo> --branch <branch>`. It lands in `~/.herdr/worktrees/<repo>/`.
+- T3 Code: its own worktree option for the thread. It lands in `~/.t3/worktrees/<repo>/`.
+- Neither: `git -C <repo> worktree add ~/.worktrees/<repo>/<branch> -b <branch> main`.
+
+Already given a worktree (the brief names one, or your cwd is one): use it. Check with `git rev-parse --git-dir --git-common-dir`: two different paths mean a linked worktree; identical paths mean the main checkout. A later session on the same issue works in the same worktree. After the merge, `git worktree remove <path>`; the branch stays.
+
 ## Pull request
 
 - Open a draft PR on the branch's first push: `gh pr create --draft --title "<issue title>" --body "Closes #N"`. One PR per issue; the PR is where review, verdicts and evidence live, so the issue stays the problem statement.
@@ -34,7 +44,7 @@ Each test runs once; the operator's machine can't take repeat runs:
 
 - Implementer: only the tests for what changed, plus typecheck and lint on those files. Never the full suite.
 - CI: the full suite, on every branch push.
-- Verifier (a clean-session agent: not the builder, not the lead): drives the feature live and reads the CI result. If the repo has no CI, it runs the full suite once. Its report opens with `PASS`, `PASS+NOTES` or `FAIL` and goes on the PR as a comment.
+- Verifier: a clean-context agent run with the `verify-pr` skill. It drives the feature live and reads the CI result; if the repo has no CI, it runs the full suite once. Its verdict goes on the PR.
 - Reviewer (whichever tool is available): reads the diff, runs no tests.
 - Merge: runs nothing if CI is green on that exact commit and `main` hasn't moved; otherwise only the tests for what changed since. If CI couldn't run, the report says so and the operator decides.
 

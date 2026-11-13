@@ -123,6 +123,8 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 `review` is the operator's code-review guidelines (pasted 2026-11-09), kept verbatim — don't paraphrase or "improve" the body.
 
+`verify-pr` holds the verifier stage split out of `fusion` (2026-11-12): any driver, not only a fusion lead, starts a clean-context verifier (default: a subagent of the current harness) that proves findings and posts PASS / PASS+NOTES / FAIL on the PR.
+
 `fusion` is adapted from the operator's `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01): the lead retains design, authority, correctness-critical authoring, and full-diff review; one cheaper sidekick per brief handles implementation, checks and environment work; a clean-session verifier (pstack `interrogate` proof rule) checks the accepted change. Split into `fusion-herdr`/`fusion-t3` on 2026-11-07, merged back 2026-11-09: the policy is surface-agnostic and each surface (`herdr --skill`, T3's system prompt) documents its own mechanics. Creating a skill does not install it.
 
 `forking-projects` is locally authored from the operator's wiki notes `fork-patch-stack-maintenance.md` and `fork-to-independent-project.md`; it encodes shared fork-maintenance conventions with separate patch-carrying and independent-project modes.
