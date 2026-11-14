@@ -78,7 +78,7 @@ Code: [optional: fenced snippets only where the shape is not obvious from the pl
 Settled inputs: [authoritative values or artifact paths; do not recompute].
 Constraints: [allowed files, protected dirty work, exclusions, authority limits].
 Runtime: [what may still be running; reuse/restart rules; what to leave running].
-Verify: [push the branch, then read CI on the head SHA. NEVER builds or test suites on the local machine; only cheap reads such as grep or git diff].
+Verify: [verbatim runnable commands and expected results; narrow scope].
 Done: [artifacts to leave, evidence to report, stopping point, report file path].
 Work this handoff to completion, self-review, write your report to that file, then finish.
 ```
@@ -91,7 +91,7 @@ Discovery-only: replace Tests and Code with search scope and the evidence you ne
 - Don't repeat context it has. Hand lead-derived results over as **frozen inputs**, not invitations to recompute.
 - Preserve unrelated dirty work. No overlapping writers in a shared checkout: don't edit its scope while it does, and tell it about files you add mid-handoff.
 - Say which servers/jobs to reuse and leave needed processes running.
-- The check list is mandatory and its commands and inputs aren't substitutable: a command that can't run as written gets reported, not swapped for one that passes. No "run everything" on every handoff; at most one full-suite final gate. Builds and tests run in CI only, never locally, for sidekick and verifier alike.
+- The check list is mandatory and its commands and inputs aren't substitutable: a command that can't run as written gets reported, not swapped for one that passes. No "run everything" on every handoff; at most one full-suite final gate. Repo rules still apply (CI-only builds stay on CI).
 
 ## Handoff, wait, steer
 
