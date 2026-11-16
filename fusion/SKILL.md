@@ -29,7 +29,7 @@ Operator-named roles (2026-11-15), used unless the brief names others:
 | Role | Harness | Model |
 |---|---|---|
 | Lead | `claude` | Opus 5.5, effort low |
-| Sidekick | Devin (`acpRegistry_devin`) | `swe-2-flash` = `swe-2-flash-medium` id, thought_level `max` |
+| Sidekick | `pi` | `gpt-6-luna:high` |
 | Verifier | Devin (`acpRegistry_devin`) | `swe-2` = `swe-2-high` id, thought_level `max` |
 
 If one is unavailable, say so and stop; never substitute.
