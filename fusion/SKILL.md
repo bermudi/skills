@@ -24,13 +24,13 @@ Detect where you are, then use that surface's own instructions for every mechani
 
 Both surfaces start the same harnesses (`claude`, `pi`, `codex`, …) with the same models. Use only the operator-named harness and model for each role; ask for missing choices together, never pick or fall back yourself.
 
-Operator-named roles (2026-11-09), used unless the brief names others:
+Operator-named roles (2026-11-15), used unless the brief names others:
 
 | Role | Harness | Model |
 |---|---|---|
 | Lead | `claude` | Opus 5.5, effort low |
-| Sidekick | `devin` | `swe-2-high` |
-| Verifier | `piz` | `glm-5.3` |
+| Sidekick | Devin (`acpRegistry_devin`) | `swe-2-flash` = `swe-2-flash-medium` id, thought_level `max` |
+| Verifier | Devin (`acpRegistry_devin`) | `swe-2` = `swe-2-high` id, thought_level `max` |
 
 If one is unavailable, say so and stop; never substitute.
 
