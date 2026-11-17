@@ -30,7 +30,7 @@ Operator-named roles (2026-11-15), used unless the brief names others:
 |---|---|---|
 | Lead | `claude` | Opus 5.5, effort low |
 | Sidekick | `pi` | `gpt-6-luna:high` |
-| Verifier | Devin (`acpRegistry_devin`) | `swe-2` = `swe-2-high` id, thought_level `max` |
+| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; up to 6 at once (operator, 2026-11-17) |
 
 If one is unavailable, say so and stop; never substitute.
 
@@ -126,7 +126,7 @@ After you accept a change, verify it with the `verify-pr` skill: its brief, proo
 
 - The verifier is the operator-named one in the roles table, started as a fresh session, not your subagent. Neither you nor the sidekick.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
-- On T3, run one Devin verifier at a time: when one `acpRegistry_devin` session ends (completed or cancelled), T3 cancels its concurrent Devin siblings within a second, with no error (seen twice, 2026-11-17).
+- If Devin is the verifier on T3, run one at a time: when one `acpRegistry_devin` session ends (completed or cancelled), T3 cancels its concurrent Devin siblings within a second, with no error (seen twice, 2026-11-17).
 
 No verify skill in the repo: offer the operator `/create-verification-skill`; don't run it unasked.
 
