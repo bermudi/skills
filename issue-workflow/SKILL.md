@@ -15,7 +15,7 @@ operator) still apply. This skill holds the procedures.
 - Label each issue when you open it (`gh issue create --label <type> --label <priority> …`), never "later": one type, one priority, and one area if the repo has area labels. If a repo lacks a type or priority label, create it with this name and meaning as its description.
   - Types: `bug` something isn't working · `enhancement` new feature or request · `refactor` behaviour-preserving structural change.
   - Priorities: `P0` drop everything, blocks release or operations · `P1` urgent, next cycle · `P2` normal, fix eventually · `P3` low, nice to have.
-  - A path to unbounded spend of the operator's money is never P3, even when it's off by default (operator, 2026-11-17).
+  - A path to unbounded spend of the operator's money is always P1, even when it's off by default (operator, 2026-11-18).
 - If no area label fits, create one with a description and say so in your report. No label-like prefixes in titles (`[P3]`, `[arch]`, `telegram:`).
 
 ## Worktree
