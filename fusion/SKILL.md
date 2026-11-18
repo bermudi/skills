@@ -30,7 +30,7 @@ Operator-named roles (2026-11-15), used unless the brief names others:
 |---|---|---|
 | Lead | `claude` | Opus 5.5, effort low |
 | Sidekick | `pi` | `gpt-6-luna:high` |
-| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; up to 6 at once (operator, 2026-11-17) |
+| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; about 7 at once across all coordinators, so 4 per coordinator when several run (operator, 2026-11-18). Peak hours: Devin `swe-2-high`, thought_level `max`, one at a time |
 
 If one is unavailable, say so and stop; never substitute.
 
@@ -103,7 +103,7 @@ If the user waits on something urgent, do the minimal unblocking action yourself
 
 ## Parallel sidekicks
 
-For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file, never more than 4 at once. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
+For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file. Limits by model (operator, 2026-11-18): `gpt-6-luna` up to about 20 at once; GLM about 7 across all coordinators; swe-2 is limited by usage, not by call rate. Your own review is the real limit: start only as many as you can review. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
 
 Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick or verifier never launches workers.
 
