@@ -126,7 +126,7 @@ After you accept a change, verify it with the `verify-pr` skill: its brief, proo
 
 - The verifier is the operator-named one in the roles table, started as a fresh session, not your subagent. Neither you nor the sidekick.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
-- If Devin is the verifier on T3, run one at a time: when one `acpRegistry_devin` session ends (completed or cancelled), T3 cancels its concurrent Devin siblings within a second, with no error (seen twice, 2026-11-17).
+- If Devin is the verifier on T3, run one at a time: when one `acpRegistry_devin` session ends (completed or cancelled), T3 cancels its concurrent Devin siblings within a second, with no error (seen twice, 2026-11-17). It also hits a lone Devin sidekick: a `swe-2-flash` builder was cancelled mid-run on 2026-11-18 with no other Devin task in that coordinator, so likely another coordinator's Devin session ending (unverified). Tell any Devin sidekick to commit and push after each step, and on an unexplained `cancelled`, resume the same thread with `t3_thread_send`; don't start a new one.
 
 No verify skill in the repo: offer the operator `/create-verification-skill`; don't run it unasked.
 
