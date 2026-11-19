@@ -16,6 +16,7 @@ operator) still apply. This skill holds the procedures.
   - Types: `bug` something isn't working · `enhancement` new feature or request · `refactor` behaviour-preserving structural change.
   - Priorities: `P0` drop everything, blocks release or operations · `P1` urgent, next cycle · `P2` normal, fix eventually · `P3` low, nice to have.
   - A path to unbounded spend of the operator's money is always P1, even when it's off by default (operator, 2026-11-18).
+- `deep-dive`: the operator wants to think this through before any ruling. Never start work on it unasked: not when picking from a backlog, not as a side fix, not as part of another issue. Work on it only when the operator names that issue. You may comment with facts you found, but make no plan, branch or PR. If a repo lacks the label, create it with this meaning as its description (operator, 2026-11-19).
 - If no area label fits, create one with a description and say so in your report. No label-like prefixes in titles (`[P3]`, `[arch]`, `telegram:`).
 
 ## Worktree
@@ -63,7 +64,7 @@ Every proven finding is sorted by where the problem came from, never by priority
 |---|---|
 | Introduced by this branch's diff | **Fix before merge**, even a P3. The branch made it, so the branch owns it. |
 | Already on `main` before the branch | **Separate issue** (this branch didn't cause it), labelled per Labels. Keeps the finding's priority as its priority label. Skip it if it is standing policy. |
-| The fix needs a design or product decision | **Ask the operator** before filing or fixing. |
+| The fix needs a design or product decision | **Ask the operator** before filing or fixing. If they say file it, label it `deep-dive`. |
 
 - Fix-before-merge findings go in **one checklist comment on the PR**, one `- [ ]` item each with its proof. No issue per finding. Fix them on the same branch, tick each item with the commit that fixed it, and edit that comment (`gh api -X PATCH repos/OWNER/REPO/issues/comments/ID -f body=...`) instead of adding a new one per round.
 - A re-check covers the checklist items and the changed diff only, not a fresh hunt.
