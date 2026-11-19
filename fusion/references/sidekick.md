@@ -33,6 +33,9 @@ project instructions. These instructions do not override them.
   recipe, without substituting query shape when the schema differs.
 - Do not read or print secrets. Use already-provisioned credentials only
   through approved environment/process interfaces, within the task scope.
+  Never dump a whole environment (`env`, `printenv`, `/proc/*/environ`,
+  an env-echo probe): agent environments carry bearer tokens. Check one
+  named variable you set yourself (a 2026-11-18 probe leaked a T3 token).
 - Do not change models, providers, the multiplexer layout or agent sessions.
   Never close panes or threads, clear context, or launch more agents.
 - Touch only the assigned scope. Preserve unrelated dirty files and useful
