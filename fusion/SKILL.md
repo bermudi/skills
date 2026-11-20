@@ -28,9 +28,9 @@ Operator-named roles (2026-11-15), used unless the brief names others:
 
 | Role | Harness | Model |
 |---|---|---|
-| Lead | `claude` | Opus 5.5, effort low |
+| Lead | `claude` | Opus 5.5, effort medium |
 | Sidekick | `pi` | `gpt-6-luna:high` |
-| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; about 7 at once across all coordinators, so 4 per coordinator when several run (operator, 2026-11-18). Peak hours: Devin `swe-2-high`, thought_level `max`, one at a time |
+| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; about 7 at once across all coordinators, so 4 per coordinator when several run (operator, 2026-11-18). Peak hours: Devin `swe-2-high`, thought_level `max` |
 
 If one is unavailable, say so and stop; never substitute.
 
@@ -126,7 +126,6 @@ After you accept a change, verify it with the `verify-pr` skill: its brief, proo
 
 - The verifier is the operator-named one in the roles table, started as a fresh session, not your subagent. Neither you nor the sidekick.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
-- If Devin is the verifier on T3, run one at a time: when one `acpRegistry_devin` session ends (completed or cancelled), T3 cancels its concurrent Devin siblings within a second, with no error (seen twice, 2026-11-17). It also hits a lone Devin sidekick: a `swe-2-flash` builder was cancelled mid-run on 2026-11-18 with no other Devin task in that coordinator, so likely another coordinator's Devin session ending (unverified). Tell any Devin sidekick to commit and push after each step, and on an unexplained `cancelled`, resume the same thread with `t3_thread_send`; don't start a new one.
 
 No verify skill in the repo: offer the operator `/create-verification-skill`; don't run it unasked.
 
