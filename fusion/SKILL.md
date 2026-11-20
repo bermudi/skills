@@ -34,8 +34,8 @@ Before starting any agent, ask the user once which harness and model to use for 
 
 | Option | Sidekick | Verifier |
 |---|---|---|
-| Default | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
-| Peak hours | `pi`, `gpt-6-luna:high` | Devin `swe-2-high`, thought_level `max` |
+| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), `swe-2-high`, thought_level `max` (operator, 2026-11-20: GLM quota is almost out) |
+| GLM quota available | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
 | Other | user types it | user types it |
 
 Use only what the user picks. If one is unavailable, say so and stop; never substitute.

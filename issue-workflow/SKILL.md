@@ -13,6 +13,8 @@ description: >
 - Each issue gets a branch in its own git worktree and a draft PR that closes it. If the task has no issue, open one.
 - Exception: docs-only changes go straight to `main`.
 - Out-of-scope finds become labelled issues, not part of this branch.
+- A ruling the user makes is posted as a comment on its issue the same turn, dated, with the facts it rests on, and the fix that lands it writes it into the repo's design docs. The issue thread and the docs, not the chat, are where it lives.
+- When the user asks for one lead per issue, each issue is its own branch, worktree and draft PR with its own lead. The lead starts the verifier itself (`verify-pr`), on the model the user named.
 - Some repos are public: nothing private goes in issues or pushed commits.
 - Nothing merges without the user's green light.
 - Builds run in CI.
