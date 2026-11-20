@@ -20,19 +20,21 @@ Detect where you are, then use that surface's own instructions for every mechani
 
 - `HERDR_ENV=1` → Herdr. Run `herdr --skill` for the commands; it matches the installed binary.
 - T3 Code orchestration tools in your tool list → T3. Its rules are in your system prompt.
-- Neither → stop and ask the operator which surface to use.
+- Neither → stop and ask the user which surface to use.
 
-Both surfaces start the same harnesses (`claude`, `pi`, `codex`, …) with the same models. Use only the operator-named harness and model for each role; ask for missing choices together, never pick or fall back yourself.
+## Models
 
-Operator-named roles (2026-11-15), used unless the brief names others:
+Before starting any agent, ask the user once which harness and model to use for the sidekick and the verifier. Use your harness's question tool with options; skip only what the brief already names. Offer these, the first as default:
 
-| Role | Harness | Model |
+| Option | Sidekick | Verifier |
 |---|---|---|
-| Lead | `claude` | Opus 5.5, effort medium |
-| Sidekick | `pi` | `gpt-6-luna:high` |
-| Verifier | Piz (`acpRegistry_piz`) | GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max`; about 7 at once across all coordinators, so 4 per coordinator when several run (operator, 2026-11-18). Peak hours: Devin `swe-2-high`, thought_level `max` |
+| Default | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
+| Peak hours | `pi`, `gpt-6-luna:high` | Devin `swe-2-high`, thought_level `max` |
+| Other | user types it | user types it |
 
-If one is unavailable, say so and stop; never substitute.
+Use only what the user picks. If one is unavailable, say so and stop; never substitute.
+
+Model notes: `swe-2-flash` means `swe-2-flash-max` (lower levels quit early) and can't see images: visual checks go to `swe-2`. GLM: about 7 at once across all coordinators, so 4 per coordinator when several run.
 
 ## Who does the next action
 
@@ -103,7 +105,7 @@ If the user waits on something urgent, do the minimal unblocking action yourself
 
 ## Parallel sidekicks
 
-For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file. Limits by model (operator, 2026-11-18): `gpt-6-luna` up to about 20 at once; GLM about 7 across all coordinators; swe-2 is limited by usage, not by call rate. Your own review is the real limit: start only as many as you can review. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
+For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file. Limits: `gpt-6-luna` up to about 20 at once; GLM as in Models; swe-2 by usage, not call rate. Your own review is the real limit: start only as many as you can review. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
 
 Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick or verifier never launches workers.
 
@@ -124,13 +126,13 @@ For ordinary execution blockers, pick a concrete direction and hand the repair b
 
 After you accept a change, verify it with the `verify-pr` skill: its brief, proof rule, verdict and re-check rules apply as written. Three fusion specifics:
 
-- The verifier is the operator-named one in the roles table, started as a fresh session, not your subagent. Neither you nor the sidekick.
+- The verifier is the one the user picked in Models, started as a fresh session, not your subagent. Neither you nor the sidekick.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
 
-No verify skill in the repo: offer the operator `/create-verification-skill`; don't run it unasked.
+No verify skill in the repo: offer the user `/create-verification-skill`; don't run it unasked.
 
 ## One accountable agent
 
-During a run, send the operator only what needs them now (a decision, a blocker, a permission); save progress and results for one report at the end (operator, 2026-11-17). Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
+During a run, send the user only what needs them now (a decision, a blocker, a permission); save progress and results for one report at the end. Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
 
 Keep the sidekick and runtime until the brief is done; don't discard artifacts as cleanup. A task is complete when the landing-point verdict and the verifier's pass are recorded, evidence is accounted for and no report is owed, not when an agent says "done".

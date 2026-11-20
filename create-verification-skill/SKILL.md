@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 Write `verify-<app>`: the repo's scripted way to launch the real app, drive a feature the way a user does, and capture proof. Its reader is a cold agent mid-task (usually the fusion verifier) that has never seen the app. Give it exact commands, not explanations.
 
-## 1. Interview the repo, not the operator
+## 1. Interview the repo, not the user
 
 Answer from the code. Ask only what you can't observe.
 
@@ -20,14 +20,14 @@ Answer from the code. Ask only what you can't observe.
 - **Run:** the repo's own dev command first (scripts, Makefile, README). Ports, env vars, seed data, auth.
 - **Drive:** existing harnesses first (Playwright specs, expect scripts, curl-able endpoints, debug ports). Then the generic ones: `agent-browser` for web and Electron, a `tmux` session the run starts itself for CLI/TUI, `curl` for services.
 - **Observe:** screenshots, ARIA snapshots, terminal transcripts, response bodies, logs, exit codes, DB state.
-- **Isolate:** can a second instance run beside the operator's (ports, data dirs, profiles)? If not, the skill says so and refuses to drive a shared instance.
+- **Isolate:** can a second instance run beside the user's (ports, data dirs, profiles)? If not, the skill says so and refuses to drive a shared instance.
 
 If the checkout doesn't build or start, fix that or report it exactly before you write anything: a skill written against a broken base teaches wrong steps. An unrelated missing asset that blocks startup (a static dir the API never serves, a sample config) may be created as marked verification scaffolding and removed in cleanup.
 
-**Stop and ask the operator first**, with your pick, before building:
+**Stop and ask the user first**, with your pick, before building:
 
 - Anything that stands in for a real dependency (fake models, mock services, stub APIs). A stand-in can make a journey pass while proving nothing; often the better answer is a skill that says plainly what it can't prove.
-- Real credentials or paid services. Never copy them from the real environment; models and providers are the operator's to name.
+- Real credentials or paid services. Never copy them from the real environment; models and providers are the user's to name.
 - Product changes needed to make the repo drivable. Those are their own issue.
 
 ## 2. Write the skill

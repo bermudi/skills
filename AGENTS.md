@@ -118,7 +118,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 **Authored here (no upstream):**
 
-`create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
+`code-style`, `create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
 
 `diff-review` is the operator's code-review guidelines (pasted 2026-11-09 as `review`; renamed and fitted to the issue workflow in `e8d93eb`, 2026-11-09) — keep the body as the operator wrote it; don't paraphrase or "improve" it.
 
@@ -169,3 +169,5 @@ skill-name/research/.gitignore   # ignores everything except itself
 ```
 
 **Why not `scripts/`?** `scripts/` is for reusable tools the agent runs during task execution. Research artifacts are tools *you* used to produce the skill's content — the agent should never discover and run them. Keep the skill root clean.
+
+`code-style` holds the code rules moved out of the hub AGENTS.md (2026-11-20) so only agents that write or review code load them.

@@ -76,7 +76,7 @@
 - **Release entry point:** <the workflow or target that produces shipped artifacts; anything inherited from upstream we must not use>
 - **Package identity and update source:** <our names and endpoints; nothing may resolve to upstream's>
 - **Version ordering:** <how consumers select our build over upstream's>
-- **Approval boundary:** <what an agent may do alone; what needs the operator>
+- **Approval boundary:** <what an agent may do alone; what needs the user>
 - **Changelog and signing:** <locations/process; never secret values>
 
 ## Independent-project responsibilities

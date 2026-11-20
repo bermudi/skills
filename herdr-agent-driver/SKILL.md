@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 The orchestrator's playbook: supervision, prompting, per-harness launch recipes. Not a herdr manual: syntax, IDs and the pane-vs-agent model come from `herdr --skill` and `--help`, which match the installed binary.
 
-You are an agent inside herdr (`HERDR_ENV=1`). If it's unset but the operator supplies a socket or session (`HERDR_SOCKET_PATH=…`, `--session <name>`), that is the authorization: prefix commands with it and proceed.
+You are an agent inside herdr (`HERDR_ENV=1`). If it's unset but the user supplies a socket or session (`HERDR_SOCKET_PATH=…`, `--session <name>`), that is the authorization: prefix commands with it and proceed.
 
 Loop: **baseline → start → prompt → wait for a settled state → read → independently verify → steer or stop.** The child's report is a claim, not evidence; you own scope, repo state, verification and acceptance.
 
@@ -120,7 +120,7 @@ Launch with the least-privilege flags above so `blocked` is rare. Unresolvable: 
 Agents are implementers, not authorities.
 
 1. **Baseline first:** HEAD, dirty state, relevant failing tests; name pre-existing files that must stay untouched.
-2. **Inspect at milestones.** Every follow-up is chosen from what you just read: no polling loops, timers or canned "continue" prompts across panes. At a usage/quota wall stop prompting until the stated reset and say so; probing only stacks dead prompts. When the operator asks what a child is doing, answer with its assigned task and progress (brief + transcript), not the current screen; keep that read-only. piz's status-bar quota readout (`5h: 78% ↻3h · 7d: 96% ↻6d22h`) is **remaining** usage and time left, not consumed (operator, 2026-11-09) — do not read it as near-exhaustion.
+2. **Inspect at milestones.** Every follow-up is chosen from what you just read: no polling loops, timers or canned "continue" prompts across panes. At a usage/quota wall stop prompting until the stated reset and say so; probing only stacks dead prompts. When the user asks what a child is doing, answer with its assigned task and progress (brief + transcript), not the current screen; keep that read-only. piz's status-bar quota readout (`5h: 78% ↻3h · 7d: 96% ↻6d22h`) is **remaining** usage and time left, not consumed — do not read it as near-exhaustion.
 3. **Distrust completion summaries:** inspect the full diff and commit, reconcile task ledgers/specs, rerun the narrowest relevant checks. A "pre-existing" failure needs reproduction or history evidence.
 4. **Review ≠ fixing.** A reviewer that edits violated its task: use a read-only configuration or disposable worktree rather than prompt-only prohibitions. Start accepted fixes in fresh context.
 5. **Stop scope drift early:** Esc, inspect the dirty tree, keep any useful patch, restore only identified out-of-scope paths. Never discard a mixed diff blindly.

@@ -86,7 +86,7 @@ Compatibility needs scope and a baseline phrased to survive syncs ("from the rec
 
 A shipped fork needs an owner for upstream advisories, applicability triage (scanners can't tell if an upstream fix still applies to our changed tree), backports and releases. An independent project also owns roadmap, migration guide, tracker, release/signing and governance, scaled to size; a personal tool still needs a named maintainer and honest support policy. Settle naming/trademark conflicts early without dropping license notices.
 
-Revisit the fork when upstream absorbs its purpose, upkeep exceeds value, or checks and releases stop. Propose returning upstream, narrowing scope, changing modes or archiving. Archiving, deleting refs, force-pushing and publishing are the operator's call.
+Revisit the fork when upstream absorbs its purpose, upkeep exceeds value, or checks and releases stop. Propose returning upstream, narrowing scope, changing modes or archiving. Archiving, deleting refs, force-pushing and publishing are the user's call.
 
 ## Messy forks
 
