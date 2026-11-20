@@ -9,7 +9,7 @@
 #
 # Usage:
 #   SKILLS_DIR=/path/to/skills ./check-upstream.sh          # all tracked skills
-#   ./check-upstream.sh html-communication                 # substring filter
+#   ./check-upstream.sh mcporter                             # substring filter
 #
 # Env:
 #   BRANCH       upstream branch to compare against (default: main)
@@ -25,15 +25,6 @@ CHECKS=(
   "agent-browser/SKILL.md|vercel-labs/agent-browser|skills/agent-browser/SKILL.md"
   "mcporter/SKILL.md|steipete/clawdis|skills/mcporter/SKILL.md"
   "content-retrieval/references/documents/liteparse.md|run-llama/llamaparse-agent-skills|skills/liteparse/SKILL.md"
-  "html-communication/SKILL.md|plannotator/effective-html|skills/html/SKILL.md"
-  "html-communication/references/charts-and-data.md|plannotator/effective-html|skills/html/references/charts-and-data.md"
-  "html-communication/references/creative-direction.md|plannotator/effective-html|skills/html/references/creative-direction.md"
-  "html-communication/references/diagrams.md|plannotator/effective-html|skills/html/references/diagrams.md"
-  "html-communication/references/documents-and-presentations.md|plannotator/effective-html|skills/html/references/documents-and-presentations.md"
-  "html-communication/references/interfaces.md|plannotator/effective-html|skills/html/references/interfaces.md"
-  "html-communication/references/wireframes.md|plannotator/effective-html|skills/html-wireframe/SKILL.md"
-  "html-communication/references/prototypes.md|plannotator/effective-html|skills/html-prototype/SKILL.md"
-  "html-communication/references/plans.md|plannotator/effective-html|skills/html-plan/SKILL.md"
 )
 
 # Drop YAML frontmatter (from first `---` through the next `---`).

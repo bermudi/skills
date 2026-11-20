@@ -52,7 +52,7 @@ a blocker, not permission to invent the intended workflow.
 
 ## Deploying Skills
 
-This repo is the **source of truth** for skills. We do NOT use the `skills` CLI to manage this repo's installs — installed copies are **plain symlinks** into this checkout (`~/.agents/skills/*`; `pi-docs` scoped to pi at `~/.pi/agent/skills/pi-docs`; external ones like `terminal-browser` and local-only ones like `filing-supervisor` stay tool-managed). The installed copy IS the working tree: **edits are live immediately**, no install/update step, nothing needs to "register" anywhere.
+This repo is the **source of truth** for skills. We do NOT use the `skills` CLI to manage this repo's installs — installed copies are **plain symlinks** into this checkout (`~/.agents/skills/*`; `pi-docs` scoped to pi at `~/.pi/agent/skills/pi-docs`; external ones like `terminal-browser` stay tool-managed). The installed copy IS the working tree: **edits are live immediately**, no install/update step, nothing needs to "register" anywhere.
 
 Git is history and CI only (skills-ref validation runs on push). Commit often; do not push without explicit permission.
 
@@ -115,13 +115,12 @@ Some skills are authored here from scratch; others were adapted from upstream so
 | `mcporter` | `steipete/clawdis` → `skills/mcporter` | Condensed upstream into a minimal stub |
 | `create-verification-skill` | `cursor/plugins` → `pstack/skills/create-verification-skill` + `maintain-verification-skill` (@ 236e548) | MIT LICENSE included; harness-neutral paths, local drivers, maintenance folded in, one map example |
 | `skill-creator` | started from `anthropics/skills` → `skills/skill-creator` | **Owned here now** — substantially rewritten with its own eval tooling; no longer tracks upstream |
-| `html-communication` | `plannotator/effective-html` → `skills/html` + sibling specialists | Consolidated the 6-skill collection (router + `design-artifact`, `html-wireframe`, `html-prototype`, `html-plan`, `html-diagram`) into one skill with specialized references; merged `design-artifact`+`creative-direction` and `html-diagram`+`diagrams` |
 
 **Authored here (no upstream):**
 
-`agent-memory-management`, `agent-observability`, `child-process-supervisor`, `create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `litespec-pipeline`, `pass-cli`, `perspectives`, `pi-docs`, `poe-provider`, `pty-handling`, `terminal-sessions`.
+`create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
 
-`review` is the operator's code-review guidelines (pasted 2026-11-09), kept verbatim — don't paraphrase or "improve" the body.
+`diff-review` is the operator's code-review guidelines (pasted 2026-11-09 as `review`; renamed and fitted to the issue workflow in `e8d93eb`, 2026-11-09) — keep the body as the operator wrote it; don't paraphrase or "improve" it.
 
 `verify-pr` holds the verifier stage split out of `fusion` (2026-11-12): any driver, not only a fusion lead, starts a clean-context verifier (default: a subagent of the current harness) that proves findings and posts PASS / PASS+NOTES / FAIL on the PR.
 
