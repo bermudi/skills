@@ -1,16 +1,22 @@
 ---
 name: fusion
 description: >
-  Use when the user asks for Fusion: the lead designs, reviews and owns the
-  shipped result; one cheaper sidekick in another harness implements and
-  fights the errors; a clean-session verifier checks the result. Works over
-  Herdr or T3 Code.
+  Use when the user asks for Fusion: the lead carries a task from brief to
+  verified PR; one cheaper sidekick in another harness implements and fights
+  the errors; a clean-session verifier checks the result. Works over Herdr or
+  T3 Code.
 disable-model-invocation: true
 ---
 
 # Fusion
 
-**Delegate execution, retain judgment.** You are the lead: you own the outcome, planning, design, consequential decisions, the final review, and every reply. A **cheaper sidekick** in a different harness implements, runs the checks and fights the errors. A **clean-session verifier** checks what you accepted before it ships.
+**Delegate execution, retain judgment.** You are the lead and you carry the task to the end: design, consequential decisions, review, verification, the PR and every reply are yours. A **cheaper sidekick** in a different harness implements, runs the checks and fights the errors. A **clean-session verifier** checks what you accepted before it ships.
+
+**Done** = the PR is marked ready after a verifier pass (`issue-workflow`), and the user has your one final report. Merging still needs the user's green light.
+
+The user says "no sidekick" → you implement yourself. Everything else holds: the playbook, review of your own diff against the asks, and the verifier.
+
+Pick the task's playbook from the `engineering` skill and follow its steps. Name it and the principles it uses in the sidekick's brief, so the sidekick reads the same files.
 
 The point is cost, not a second opinion: mechanical execution eats most of a session's tokens. Settle the design yourself, review the artifacts, and put the rest on the cheaper model. Implementing by habit forfeits the saving; making the sidekick a read-only reviewer inverts the division of labor.
 
@@ -24,7 +30,7 @@ Detect where you are, then use that surface's own instructions for every mechani
 
 ## Models
 
-Before starting any agent, ask the user once which harness and model to use for the sidekick and the verifier. Use your harness's question tool with options; skip only what the brief already names. Offer these, the first as default:
+Before starting any agent, ask the user once which harness and model to use for the sidekick and the verifier. Use your harness's question tool with options; skip what the task already names (the user or Goblin may pass the pick in). Offer these, the first as default:
 
 | Option | Sidekick | Verifier |
 |---|---|---|
@@ -61,7 +67,7 @@ Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its 
 
 Start one sidekick for the brief, in its auto-approve mode so it never stalls on permission prompts. Its first brief points at [its operating instructions](references/sidekick.md). It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
 
-Reuse that same sidekick for every rework round of the brief: its history, edits, shells and servers are assets. Don't spawn a new one per round or reset its context. Extra sidekicks are for parallel work only (below). If the surface can't continue a finished sidekick, say so and restate settled facts in the next brief.
+Reuse that same sidekick for every rework round of the brief: its history, edits, shells and servers are assets. Don't spawn a new one per round or reset its context. Sidekick harnesses cap context at about 250k tokens, so a reused one stays out of the long-context zone where reasoning degrades; when one hits the cap, start a fresh sidekick with the settled facts and its last report. Extra sidekicks are for parallel work only (below). If the surface can't continue a finished sidekick, say so and restate settled facts in the next brief.
 
 Keep in your notes (and across compaction): surface, sidekick id/name, session id, approved models, project, completed handoffs, pending report, live processes, evidence paths. Compaction isn't lossless: verify uncertain state instead of restarting or redoing work.
 
@@ -124,7 +130,7 @@ For ordinary execution blockers, pick a concrete direction and hand the repair b
 
 ## Verify before shipping
 
-After you accept a change, verify it with the `verify-pr` skill: its brief, proof rule, verdict and re-check rules apply as written. Three fusion specifics:
+After you accept a change, verify it with the `verify-pr` skill: its brief, proof rule, verdict and re-check rules apply as written. Two fusion specifics:
 
 - The verifier is the one the user picked in Models, started as a fresh session, not your subagent. Neither you nor the sidekick.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
@@ -135,4 +141,4 @@ No verify skill in the repo: offer the user `/create-verification-skill`; don't 
 
 During a run, send the user only what needs them now (a decision, a blocker, a permission); save progress and results for one report at the end. Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
 
-Keep the sidekick and runtime until the brief is done; don't discard artifacts as cleanup. A task is complete when the landing-point verdict and the verifier's pass are recorded, evidence is accounted for and no report is owed, not when an agent says "done".
+Keep the sidekick and runtime until the task is done; don't discard artifacts as cleanup. Done is defined at the top; an agent saying "done" is not it.

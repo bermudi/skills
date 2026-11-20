@@ -114,11 +114,12 @@ Some skills are authored here from scratch; others were adapted from upstream so
 | `frontend-design` | `anthropics/skills` → `skills/frontend-design` | Adopted, then condensed 2026-11-05 (Apache-2.0 LICENSE.txt included); license field set to SPDX identifier |
 | `mcporter` | `steipete/clawdis` → `skills/mcporter` | Condensed upstream into a minimal stub |
 | `create-verification-skill` | `cursor/plugins` → `pstack/skills/create-verification-skill` + `maintain-verification-skill` (@ 236e548) | MIT LICENSE included; harness-neutral paths, local drivers, maintenance folded in, one map example |
+| `engineering` (principles + playbooks) | `cursor/plugins` → `pstack/skills/principle-*` and `poteto-mode/playbooks/{bug-fix,feature,refactoring,perf-issue,prototype,investigation}` (@ aaeb0ea) | MIT LICENSE included. One skill with an index instead of 22 hidden skills; principle descriptions folded into a **When:** line; playbooks rewritten for issue-workflow (no Cursor tools, no plan files, no ready-PR or self-merge steps). Skipped: never-block-on-the-human (conflicts with hub Autonomy), guard-the-context-window, and the shipping/autopilot/multi-phase-plan/opening-a-pr playbooks (conflict with issue-workflow). House rules section holds the former hub Code rules. |
 | `skill-creator` | started from `anthropics/skills` → `skills/skill-creator` | **Owned here now** — substantially rewritten with its own eval tooling; no longer tracks upstream |
 
 **Authored here (no upstream):**
 
-`code-style`, `create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
+`create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
 
 `diff-review` is the operator's code-review guidelines (pasted 2026-11-09 as `review`; renamed and fitted to the issue workflow in `e8d93eb`, 2026-11-09) — keep the body as the operator wrote it; don't paraphrase or "improve" it.
 
@@ -169,5 +170,3 @@ skill-name/research/.gitignore   # ignores everything except itself
 ```
 
 **Why not `scripts/`?** `scripts/` is for reusable tools the agent runs during task execution. Research artifacts are tools *you* used to produce the skill's content — the agent should never discover and run them. Keep the skill root clean.
-
-`code-style` holds the code rules moved out of the hub AGENTS.md (2026-11-20) so only agents that write or review code load them.
