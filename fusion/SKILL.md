@@ -1,11 +1,10 @@
 ---
 name: fusion
 description: >
-  Use when the user asks for Fusion: the lead carries a task from brief to
-  verified PR; one cheaper sidekick in another harness implements and fights
-  the errors; a clean-session verifier checks the result. Works over Herdr or
-  T3 Code.
-disable-model-invocation: true
+  Default for any repo task that ends in a PR: the lead carries it from brief
+  to verified PR; one cheaper sidekick in another harness implements and
+  fights the errors; a clean-session verifier checks the result. "No sidekick"
+  still runs it. Never load it as a sidekick or verifier.
 ---
 
 # Fusion
