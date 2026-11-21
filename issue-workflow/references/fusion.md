@@ -51,7 +51,7 @@ Once active, delegate by default, not only when stuck or busy.
 
 **Trivial-edit exception:** only if editing **and confirming** fit in 1–2 lead turns with no verification left; size alone never exempts correctness-critical work. Name the exception before any direct edit or check; otherwise hand off.
 
-Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its evidence, decide, then dispatch. For unknown production schemas: get schema and candidate sources first, then write the exact query yourself, and require "schema surprise ⇒ stop and report", not a substitute query.
+Never dispatch an unsettled ask, and never dispatch with defaults the user hasn't confirmed. Ask a product question as soon as you find it, not in the final report; meanwhile build only the work that doesn't depend on the answer. Delegate a bounded discovery pass, inspect its evidence, decide, then dispatch. For unknown production schemas: get schema and candidate sources first, then write the exact query yourself, and require "schema surprise ⇒ stop and report", not a substitute query.
 
 ## One sidekick per brief
 

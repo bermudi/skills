@@ -40,7 +40,7 @@ For each call:
 
 - **What it is:** the plain definition of the thing, then the problem in this case.
 - **Why care:** what goes wrong for a user if we pick wrong.
-- **Options:** each with what it gets the user and what it costs (time, risk, money). Include the current state if there is one.
+- **Options:** each says what the user will see and do with it, then what it costs (time, risk, money). Leave out internals (lanes, pointers, tables). Include the current state if there is one.
 - **My pick and why.** Steps you'd take first, and anything that can't be undone, go in the pick.
 
 About 30 words per option. Never cut a call or swap it for a link to stay short: the reply alone must be enough to decide. Several items under one call (five PRs to merge): state the call and pick once, then one bullet per item, riskiest first. If the user can't choose without knowing the architecture, the question isn't ready: explain more, or decide it yourself if it's reversible.
