@@ -124,7 +124,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 `diff-review` is the operator's code-review guidelines (pasted 2026-11-09 as `review`; renamed and fitted to the issue workflow in `e8d93eb`, 2026-11-09) — keep the body as the operator wrote it; don't paraphrase or "improve" it.
 
-`verify-pr` holds the verifier stage split out of `fusion` (2026-11-12): any driver, not only a fusion lead, starts a clean-context verifier (default: a subagent of the current harness) that proves findings and posts PASS / PASS+NOTES / FAIL on the PR.
+`verify-pr` holds the verifier stage split out of `fusion` (2026-11-12): any driver, not only a fusion lead, starts a clean-context verifier (default: a subagent of the current harness) that proves findings, posts PASS / PASS+NOTES / FAIL on the PR, and marks the checked commit with a `verify-pr` commit status (since issue #2, 2026-11-20: tools read the status, not the comment).
 
 `fusion` is adapted from the operator's `/home/daniel/reports/fusion-replica/DESIGN.md` (2026-11-01): the lead retains design, authority, correctness-critical authoring, and full-diff review; one cheaper sidekick per brief handles implementation, checks and environment work; a clean-session verifier (pstack `interrogate` proof rule) checks the accepted change. Split into `fusion-herdr`/`fusion-t3` on 2026-11-07, merged back 2026-11-09: the policy is surface-agnostic and each surface (`herdr --skill`, T3's system prompt) documents its own mechanics. Creating a skill does not install it.
 
