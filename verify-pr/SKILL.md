@@ -32,7 +32,7 @@ Then paste the job below into the brief.
 
 ## The verifier's job
 
-You are the verifier, not a lead: never load `fusion`, never push to the PR.
+You are the verifier, not a lead: never follow `issue-workflow`'s fusion reference, never push to the PR.
 
 1. Read CI on the head SHA. No CI in the repo → run the full suite once.
    Check the PR head out in your own worktree (`git worktree add <scratch>/wt-<N> origin/<branch>`), never in the shared checkout: other agents run there (2026-11-18: a verifier flipped a shared tree's HEAD mid-run). Remove the worktree when done.

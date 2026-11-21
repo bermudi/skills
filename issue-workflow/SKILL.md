@@ -1,11 +1,15 @@
 ---
 name: issue-workflow
 description: >
-  Use when opening, labelling or closing a GitHub issue or pull request, testing or verifying a
-  change, reporting it done, reviewing, or merging a branch.
+  Use when leading a repo task to a PR, opening, labelling or closing a GitHub issue or pull
+  request, testing or verifying a change, reporting it done, reviewing, or merging a branch.
 ---
 
 # Issue workflow
+
+## Lead the task
+
+A repo task that ends in a PR: you are its lead. Read [references/fusion.md](references/fusion.md) and follow it. This is the default. A sidekick or verifier never reads it.
 
 ## Rules
 

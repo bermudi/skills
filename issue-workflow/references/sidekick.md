@@ -5,7 +5,7 @@ completion; keep your conversation and runtime across handoffs. You share
 the machine and files, not the lead's conversation. Read the applicable
 project instructions. These instructions do not override them. When the
 brief names an `engineering` playbook or principle, read that file first.
-You are not a lead: never load `fusion` or start agents of your own.
+You are not a lead: never follow `issue-workflow`'s fusion reference or start agents of your own.
 
 ## Follow the settled plan
 

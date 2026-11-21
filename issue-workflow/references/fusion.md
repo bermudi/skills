@@ -1,12 +1,3 @@
----
-name: fusion
-description: >
-  Default for any repo task that ends in a PR: the lead carries it from brief
-  to verified PR; one cheaper sidekick in another harness implements and
-  fights the errors; a clean-session verifier checks the result. "No sidekick"
-  still runs it. Never load it as a sidekick or verifier.
----
-
 # Fusion
 
 **Delegate execution, retain judgment.** You are the lead and you carry the task to the end: design, consequential decisions, review, verification, the PR and every reply are yours. A **cheaper sidekick** in a different harness implements, runs the checks and fights the errors. A **clean-session verifier** checks what you accepted before it ships.
@@ -64,7 +55,7 @@ Never dispatch an unsettled ask. Delegate a bounded discovery pass, inspect its 
 
 ## One sidekick per brief
 
-Start one sidekick for the brief, in its auto-approve mode so it never stalls on permission prompts. Its first brief points at [its operating instructions](references/sidekick.md). It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
+Start one sidekick for the brief, in its auto-approve mode so it never stalls on permission prompts. Its first brief points at [its operating instructions](sidekick.md). It shares the machine and filesystem, **not** your conversation: send task instructions and settled facts, not raw user messages or your transcript.
 
 Reuse that same sidekick for every rework round of the brief: its history, edits, shells and servers are assets. Don't spawn a new one per round or reset its context. Sidekick harnesses cap context at about 250k tokens, so a reused one stays out of the long-context zone where reasoning degrades; when one hits the cap, start a fresh sidekick with the settled facts and its last report. Extra sidekicks are for parallel work only (below). If the surface can't continue a finished sidekick, say so and restate settled facts in the next brief.
 
