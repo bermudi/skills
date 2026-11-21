@@ -40,7 +40,13 @@ Then paste the job below into the brief.
    - `PASS`: every ask driven, no findings.
    - `PASS+NOTES`: no proven defect, but notes the caller must answer: an ask you couldn't reach (the missing prerequisite and the route you tried), or a gap between the verify skill's map and the app.
    - `FAIL`: at least one proven finding.
-5. Post it on the PR (`gh pr comment <N> --body-file <report>`) and return it.
+
+   Then exactly one line naming the commit you checked, in this exact form (tools read it):
+
+   ```text
+   Checked-SHA: <full 40-character lowercase commit SHA>
+   ```
+5. Post it on the PR as a new comment (`gh pr comment <N> --body-file <report>`), one per checked head, and return it.
 
 ## After the verdict
 
@@ -48,8 +54,8 @@ You, the caller, answer it:
 
 - Every finding: a fix, recorded in the PR's findings checklist (`issue-workflow`), or a rejection with a concrete disproof. Never accept or dismiss one unread.
 - Every note: answered. An unreached ask goes to the user; it never ships as verified.
-- After fixes, start a new verifier for a re-check round.
-- `PASS`, or `PASS+NOTES` with every note answered → `gh pr ready`.
+- After fixes, start a new verifier for a re-check round. A verdict covers only its `Checked-SHA`: any later push needs a new one.
+- `PASS`, or `PASS+NOTES` with every note answered, on the current head → `gh pr ready`. Neither is permission to merge.
 
 ## Basis
 
