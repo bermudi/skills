@@ -120,7 +120,7 @@ Some skills are authored here from scratch; others were adapted from upstream so
 
 **Authored here (no upstream):**
 
-`create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `herdr-agent-driver`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
+`create-handoff`, `create-project-agentsmd`, `harness-session-navigation`, `herdr`, `issue-workflow`, `pass-cli`, `pi-docs`, `telegram-bridge`.
 
 `diff-review` is the operator's code-review guidelines (pasted 2026-11-09 as `review`; renamed and fitted to the issue workflow in `e8d93eb`, 2026-11-09) — keep the body as the operator wrote it; don't paraphrase or "improve" it.
 
