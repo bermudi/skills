@@ -1,7 +1,7 @@
 ---
 name: create-project-agentsmd
 description: >
-  Generate or revise a project AGENTS.md (or CLAUDE.md) encoding goals, shape
+  Generate or revise a project AGENTS.md encoding goals, shape
   and stable knowledge, not volatile implementation details.
 license: Apache-2.0
 metadata:
@@ -87,7 +87,8 @@ Omit sections that don't apply. Aim for 50–150 lines; 200 is a review signal, 
 ## Tool targets
 
 - **Default (`AGENTS.md`):** read by Pi, Codex, Devin, T3, and modern Cursor (walks up parent dirs; no inline imports — reference scoped docs by path with triggers). `AGENTS.local.md` holds personal/harness overrides when supported.
-- **Claude Code (`CLAUDE.md`):** supports `@path` inline imports and subdirectory `CLAUDE.md` files (or symlink/point to `AGENTS.md`).
+- **Claude Code:** keep personal instructions in the global `~/.claude/CLAUDE.md` and project instructions in `AGENTS.md`. Use Claude Code's `AGENTS.md` fallback rather than creating a project `CLAUDE.md`, import stub, or symlink.
+- **Forks:** if upstream already ships an `AGENTS.md`, keep it as the project entry point. Preserve upstream guidance and make only the changes the fork needs.
 - **Cursor (scoped rules):** `.cursor/rules/*.mdc` for glob-scoped rules; legacy `.cursorrules` only if the repo already uses it.
 
 ## Generating and maintaining
