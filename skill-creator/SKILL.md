@@ -14,13 +14,13 @@ Meet the user where they are: "make a skill for X" → full process; existing dr
 
 **Read `references/best-practices.md` at the start of every session** (expertise sourcing, context spending, calibrating prescriptiveness, reusable instruction patterns).
 
-Global skills live in `~/.agents/skills/<name>/`; project skills in `<project>/.agents/skills/<name>/` (tracked in `skills-lock.json`). `skills ls -g` / `skills ls` show what's installed where.
+Global skills live in `~/.agents/skills/<name>/` (mirrored to `~/.claude/skills/<name>/` for Claude Code; in a local skills monorepo, prefer plain symlinks over the `skills` CLI); project skills live in `<project>/.agents/skills/<name>/`. `skills ls -g` / `skills ls` show CLI-managed installs.
 
 ## Creating a skill
 
 **Capture intent.** The conversation may already contain the workflow: extract tools used, step sequences, corrections and I/O formats, then have the user fill gaps. Settle: what it enables, what phrases/contexts trigger it, expected output format, and whether to set up test cases (verifiable outputs like transforms, extraction, codegen benefit; subjective ones like writing style usually don't; suggest a default, user decides). Ask about edge cases, example files, success criteria and dependencies before writing test prompts. For research, use MCPs or parallel subagents and bring the findings back.
 
-**Write SKILL.md:** `name` (kebab-case, ≤64 chars, matches directory), `description` (all the "when to use" lives here; it is the only triggering mechanism), optional `compatibility`, then the body. Full format: `references/specification.md`; walkthrough: `references/quickstart.md`.
+**Write SKILL.md:** `name` (kebab-case, ≤64 chars, matches directory), `description` (all the "when to use" lives here; it is the only triggering mechanism), optional `compatibility`, then the body. Full format: `references/specification.md`.
 
 ```
 skill-name/
@@ -42,10 +42,10 @@ skill-name/
 
 Run this as one continuous sequence; each step has a completion criterion (e.g. "every run has a `timing.json`"): don't advance until it's met. Workspace: `<skill-name>-workspace/` beside the skill, `iteration-N/eval-ID/`, created as needed.
 
-1. **Spawn all runs in the same turn**, with-skill and baseline, so they finish together. With-skill: skill path, task, input files, `…/iteration-N/eval-ID/with_skill/outputs/`, what to save. Baseline: same prompt with no skill (new skill, `without_skill/`) or against a pre-edit snapshot (`cp -r <skill-path> <workspace>/skill-snapshot/`, `old_skill/`). Write `eval_metadata.json` per case (`eval_id`, `eval_name`, `prompt`, `assertions`).
-2. **While runs execute, draft assertions:** objectively verifiable, descriptively named (subjective skills: qualitative review instead). Explain them to the user; update `eval_metadata.json` and `evals/evals.json`.
+1. **Spawn all runs in the same turn**, with-skill and baseline, so they finish together. With-skill: skill path, task, input files, `…/iteration-N/eval-ID/with_skill/outputs/` (or `…/with_skill/run-1/outputs/` for multi-trial runs), what to save. Baseline: same prompt with no skill (new skill, `without_skill/`) or against a pre-edit snapshot (`cp -r <skill-path> <workspace>/skill-snapshot/`, `old_skill/`). Write `eval_metadata.json` per case (`eval_id`, `eval_name`, `prompt`, `assertions`).
+2. **While runs execute, draft assertions:** objectively verifiable, descriptively named (subjective skills: qualitative review instead). Explain them to the user; update `eval_metadata.json` and `evals/evals.json` (`expectations` array).
 3. **As each run completes, write `timing.json`** (`total_tokens`, `duration_ms`, `total_duration_seconds`); process notifications as they arrive.
-4. **Grade, aggregate, view.** Grade each run into `grading.json` (`text`, `passed`, `evidence`): script what's checkable, give the rest to the grader subagent (`references/grading-subagent.md`). Aggregate: `uv run python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>` → `benchmark.json`/`.md`. Run an analyst pass for patterns the stats hide (`references/analysis-subagent.md`). Launch the viewer:
+4. **Grade, aggregate, view.** Grade each run into `grading.json` (`expectations` entries with `text`, `passed`, `evidence`): script what's checkable, give the rest to the grader subagent (`references/grading-subagent.md`). Aggregate (with `PYTHONPATH=<skill-creator-path>` or from `<skill-creator-path>`): `PYTHONPATH=<skill-creator-path> uv run python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>` → `benchmark.json`/`.md`. Run an analyst pass for patterns the stats hide (`references/analysis-subagent.md`). Launch the viewer:
    ```bash
    nohup uv run python <skill-creator-path>/eval-viewer/generate_review.py <workspace>/iteration-N \
      --skill-name "my-skill" --benchmark <workspace>/iteration-N/benchmark.json >/dev/null 2>&1 &
@@ -75,9 +75,10 @@ Writing: imperative ("Use this skill when…"); user intent, not implementation;
 2. **Review with the user** via `assets/eval_review.html`: replace `__EVAL_DATA_PLACEHOLDER__`, `__SKILL_NAME_PLACEHOLDER__`, `__SKILL_DESCRIPTION_PLACEHOLDER__`, write to a temp file and open it; they edit and export to `~/Downloads/eval_set.json`. Bad queries make bad descriptions.
 3. **Run the loop** in the background (it takes a while; tail it):
    ```bash
-   uv run python -m scripts.run_loop --eval-set <trigger-eval.json> --skill-path <skill> --model <provider/model> --max-iterations 5 --verbose
+   PYTHONPATH=<skill-creator-path> uv run python -m scripts.run_loop \
+     --eval-set <trigger-eval.json> --skill-path <skill> --model <provider/model> --max-iterations 5 --verbose
    ```
-   `run_loop.py` shells out to `pi -p`, so pi must be installed and authenticated, and the model needs the full `provider/model` form (e.g. `poe-responses/Claude-Sonnet-4.6`). It splits 60% train / 40% held-out test, runs each query 3×, proposes improvements, and picks the best description by test score. Never let the optimization see held-out results, or it overfits to phrasings.
+   `run_loop.py` shells out to `pi -p`, so pi must be installed and authenticated, and `--model` needs the full `provider/model` form. It splits 60% train / 40% held-out test, stages each candidate description in a temp skill dir, runs each query 3×, proposes improvements, and picks the best description by test score. Never let the optimization see held-out results, or it overfits to phrasings.
 4. **Apply:** put the best description in the frontmatter, show before/after with scores, confirm it's under 1024 chars.
 
 ## Before sharing
@@ -93,7 +94,6 @@ Writing: imperative ("Use this skill when…"); user intent, not implementation;
 |---|---|
 | Expertise sourcing, context spending, prescriptiveness, skill vs script, capability vs preference, retirement | `references/best-practices.md` |
 | Full SKILL.md format | `references/specification.md` |
-| End-to-end walkthrough | `references/quickstart.md` |
 | Test design, assertions, grading, workspace, regression gate | `references/evaluating-skills.md` |
 | Trigger optimization, splits | `references/optimizing-descriptions.md` |
 | Scripts with inline dependencies | `references/using-scripts.md` |

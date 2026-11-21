@@ -2,8 +2,12 @@
 """Run trigger evaluation for a skill description.
 
 Tests whether a skill's description causes an agent to trigger (read the skill)
-for a set of queries. Uses `pi -p` under the hood. Outputs results as JSON.
+for a set of queries. Uses `pi -p --no-skills --skill <staged>` under the hood
+so candidate descriptions are evaluated without colliding with installed skills.
+Outputs results as JSON.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -11,11 +15,27 @@ import os
 import select
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-from scripts.utils import parse_skill_md
+from scripts.utils import parse_skill_md, replace_skill_description
+
+
+def _stage_skill(skill_path: Path, skill_name: str, description: str, staging_root: Path) -> Path:
+    """Create a temporary skill directory with the candidate description in SKILL.md."""
+    staged_dir = staging_root / skill_name
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    original_content = (skill_path / "SKILL.md").read_text()
+    (staged_dir / "SKILL.md").write_text(replace_skill_description(original_content, description))
+    for entry in skill_path.iterdir():
+        if entry.name == "SKILL.md":
+            continue
+        target = staged_dir / entry.name
+        if not target.exists():
+            target.symlink_to(entry.resolve())
+    return staged_dir
 
 
 def run_single_query(
@@ -27,21 +47,19 @@ def run_single_query(
 ) -> bool:
     """Run a single query and return whether the skill was triggered.
 
-    Uses `pi -p --mode json --no-session --skill <path>` to run the query.
-    Parses the NDJSON stream to detect if the agent reads the skill's
-    SKILL.md file (which is how Pi activates skills).
+    Uses `pi -p --mode json --no-session --no-skills --skill <path>` to run
+    the query against only the staged skill. Parses the NDJSON stream to detect
+    if the agent reads the skill's SKILL.md file (which is how Pi activates skills).
     Early-exits if the agent's first action is something other than reading
     the skill file.
     """
-    skill_md_path = str(Path(skill_path) / "SKILL.md")
-    # Pattern to match: the skill could be read from any installed location,
-    # not just the path we pass via --skill. Match on skill_name/SKILL.md.
     skill_name_pattern = f"{skill_name}/SKILL.md"
 
     cmd = [
         "pi", "-p", query,
         "--mode", "json",
         "--no-session",
+        "--no-skills",
         "--skill", skill_path,
     ]
     if model:
@@ -56,11 +74,11 @@ def run_single_query(
     triggered = False
     start_time = time.time()
     buffer = ""
-    # Track tool call arguments as they stream in
     pending_read = False
     accumulated_args = ""
 
     try:
+        assert process.stdout is not None
         while time.time() - start_time < timeout:
             if process.poll() is not None:
                 remaining = process.stdout.read()
@@ -90,19 +108,11 @@ def run_single_query(
 
                 event_type = event.get("type", "")
 
-                # Pi JSON stream events:
-                #   toolcall_start  → agent is about to call a tool
-                #   toolcall_delta  → streaming tool arguments
-                #   toolcall_end    → tool call complete
-                #   tool_execution_start → tool is being executed
-                #   turn_end        → agent turn finished
-
                 if event_type == "message_update":
                     ae = event.get("assistantMessageEvent", {})
                     ae_type = ae.get("type", "")
 
                     if ae_type == "toolcall_start":
-                        # Check which tool the agent is calling
                         msg = ae.get("message", {})
                         for c in msg.get("content", []):
                             if c.get("type") == "toolCall":
@@ -113,7 +123,6 @@ def run_single_query(
                                     if skill_name_pattern in accumulated_args:
                                         return True
                                 else:
-                                    # First tool call is not reading the skill → not triggered
                                     return False
 
                     elif ae_type == "toolcall_delta" and pending_read:
@@ -130,7 +139,6 @@ def run_single_query(
                                 path = args.get("path", "")
                                 if skill_name_pattern in path:
                                     return True
-                        # read tool called but not targeting our skill
                         pending_read = False
                         return False
 
@@ -142,11 +150,9 @@ def run_single_query(
                     path = args.get("path", "")
                     if skill_name_pattern in path:
                         return True
-                    # read tool executed on something else
                     return False
 
                 elif event_type == "turn_end":
-                    # Agent finished without reading the skill
                     return False
 
         return triggered
@@ -167,36 +173,39 @@ def run_eval(
     trigger_threshold: float = 0.5,
     model: str | None = None,
 ) -> dict:
-    """Run the full eval set and return results."""
+    """Run the full eval set against a staged copy carrying `description`."""
     results = []
 
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        future_to_info = {}
-        for item in eval_set:
-            for run_idx in range(runs_per_query):
-                future = executor.submit(
-                    run_single_query,
-                    item["query"],
-                    skill_name,
-                    str(skill_path),
-                    timeout,
-                    model,
-                )
-                future_to_info[future] = (item, run_idx)
+    with tempfile.TemporaryDirectory(prefix="skill_eval_") as tmp:
+        staged_skill = _stage_skill(skill_path, skill_name, description, Path(tmp))
 
-        query_triggers: dict[str, list[bool]] = {}
-        query_items: dict[str, dict] = {}
-        for future in as_completed(future_to_info):
-            item, _ = future_to_info[future]
-            query = item["query"]
-            query_items[query] = item
-            if query not in query_triggers:
-                query_triggers[query] = []
-            try:
-                query_triggers[query].append(future.result())
-            except Exception as e:
-                print(f"Warning: query failed: {e}", file=sys.stderr)
-                query_triggers[query].append(False)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            future_to_info = {}
+            for item in eval_set:
+                for run_idx in range(runs_per_query):
+                    future = executor.submit(
+                        run_single_query,
+                        item["query"],
+                        skill_name,
+                        str(staged_skill),
+                        timeout,
+                        model,
+                    )
+                    future_to_info[future] = (item, run_idx)
+
+            query_triggers: dict[str, list[bool]] = {}
+            query_items: dict[str, dict] = {}
+            for future in as_completed(future_to_info):
+                item, _ = future_to_info[future]
+                query = item["query"]
+                query_items[query] = item
+                if query not in query_triggers:
+                    query_triggers[query] = []
+                try:
+                    query_triggers[query].append(future.result())
+                except Exception as e:
+                    print(f"Warning: query failed: {e}", file=sys.stderr)
+                    query_triggers[query].append(False)
 
     for query, triggers in query_triggers.items():
         item = query_items[query]
@@ -230,7 +239,7 @@ def run_eval(
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run trigger evaluation for a skill description")
     parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
     parser.add_argument("--skill-path", required=True, help="Path to skill directory")
@@ -239,7 +248,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
-    parser.add_argument("--model", default=None, help="Model for pi -p, in provider/model form (e.g. 'poe-responses/Claude-Sonnet-4.6'). Short names may not resolve without a saved session.")
+    parser.add_argument("--model", default=None, help="Model for pi -p, in provider/model form. Short names may not resolve without a saved session.")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     args = parser.parse_args()
 
@@ -250,7 +259,7 @@ def main():
         print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
         sys.exit(1)
 
-    name, original_description, content = parse_skill_md(skill_path)
+    name, original_description, _ = parse_skill_md(skill_path)
     description = args.description or original_description
 
     if args.verbose:

@@ -40,6 +40,7 @@ import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 def calculate_stats(values: list[float]) -> dict:
@@ -97,19 +98,30 @@ def load_run_results(benchmark_dir: Path) -> dict:
             except ValueError:
                 eval_id = eval_idx
 
-        # Discover config directories dynamically rather than hardcoding names
+        # Discover config directories dynamically rather than hardcoding names.
+        # Support both multi-trial (<config>/run-N/grading.json) and single-trial (<config>/grading.json).
         for config_dir in sorted(eval_dir.iterdir()):
             if not config_dir.is_dir():
                 continue
-            # Skip non-config directories (inputs, outputs, etc.)
-            if not list(config_dir.glob("run-*")):
+            run_dirs = sorted(config_dir.glob("run-*"))
+            if run_dirs:
+                run_entries: list[tuple[int, Path]] = []
+                for rd in run_dirs:
+                    try:
+                        rn = int(rd.name.split("-")[1])
+                    except (IndexError, ValueError):
+                        rn = len(run_entries) + 1
+                    run_entries.append((rn, rd))
+            elif (config_dir / "grading.json").exists():
+                run_entries = [(1, config_dir)]
+            else:
                 continue
+
             config = config_dir.name
             if config not in results:
                 results[config] = []
 
-            for run_dir in sorted(config_dir.glob("run-*")):
-                run_number = int(run_dir.name.split("-")[1])
+            for run_number, run_dir in run_entries:
                 grading_file = run_dir / "grading.json"
 
                 if not grading_file.exists():
@@ -141,7 +153,10 @@ def load_run_results(benchmark_dir: Path) -> dict:
                     try:
                         with open(timing_file) as tf:
                             timing_data = json.load(tf)
-                        result["time_seconds"] = timing_data.get("total_duration_seconds", 0.0)
+                        result["time_seconds"] = timing_data.get(
+                            "total_duration_seconds",
+                            timing_data.get("duration_ms", 0.0) / 1000.0,
+                        )
                         result["tokens"] = timing_data.get("total_tokens", 0)
                     except json.JSONDecodeError:
                         pass
@@ -154,7 +169,7 @@ def load_run_results(benchmark_dir: Path) -> dict:
                 result["errors"] = metrics.get("errors_encountered", 0)
 
                 # Extract expectations — viewer requires fields: text, passed, evidence
-                raw_expectations = grading.get("expectations", [])
+                raw_expectations = grading.get("expectations") or grading.get("assertion_results", [])
                 for exp in raw_expectations:
                     if "text" not in exp or "passed" not in exp:
                         print(f"Warning: expectation in {grading_file} missing required fields (text, passed, evidence): {exp}")
@@ -173,13 +188,13 @@ def load_run_results(benchmark_dir: Path) -> dict:
     return results
 
 
-def aggregate_results(results: dict) -> dict:
+def aggregate_results(results: dict) -> dict[str, Any]:
     """
     Aggregate run results into summary statistics.
 
     Returns run_summary with stats for each configuration and delta.
     """
-    run_summary = {}
+    run_summary: dict[str, Any] = {}
     configs = list(results.keys())
 
     for config in configs:
@@ -253,12 +268,18 @@ def generate_benchmark(benchmark_dir: Path, skill_name: str = "", skill_path: st
                 "notes": result["notes"]
             })
 
-    # Determine eval IDs from results
+    # Determine eval IDs and runs per configuration from results
     eval_ids = sorted(set(
         r["eval_id"]
         for config in results.values()
         for r in config
     ))
+    run_numbers = {
+        r["run_number"]
+        for config in results.values()
+        for r in config
+    }
+    runs_per_config = len(run_numbers) if run_numbers else 0
 
     benchmark = {
         "metadata": {
@@ -268,7 +289,7 @@ def generate_benchmark(benchmark_dir: Path, skill_name: str = "", skill_path: st
             "analyzer_model": "<model-name>",
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "evals_run": eval_ids,
-            "runs_per_configuration": 3
+            "runs_per_configuration": runs_per_config
         },
         "runs": runs,
         "run_summary": run_summary,

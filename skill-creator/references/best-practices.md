@@ -35,11 +35,9 @@ The first draft of a skill usually needs refinement. Run the skill against real 
 
 Even a single pass of execute-then-revise noticeably improves quality, and complex domains often benefit from several.
 
-<Tip>
-  Read agent execution traces, not just final outputs. If the agent wastes time on unproductive steps, common causes include instructions that are too vague (the agent tries several approaches before finding one that works), instructions that don't apply to the current task (the agent follows them anyway), or too many options presented without a clear default.
-</Tip>
+> **Tip:** Read agent execution traces, not just final outputs. If the agent wastes time on unproductive steps, common causes include instructions that are too vague (the agent tries several approaches before finding one that works), instructions that don't apply to the current task (the agent follows them anyway), or too many options presented without a clear default.
 
-For a more structured approach to iteration, including test cases, assertions, and grading, see [Evaluating skill output quality](/skill-creation/evaluating-skills).
+For a more structured approach to iteration, including test cases, assertions, and grading, see [Evaluating skill output quality](evaluating-skills.md).
 
 ## Capability vs preference skills
 
@@ -72,7 +70,7 @@ Focus on what the agent *wouldn't* know without your skill: project-specific con
 
 The broader evidence backs this up. Skills Bench (which indexed over 50,000 skills) found that almost none had evals and most were AI-written; AI-generated skills can impact performance *negatively*, while human-written skills are the best you can provide. On average, well-crafted skills improve performance by roughly 15% — but that average hides skills that help a lot and skills that hurt. Roughly half of skill failures trace back to the skill never triggering in the first place — a description problem, not a content problem. The takeaway: write skills from real expertise, keep them lean, and always eval with vs. without.
 
-````markdown theme={null}
+````markdown
 <!-- Too verbose — the agent already knows what PDFs are -->
 ## Extract PDF text
 
@@ -98,7 +96,7 @@ Ask yourself about each piece of content: "Would the agent get this wrong withou
 
 The sharper, **sentence-by-sentence** version of this test is the *no-op check*: for each sentence, ask "if I deleted this, would the agent's behaviour change?" If not, delete the whole sentence — don't trim words from it. A whole paragraph instructing the agent to write a long commit message is the classic no-op; delete it and the agent still writes one. For the full pruning discipline — duplication, sediment, no-ops, sprawl — see [Writing skills well](writing-skills.md).
 
-If you're unsure whether the agent already handles a piece of the task, test it. And if the agent handles the entire task well without the skill, the skill may not be adding value. See [Evaluating skill output quality](/skill-creation/evaluating-skills) for how to test this systematically.
+If you're unsure whether the agent already handles a piece of the task, test it. And if the agent handles the entire task well without the skill, the skill may not be adding value. See [Evaluating skill output quality](evaluating-skills.md) for how to test this systematically.
 
 ### Design coherent units
 
@@ -110,9 +108,9 @@ Overly comprehensive skills can hurt more than they help — the agent struggles
 
 ### Structure large skills with progressive disclosure
 
-The [specification](/specification#progressive-disclosure) recommends keeping `SKILL.md` under 500 lines and 5,000 tokens — just the core instructions the agent needs on every run. When a skill legitimately needs more content, move detailed reference material to separate files in `references/` or similar directories.
+The [specification](specification.md#progressive-disclosure) recommends keeping `SKILL.md` under 500 lines and 5,000 tokens — just the core instructions the agent needs on every run. When a skill legitimately needs more content, move detailed reference material to separate files in `references/` or similar directories.
 
-The key is telling the agent *when* to load each file. "Read `references/api-errors.md` if the API returns a non-200 status code" is more useful than a generic "see references/ for details." This lets the agent load context on demand rather than up front, which is how [progressive disclosure](/what-are-skills#how-skills-work) is designed to work.
+The key is telling the agent *when* to load each file. "Read `references/api-errors.md` if the API returns a non-200 status code" is more useful than a generic "see references/ for details." This lets the agent load context on demand rather than up front, which is how progressive disclosure is designed to work.
 
 ## Calibrating control
 
@@ -122,7 +120,7 @@ Not every part of a skill needs the same level of prescriptiveness. Match the sp
 
 **Give the agent freedom** when multiple approaches are valid and the task tolerates variation. For flexible instructions, explaining *why* can be more effective than rigid directives — an agent that understands the purpose behind an instruction makes better context-dependent decisions. A code review skill can describe what to look for without prescribing exact steps:
 
-```markdown theme={null}
+```markdown
 ## Code review process
 
 1. Check all database queries for SQL injection (use parameterized queries)
@@ -133,7 +131,7 @@ Not every part of a skill needs the same level of prescriptiveness. Match the sp
 
 **Be prescriptive** when operations are fragile, consistency matters, or a specific sequence must be followed:
 
-````markdown theme={null}
+````markdown
 ## Database migration
 
 Run exactly this sequence:
@@ -151,7 +149,7 @@ Most skills have a mix. Calibrate each part independently.
 
 When multiple tools or approaches could work, pick a default and mention alternatives briefly rather than presenting them as equal options.
 
-````markdown theme={null}
+````markdown
 <!-- Too many options -->
 You can use pypdf, pdfplumber, PyMuPDF, or pdf2image...
 
@@ -169,7 +167,7 @@ For scanned PDFs requiring OCR, use pdf2image with pytesseract instead.
 
 A skill should teach the agent *how to approach* a class of problems, not *what to produce* for a specific instance. Compare:
 
-```markdown theme={null}
+```markdown
 <!-- Specific answer — only useful for this exact task -->
 Join the `orders` table to `customers` on `customer_id`, filter where
 `region = 'EMEA'`, and sum the `amount` column.
@@ -195,7 +193,7 @@ These are reusable techniques for structuring skill content. Not every skill nee
 
 The highest-value content in many skills is a list of gotchas — environment-specific facts that defy reasonable assumptions. These aren't general advice ("handle errors appropriately") but concrete corrections to mistakes the agent will make without being told otherwise:
 
-```markdown theme={null}
+```markdown
 ## Gotchas
 
 - The `users` table uses soft deletes. Queries must include
@@ -209,15 +207,13 @@ The highest-value content in many skills is a list of gotchas — environment-sp
 
 Keep gotchas in `SKILL.md` where the agent reads them before encountering the situation. A separate reference file works if you tell the agent when to load it, but for non-obvious issues, the agent may not recognize the trigger.
 
-<Tip>
-  When an agent makes a mistake you have to correct, add the correction to the gotchas section. This is one of the most direct ways to improve a skill iteratively (see [Refine with real execution](#refine-with-real-execution)).
-</Tip>
+> **Tip:** When an agent makes a mistake you have to correct, add the correction to the gotchas section. This is one of the most direct ways to improve a skill iteratively (see [Refine with real execution](#refine-with-real-execution)).
 
 ### Templates for output format
 
 When you need the agent to produce output in a specific format, provide a template. This is more reliable than describing the format in prose, because agents pattern-match well against concrete structures. Short templates can live inline in `SKILL.md`; for longer templates, or templates only needed in certain cases, store them in `assets/` and reference them from `SKILL.md` so they only load when needed.
 
-````markdown theme={null}
+````markdown
 ## Report structure
 
 Use this template, adapting sections as needed for the specific analysis:
@@ -242,7 +238,7 @@ Use this template, adapting sections as needed for the specific analysis:
 
 An explicit checklist helps the agent track progress and avoid skipping steps, especially when steps have dependencies or validation gates.
 
-```markdown theme={null}
+```markdown
 ## Form processing workflow
 
 Progress:
@@ -257,7 +253,7 @@ Progress:
 
 Instruct the agent to validate its own work before moving on. The pattern is: do the work, run a validator (a script, a reference checklist, or a self-check), fix any issues, and repeat until validation passes.
 
-```markdown theme={null}
+```markdown
 ## Editing workflow
 
 1. Make your edits
@@ -295,7 +291,7 @@ The same technique applies to skill execution steps: "After analyzing the repo, 
 
 For batch or destructive operations, have the agent create an intermediate plan in a structured format, validate it against a source of truth, and only then execute.
 
-```markdown theme={null}
+```markdown
 ## PDF form filling
 
 1. Extract form fields: `python scripts/analyze_form.py input.pdf` → `form_fields.json`
@@ -312,13 +308,13 @@ The key ingredient is step 3: a validation script that checks the plan (`field_v
 
 ### Bundling reusable scripts
 
-When [iterating on a skill](/skill-creation/evaluating-skills), compare the agent's execution traces across test cases. If you notice the agent independently reinventing the same logic each run — building charts, parsing a specific format, validating output — that's a signal to write a tested script once and bundle it in `scripts/`.
+When [iterating on a skill](evaluating-skills.md), compare the agent's execution traces across test cases. If you notice the agent independently reinventing the same logic each run — building charts, parsing a specific format, validating output — that's a signal to write a tested script once and bundle it in `scripts/`.
 
-For more on designing and bundling scripts, see [Using scripts in skills](/skill-creation/using-scripts).
+For more on designing and bundling scripts, see [Using scripts in skills](using-scripts.md).
 
 ## Next steps
 
 Once you have a working skill, two guides can help you refine it further:
 
-* **[Evaluating skill output quality](/skill-creation/evaluating-skills)** — Set up test cases, grade results, and iterate systematically.
-* **[Optimizing skill descriptions](/skill-creation/optimizing-descriptions)** — Test and improve your skill's `description` field so it triggers on the right prompts.
+* **[Evaluating skill output quality](evaluating-skills.md)** — Set up test cases, grade results, and iterate systematically.
+* **[Optimizing skill descriptions](optimizing-descriptions.md)** — Test and improve your skill's `description` field so it triggers on the right prompts.

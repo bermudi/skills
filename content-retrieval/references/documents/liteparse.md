@@ -56,8 +56,10 @@ one turn at a time. Run the bundled BM25 ranker ONCE to surface the most relevan
 single command:
 
 ```bash
-uv run scripts/search.py /tmp/doc.txt -q "materiality assessment priority topics" -k 8 -e 5
+uv run <skill-dir>/scripts/search.py /tmp/doc.txt -q "materiality assessment priority topics" -k 8 -e 5
 ```
+
+(Resolve `<skill-dir>` to the `content-retrieval` skill directory — don't assume CWD is the skill root.)
 
 `-k` = number of matches, `-e` = lines of context around each (so the window comes back inline — no
 follow-up `sed` turn). It returns ranked windows with line numbers. Use a rich natural-language query

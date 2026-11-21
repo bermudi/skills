@@ -149,10 +149,10 @@ skills-ref validate ./skill-name
 for dir in */; do [ -f "${dir}SKILL.md" ] && skills-ref validate "${dir}"; done
 ```
 
-For trigger accuracy testing (spawns `claude -p` subprocesses):
+For trigger accuracy testing (spawns `pi -p` subprocesses):
 
 ```bash
-uv run python skill-creator/scripts/run_eval.py ./skill-name
+PYTHONPATH=skill-creator uv run python -m scripts.run_eval --eval-set <evals.json> --skill-path ./skill-name
 ```
 
 > **Ignore locally:** `disable-model-invocation: true` is intentional (pending [agentskills#105](https://github.com/agentskills/agentskills/issues/105)). `skills-ref` 0.1.0 reports it as `Unexpected fields` — ignore that error locally. CI patches `validator.py` to allow it. Do not remove the flag to make local validation pass.

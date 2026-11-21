@@ -58,7 +58,7 @@ const resp = await fetch(`https://www.youtube.com/youtubei/v1/get_transcript?key
 ```
 
 `ANDROID_CONTEXT` is the same client context used for the player API (see
-`SKILL.md` §1).
+[youtube-captions.md](youtube-captions.md) §1).
 
 ## Response path
 

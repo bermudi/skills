@@ -29,16 +29,17 @@ What does the user have?
 ├── Image or screenshot
 │   ├── Ordinary description/question and model can see it → answer directly;
 │   │   do not load or use this skill
-│   ├── User specifically requests exact transcription → image analysis
-│   │   with a verbatim-transcription prompt
-│   └── User specifically requests image comparison → image comparison
+│   ├── Exact transcription → analyze_image with a verbatim-transcription prompt
+│   ├── Compare two images → compare_images
+│   └── Locate/mask objects (bounding boxes or polygons) → detect_objects / segment_objects
 │
 ├── Audio or video
-│   ├── Video understanding (scenes, moments, what happens) → video analysis
-│   ├── YouTube video and you need its words
-│   │   ├── Captions exist → pull them directly via InnerTube (free, deterministic)
+│   ├── Local/URL video file (≤8 MB) → analyze_video
+│   ├── YouTube visual + audio understanding → analyze_youtube_video
+│   ├── YouTube words / transcript
+│   │   ├── Captions exist → pull directly via InnerTube (free, deterministic)
 │   │   └── No captions, or need speaker ID on a segment → transcribe_segment
-│   └── Verify who said a specific quote → speaker verification
+│   └── Verify who said a specific YouTube quote → verify_speaker
 │
 ├── Known URL
 │   ├── Direct document/media URL → use the matching route above
@@ -53,8 +54,8 @@ What does the user have?
 │
 ├── Topic or question, no URL
 │   ├── Quick/current fact → Tavily Search
-│   ├── Synthesized research → Poe Research
-│   └── Library documentation → Tavily Skill or Context7
+│   ├── Synthesized multi-source research → Tavily Research (fallback: search + extract)
+│   └── Library documentation → Context7
 │
 └── Whole site → Tavily Map for discovery; Tavily Crawl for content
 ```
@@ -62,9 +63,9 @@ What does the user have?
 ## Load only the relevant guide
 
 - **Documents:** [LiteParse](references/documents/liteparse.md) before any local extraction; [Mistral Document AI](references/documents/mistral.md) when LiteParse falls short, the document is multilingual or layout-heavy, or typed structured extraction is needed.
-- **Images:** an ordinary attached image needs no guide (your own vision answers it). Explicit transcription or comparison: [Media overview](references/media/overview.md).
+- **Images:** an ordinary attached image needs no guide (your own vision answers it). Explicit transcription, comparison, or object detection/segmentation: [Media overview](references/media/overview.md).
 - **Audio/video:** [Media overview](references/media/overview.md) before any Gemini media tool; for a YouTube video's existing captions (free, no model) read [YouTube captions](references/media/youtube-captions.md) first.
-- **URLs, search, crawling, research, code search, GitHub, online docs:** [Web](references/web/overview.md), then only the tool reference it points to; [GitHub repository reads](references/web/github-repo-read.md) for surgical remote inspection.
+- **URLs, search, crawling, research, code search, GitHub, online docs:** [Web overview](references/web/overview.md), then only the guide it points to ([MCP gotchas](references/web/mcp-gotchas.md), [Extraction strategies](references/web/extraction-strategies.md), or [GitHub repo reads](references/web/github-repo-read.md)).
 
 A document URL is classified by its content, not left in the web lane: downloading a PDF doesn't make it HTML extraction, and a URL without `.pdf` may still be one (check the content type). For an image of a document: image analysis for verbatim text or visual meaning, Mistral for document structure.
 
@@ -78,4 +79,4 @@ A document URL is classified by its content, not left in the web lane: downloadi
 
 ## MCP timeouts
 
-Several remote routes go through `mcporter`; load the `mcporter` skill only to configure or troubleshoot it or to operate Colab MCP. Set both timeouts on non-trivial calls: `--timeout` in ms, the outer shell timeout (seconds) strictly greater, so mcporter errors out instead of being killed silently. The relevant reference gives values.
+Several remote routes go through `mcporter`; load the `mcporter` skill only to configure or troubleshoot it or to operate Colab MCP. Set both timeouts on non-trivial calls: `--timeout` in ms, and the outer shell timeout strictly greater (check whether your shell tool takes seconds or ms), so mcporter errors cleanly instead of being SIGKILL'd. The relevant reference gives values.

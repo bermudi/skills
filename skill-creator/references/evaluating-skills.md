@@ -14,7 +14,7 @@ A test case has three parts:
 
 Store test cases in `evals/evals.json` inside your skill directory:
 
-```json evals/evals.json theme={null}
+```json
 {
   "skill_name": "csv-analyzer",
   "evals": [
@@ -111,22 +111,20 @@ When improving an existing skill, use the previous version as your baseline. Sna
 
 Timing data lets you compare how much time and tokens the skill costs relative to the baseline — a skill that dramatically improves output quality but triples token usage is a different trade-off than one that's both better and cheaper. When each run completes, record the token count and duration:
 
-```json timing.json theme={null}
+```json
 {
   "total_tokens": 84852,
   "duration_ms": 23332
 }
 ```
 
-<Tip>
-  Many agent clients report token usage and duration in their task completion responses. Save these values immediately — they aren't persisted anywhere else.
-</Tip>
+> **Tip:** Many agent clients report token usage and duration in their task completion responses. Save these values immediately — they aren't persisted anywhere else.
 
 ## Writing assertions
 
 Assertions are verifiable statements about what the output should contain or achieve. Add them after you see your first round of outputs — you often don't know what "good" looks like until the skill has run.
 
-> **Test outcomes, not paths.** Assert on whether the task was achieved, not whether the skill was loaded. If the agent solves the problem without ever consulting the skill — or loads it after five turns instead of one — that's still a pass. A skill exists to improve outcomes; the eval should measure outcomes. Asserting "the skill was invoked on turn 1" tests the harness, not the skill, and blinds you to cases where the model didn't need the skill at all (see [Retiring a skill](/skill-creation/best-practices#retiring-a-skill)).
+> **Test outcomes, not paths.** Assert on whether the task was achieved, not whether the skill was loaded. If the agent solves the problem without ever consulting the skill — or loads it after five turns instead of one — that's still a pass. A skill exists to improve outcomes; the eval should measure outcomes. Asserting "the skill was invoked on turn 1" tests the harness, not the skill, and blinds you to cases where the model didn't need the skill at all (see [Retiring a skill](best-practices.md#retiring-a-skill)).
 
 Good assertions:
 
@@ -141,9 +139,9 @@ Weak assertions:
 
 Not everything needs an assertion. Some qualities — writing style, visual design, whether the output "feels right" — are hard to decompose into pass/fail checks. These are better caught during [human review](#reviewing-results-with-a-human). Reserve assertions for things that can be checked objectively.
 
-Add assertions to each test case in `evals/evals.json`:
+Add expectations to each test case in `evals/evals.json`:
 
-```json evals/evals.json highlight={9-14} theme={null}
+```json
 {
   "skill_name": "csv-analyzer",
   "evals": [
@@ -152,7 +150,7 @@ Add assertions to each test case in `evals/evals.json`:
       "prompt": "I have a CSV of monthly sales data in data/sales_2025.csv. Can you find the top 3 months by revenue and make a bar chart?",
       "expected_output": "A bar chart image showing the top 3 months by revenue, with labeled axes and values.",
       "files": ["evals/files/sales_2025.csv"],
-      "assertions": [
+      "expectations": [
         "The output includes a bar chart image file",
         "The chart shows exactly 3 months",
         "Both axes are labeled",
@@ -171,9 +169,9 @@ Grading means evaluating each assertion against the actual outputs and recording
 
 Reserve LLM-as-judge for assertions that require reading the whole trace or judging holistic qualities (organization, tone, whether the approach was sound). For those, give the outputs and assertions to an LLM with a rubric describing what a pass looks like, and ask for a pass/fail with evidence.
 
-```json grading.json theme={null}
+```json
 {
-  "assertion_results": [
+  "expectations": [
     {
       "text": "The output includes a bar chart image file",
       "passed": true,
@@ -209,15 +207,13 @@ Reserve LLM-as-judge for assertions that require reading the whole trace or judg
 * **Require concrete evidence for a PASS.** Don't give the benefit of the doubt. If an assertion says "includes a summary" and the output has a section titled "Summary" with one vague sentence, that's a FAIL — the label is there but the substance isn't.
 * **Review the assertions themselves, not just the results.** While grading, notice when assertions are too easy (always pass regardless of skill quality), too hard (always fail even when the output is good), or unverifiable (can't be checked from the output alone). Fix these for the next iteration.
 
-<Tip>
-  For comparing two skill versions, try **blind comparison**: present both outputs to an LLM judge without revealing which came from which version. The judge scores holistic qualities — organization, formatting, usability, polish — on its own rubric, free from bias about which version "should" be better. This complements assertion grading: two outputs might both pass all assertions but differ significantly in overall quality.
-</Tip>
+> **Tip:** For comparing two skill versions, try **blind comparison**: present both outputs to an LLM judge without revealing which came from which version. The judge scores holistic qualities — organization, formatting, usability, polish — on its own rubric, free from bias about which version "should" be better. This complements assertion grading: two outputs might both pass all assertions but differ significantly in overall quality.
 
 ## Aggregating results
 
 Once every run in the iteration is graded, compute summary statistics per configuration and save them to `benchmark.json` alongside the eval directories (e.g., `csv-analyzer-workspace/iteration-1/benchmark.json`):
 
-```json benchmark.json theme={null}
+```json
 {
   "run_summary": {
     "with_skill": {
@@ -241,13 +237,11 @@ Once every run in the iteration is graded, compute summary statistics per config
 
 The `delta` tells you what the skill costs (more time, more tokens) and what it buys (higher pass rate). A skill that adds 13 seconds but improves pass rate by 50 percentage points is probably worth it. A skill that doubles token usage for a 2-point improvement might not be.
 
-<Note>
-  Standard deviation (`stddev`) is only meaningful with multiple runs per eval. In early iterations with just 2-3 test cases and single runs, focus on the raw pass counts and the delta — the statistical measures become useful as you expand the test set and run each eval multiple times.
-</Note>
+> **Note:** Standard deviation (`stddev`) is only meaningful with multiple runs per eval. In early iterations with just 2-3 test cases and single runs, focus on the raw pass counts and the delta — the statistical measures become useful as you expand the test set and run each eval multiple times.
 
 ### Run multiple trials per case
 
-Models are non-deterministic — the same prompt may pass on the first run and fail on the second. A single run per case can mislead you: a pass might be luck, a failure might be bad luck. Run **2-6 trials per test case** and look at the pass rate across trials, not just a single outcome. Two trials catch the worst variance cheaply; six gives you a reliable reliability measure for cases that matter. This is the output-eval counterpart to the 3-run trigger-rate discipline in [Optimizing skill descriptions](/skill-creation/optimizing-descriptions#running-multiple-times).
+Models are non-deterministic — the same prompt may pass on the first run and fail on the second. A single run per case can mislead you: a pass might be luck, a failure might be bad luck. Run **2-6 trials per test case** and look at the pass rate across trials, not just a single outcome. Two trials catch the worst variance cheaply; six gives you a reliable reliability measure for cases that matter. This is the output-eval counterpart to the 3-run trigger-rate discipline in [Optimizing skill descriptions](optimizing-descriptions.md#running-multiple-times).
 
 ## Analyzing patterns
 
@@ -265,7 +259,7 @@ Assertion grading and pattern analysis catch a lot, but they only check what you
 
 Record specific feedback for each test case and save it in the workspace (e.g., as a `feedback.json` alongside the eval directories):
 
-```json feedback.json theme={null}
+```json
 {
   "eval-top-months-chart": "The chart is missing axis labels and the months are in alphabetical order instead of chronological.",
   "eval-clean-missing-emails": ""
@@ -287,7 +281,7 @@ The most effective way to turn these signals into skill improvements is to give 
 * **Generalize from feedback.** The skill will be used across many different prompts, not just the test cases. Fixes should address underlying issues broadly rather than adding narrow patches for specific examples.
 * **Keep the skill lean.** Fewer, better instructions often outperform exhaustive rules. If transcripts show wasted work (unnecessary validation, unneeded intermediate outputs), remove those instructions. If pass rates plateau despite adding more rules, the skill may be over-constrained — try removing instructions and see if results hold or improve.
 * **Explain the why.** Reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"). Models follow instructions more reliably when they understand the purpose.
-* **Bundle repeated work.** If every test run independently wrote a similar helper script (a chart builder, a data parser), that's a signal to bundle the script into the skill's `scripts/` directory. See [Using scripts](/skill-creation/using-scripts) for how to do this.
+* **Bundle repeated work.** If every test run independently wrote a similar helper script (a chart builder, a data parser), that's a signal to bundle the script into the skill's `scripts/` directory. See [Using scripts](using-scripts.md) for how to do this.
 
 ### The loop
 
@@ -298,10 +292,6 @@ The most effective way to turn these signals into skill improvements is to give 
 5. Review with a human. Repeat.
 
 Stop when you're satisfied with the results, feedback is consistently empty, or you're no longer seeing meaningful improvement between iterations.
-
-<Tip>
-  The [`skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator) Skill automates much of this workflow — running evals, grading assertions, aggregating benchmarks, and presenting results for human review.
-</Tip>
 
 ## Evals as a regression gate
 
@@ -315,4 +305,4 @@ This is how teams at scale (e.g. Google DeepMind's internal skill management) ke
 
 ### Keep evals after retiring a skill
 
-When you retire a skill because the model no longer needs it (see [Retiring a skill](/skill-creation/best-practices#retiring-a-skill)), **don't delete the evals**. They become regression sentinels: keep running them against the bare model (no skill) on a cadence — monthly, or when a new model version drops. If the model starts failing tasks it used to pass, you'll know it's time to reintroduce the skill or find another fix. Retired skills are reversible; deleted evals are not.
+When you retire a skill because the model no longer needs it (see [Retiring a skill](best-practices.md#retiring-a-skill)), **don't delete the evals**. They become regression sentinels: keep running them against the bare model (no skill) on a cadence — monthly, or when a new model version drops. If the model starts failing tasks it used to pass, you'll know it's time to reintroduce the skill or find another fix. Retired skills are reversible; deleted evals are not.

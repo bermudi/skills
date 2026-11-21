@@ -121,4 +121,4 @@ mcporter call tavily.tavily_extract urls='["https://www.linkedin.com/pulse/some-
 mcporter call tavily.tavily_extract urls='["https://long-article-url.com","https://another-article.com"]' query="authentication JWT implementation"
 ```
 
-See [Extract](references/web/extract.md) for the full parameter reference and additional examples.
+See [MCP gotchas](mcp-gotchas.md#tavily-tavily) for `tavily_extract` caveats (and `mcporter list tavily` for all parameters).

@@ -19,8 +19,9 @@ PROTON_PASS_AGENT_REASON="OCR the document requested by the user" \
   pass-cli run -- uv run scripts/mistral_ocr.py report.pdf
 ```
 
-The remaining examples show the underlying `uv run` command for readability.
-When `MISTRAL_API_KEY` is a `pass://` reference rather than an already-resolved
+The remaining examples use `scripts/...` for readability — resolve it against
+the `content-retrieval` skill directory when running from another CWD. When
+`MISTRAL_API_KEY` is a `pass://` reference rather than an already-resolved
 process environment variable, wrap each command with `pass-cli run --` as
 above.
 
@@ -89,9 +90,9 @@ uv run scripts/mistral_qna.py contract.pdf "List the termination clauses." \
 uv run scripts/mistral_qna.py https://arxiv.org/pdf/1805.04770 "Summarize the abstract."
 ```
 
-Use OCR (`ocr.py`) when you need **exact text** (transcription, tables,
-layout). Use QnA (`qna.py`) when you need **meaning** (summary, Q&A,
-classification). For a single image where you only want meaning, `qna.py`
+Use OCR (`mistral_ocr.py`) when you need **exact text** (transcription, tables,
+layout). Use QnA (`mistral_qna.py`) when you need **meaning** (summary, Q&A,
+classification). For a single image where you only want meaning, `mistral_qna.py`
 with an image path skips OCR entirely.
 
 ## What the response contains
@@ -145,7 +146,7 @@ expiry, and the Batch Inference service for large-scale workloads.
   a version for reproducibility.
 - **For large-scale OCR**, use Mistral's Batch Inference service rather than
   looping the OCR API — see `references/documents/mistral-large-files.md`.
-- **`qna.py` has no `--pages` flag.** The whole document is sent to the chat
+- **`mistral_qna.py` has no `--pages` flag.** The whole document is sent to the chat
   model as one content item; the chat API has no page-slice parameter. For
   large docs where you only need a section, OCR the relevant pages with
-  `ocr.py --pages` first, then point `qna.py` at the resulting markdown.
+  `mistral_ocr.py --pages` first, then point `mistral_qna.py` at the resulting markdown.

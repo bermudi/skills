@@ -81,9 +81,21 @@ Available JSON fields: `gitSHA`, `gitType`, `mode`, `modeOctal`, `name`,
 > **The `.entries[]` wrapper matters.** A bare `--jq '.[]'` returns nothing.
 > Always drill into `.entries[]` first.
 
-Read `references/web/github-repo-jq-patterns.md` when filtering or projecting `read-dir`
-output — subdirectory lists, size-sorted files, executable bits, and the
-`mode`/`modeOctal` type trap.
+Common `jq` filters:
+
+```bash
+# Subdirectory names only
+gh repo read-dir --repo cli/cli --json name,type \
+  --jq '.entries[] | select(.type=="dir") | .name'
+
+# Files with sizes
+gh repo read-dir docs --repo cli/cli --json name,type,size \
+  --jq '.entries[] | select(.type=="file") | "\(.size)\t\(.name)"'
+
+# Executables (modeOctal is a string, quote it)
+gh repo read-dir script --repo cli/cli --json name,modeOctal \
+  --jq '.entries[] | select(.modeOctal=="100755") | .name'
+```
 
 ---
 
@@ -122,15 +134,10 @@ Available fields: `content`, `downloadUrl`, `encoding`, `gitSHA`, `gitUrl`,
 
 ### Escape-sequence safety
 
-By default `read-file` **refuses to print files containing terminal escape
-sequences** to a terminal or pipe — a guard against malicious content that
-could manipulate your terminal. It errors rather than emitting them; use
-`--allow-escape-sequences` or `--output` to get the bytes anyway.
-
-Read `references/web/github-repo-escape-sequences.md` when `read-file` errors on escape
-sequences, or before streaming an untrusted file to stdout. It covers the
-`0x1b`-byte guard, the two workarounds, and the safe-by-default `--output`
-pattern.
+By default `read-file` **refuses to print files containing literal ESC (`0x1b`) bytes**
+to a terminal or pipe — a guard against malicious ANSI/CSI sequences (escaped text like
+`\033` in source files is fine). It errors rather than emitting them; use
+`--allow-escape-sequences` or write raw bytes safely to disk with `--output <tmp-path>`.
 
 ---
 
