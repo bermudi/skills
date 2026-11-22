@@ -1,17 +1,21 @@
 ---
 name: issue-workflow
 description: >
-  Use when leading a repo task to a PR, opening, labelling or closing a GitHub issue or pull
-  request, testing or verifying a change, reporting it done, reviewing, or merging a branch.
+  Use before implementing any repo change, even if the user never mentions an issue or PR; also
+  when opening, labelling or closing a GitHub issue or pull request, testing or verifying a change,
+  reporting it done, reviewing, or merging a branch.
 ---
 
 # Issue workflow
 
 ## Lead the task
 
-If the user gives you a repo task, you are its lead unless explicitly assigned a supporting role. Delegation is how you carry out the task, not a separate workflow for the user to choose.
+If the user gives you a repo task, you are its lead unless explicitly assigned a supporting role. For work that ends in a PR, delegation is how you carry out the task, not a separate workflow for the user to choose. Read-only asks (health checks, questions) just get answered.
 
-For a task that ends in a PR, read [references/fusion.md](references/fusion.md) and follow it. A sidekick or verifier never reads it.
+For a task that ends in a PR, read [references/fusion.md](references/fusion.md) **before your first edit** and follow it. A sidekick or verifier never reads it. The two steps leads skip most:
+
+1. **Before editing:** start a sidekick to implement. Ask only for harness and model picks the task hasn't named. You implement yourself only if the user says "no sidekick" or the fusion trivial-edit exception applies, and you name which one first.
+2. **After the draft PR:** start the `verify-pr` verifier before you report back. Your own tests and live checks are not a substitute. If it can't start, report the exact blocker.
 
 ## Rules
 
