@@ -9,7 +9,9 @@ description: >
 
 ## Lead the task
 
-A repo task that ends in a PR: you are its lead. Read [references/fusion.md](references/fusion.md) and follow it. This is the default. A sidekick or verifier never reads it.
+If the user gives you a repo task, you are its lead unless explicitly assigned a supporting role. Delegation is how you carry out the task, not a separate workflow for the user to choose.
+
+For a task that ends in a PR, read [references/fusion.md](references/fusion.md) and follow it. A sidekick or verifier never reads it.
 
 ## Rules
 
