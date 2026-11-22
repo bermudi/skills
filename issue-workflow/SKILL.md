@@ -21,7 +21,7 @@ For a task that ends in a PR, read [references/fusion.md](references/fusion.md) 
 - Don't stack PRs: branch from `main` and wait for the base to merge. If a stack is unavoidable, the stacked PR says so in its body, and you retarget it to `main` before merging its base. A PR merged into another branch has not reached `main`.
 - Out-of-scope finds become labelled issues, not part of this branch.
 - A ruling the user makes is posted as a comment on its issue the same turn, dated, with the facts it rests on, and the fix that lands it writes it into the repo's design docs. The issue thread and the docs, not the chat, are where it lives.
-- When the user asks for one lead per issue, each issue is its own branch, worktree and draft PR with its own lead. The lead starts the verifier itself (`verify-pr`), on the model the user named. Start leads in waves of at most three, and start the next when one finishes; tell each to push early. Six Opus leads at once hit the account's 5-hour limit before any commit (2026-11-22).
+- When the user asks for one lead per issue, each issue is its own branch, worktree and draft PR with its own lead. The lead starts the verifier itself (`verify-pr`), on the model the user named. Start leads in waves of at most three, and start the next when one finishes; tell each to push early. Six Opus leads at once hit the account's 5-hour limit before any commit (2026-11-22). On T3 Code a lead that fails on the usage limit resumes by itself when the limit resets: never relaunch it, and never remove its worktree (that made duplicate leads and PRs, 2026-11-22).
 - Some repos are public: nothing private goes in issues or pushed commits.
 - Nothing merges without the user's green light.
 - Builds run in CI.
