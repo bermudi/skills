@@ -17,7 +17,8 @@ For a task that ends in a PR, read [references/fusion.md](references/fusion.md) 
 
 - Work is tracked in GitHub Issues. Each states a problem, not a solution. No plan documents.
 - Each issue gets a branch in its own git worktree and a draft PR that closes it. If the task has no issue, open one.
-- Exception: docs-only changes go straight to `main`.
+- Exception: plain docs changes (typos, notes, how-tos) go straight to `main`. Docs that set rules, direction or design get a PR like code.
+- Don't stack PRs: branch from `main` and wait for the base to merge. If a stack is unavoidable, the stacked PR says so in its body, and you retarget it to `main` before merging its base. A PR merged into another branch has not reached `main`.
 - Out-of-scope finds become labelled issues, not part of this branch.
 - A ruling the user makes is posted as a comment on its issue the same turn, dated, with the facts it rests on, and the fix that lands it writes it into the repo's design docs. The issue thread and the docs, not the chat, are where it lives.
 - When the user asks for one lead per issue, each issue is its own branch, worktree and draft PR with its own lead. The lead starts the verifier itself (`verify-pr`), on the model the user named.
@@ -85,4 +86,5 @@ Every proven finding is sorted by where the problem came from, never by priority
 - Fix-before-merge findings go in **one checklist comment on the PR**, one `- [ ]` item each with its proof. No issue per finding. Fix them on the same branch, tick each item with the commit that fixed it, and edit that comment (`gh api -X PATCH repos/OWNER/REPO/issues/comments/ID -f body=...`) instead of adding a new one per round.
 - A re-check covers the checklist items and the changed diff only, not a fresh hunt.
 - On the user's green light, merge the PR with the repo's usual method (`gh pr merge --merge` if it has none). Don't pass `--delete-branch`: deleting the branch needs its own confirmation. The PR's `Closes #N` closes the issue; don't close it by hand.
+- After every merge, check it landed: `git fetch && git merge-base --is-ancestor <merge-commit> origin/main` and `gh issue view N --json state`. Report both. An open issue after a merge means the work is not on `main`.
 - Before `gh pr merge`, every check on the head must be finished: `gh pr checks N --json state -q '.[].state' | grep -vxE 'SUCCESS|SKIPPED'` must print nothing. `IN_PROGRESS` or `PENDING` means wait, even when a sibling run on the same commit is green (merged twice with shards still running, 2026-11-18). `gh pr merge --auto` is no way around this: in a repo with no required checks, it merges at once (2026-11-18).
