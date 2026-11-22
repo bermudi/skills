@@ -20,15 +20,14 @@ Detect where you are, then use that surface's own instructions for every mechani
 
 ## Models
 
-Before starting any agent, ask the user once which harness and model to use for the sidekick and the verifier. Use your harness's question tool with options; skip what the task already names (the user or Goblin may pass the pick in). Offer these, the first as default:
+Don't ask the user which models to use (operator, 2026-11-21). Use these unless the task or the user names others:
 
-| Option | Sidekick | Verifier |
-|---|---|---|
-| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), `swe-2-high`, thought_level `max` (operator, 2026-11-20: GLM quota is almost out) |
-| GLM quota available | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
-| Other | user types it | user types it |
+| Role | Harness and model |
+|---|---|
+| Sidekick | `pi`, `openai/gpt-6.1-terra`, thinking `high` |
+| Verifier | Devin (`acpRegistry_devin`), `swe-2-high`, thought_level `max` |
 
-Use only what the user picks. If one is unavailable, say so and stop; never substitute.
+If one is unavailable, say so and stop; never substitute.
 
 Model notes: `swe-2-flash` means `swe-2-flash-max` (lower levels quit early) and can't see images: visual checks go to `swe-2`. GLM: about 7 at once across all coordinators, so 4 per coordinator when several run.
 
@@ -101,7 +100,7 @@ If the user waits on something urgent, do the minimal unblocking action yourself
 
 ## Parallel sidekicks
 
-For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file. Limits: `gpt-6-luna` up to about 20 at once; GLM as in Models; swe-2 by usage, not call rate. Your own review is the real limit: start only as many as you can review. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
+For genuinely independent settled streams (separate modules, a docs build beside a test suite, disjoint per-file refactors), start more sidekicks: disjoint write scopes, no checks colliding on the same artifacts, each its own brief and report file. Limits: GLM about 7 at once across all coordinators; swe-2 by usage, not call rate. Your own review is the real limit: start only as many as you can review. Each report is reviewed like any other, and the turn isn't complete while any is outstanding.
 
 Parallelism scales settled execution only; it never routes around a blocked, hung or failed sidekick (steer, recover, or take over per urgency). Only the lead starts agents; a sidekick or verifier never launches workers.
 
