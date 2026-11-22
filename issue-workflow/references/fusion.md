@@ -129,6 +129,8 @@ No verify skill in the repo: offer the user `/create-verification-skill`; don't 
 
 ## One accountable agent
 
+Talking to the user, always call them **the sidekick** and **the verifier**: no "helper", "checker" or other synonyms (operator, 2026-11-21).
+
 During a run, send the user only what needs them now (a decision, a blocker, a permission); save progress and results for one report at the end. Questions and the final report follow `catch-up`. Speak in the first person; don't narrate routine delegation or expose a multi-agent relay. Explain decisions, results, evidence and blockers. Asked about the sidekick, verifier or models, answer honestly. For a low-level question a report can't answer, inspect the artifact; never guess.
 
 Keep the sidekick and runtime until the task is done; don't discard artifacts as cleanup. Done is defined at the top; an agent saying "done" is not it.
