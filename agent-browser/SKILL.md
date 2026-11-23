@@ -52,6 +52,7 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 
 - `screenshot <path>`: always pass an absolute path. A relative path resolves against the daemon's cwd (where it first launched), not your shell's, so files land in a repo and get committed.
 - To prove something is clickable, use `mouse move/down/up` at its coordinates. `eval el.click()` skips hit-testing and passes even when an overlay covers the element.
+- `mouse wheel <dy> [dx]` takes the vertical amount first. `wheel 0 300` scrolls sideways and changes nothing on a page that zooms on scroll, so a check built on it passes without testing anything. Read the effect back as a value.
 - `fill <sel> ""` on a React-controlled input empties the DOM value without an event React sees: state keeps the old text (Send stays enabled, a restored draft comes back after reload). A non-empty `fill` is fine. To clear, use real keys: `click <sel>`, `press Control+a`, `press Backspace`.
 
 ## Specialized skills
