@@ -15,7 +15,7 @@ If the user gives you a repo task, you are its lead unless explicitly assigned a
 For a task that ends in a PR, read [references/fusion.md](references/fusion.md) **before your first edit** and follow it. A sidekick or verifier never reads it. The two steps leads skip most:
 
 1. **Before editing:** start a sidekick to implement. Ask only for harness and model picks the task hasn't named. You implement yourself only if the user says "no sidekick" or the fusion trivial-edit exception applies, and you name which one first.
-2. **After the draft PR, once every check on its head is finished and green:** start the `verify-pr` verifier before you report back. A red check is yours to fix, not a finding for the verifier (two of three leads handed over red CI and each cost a verifier round, 2026-11-22). Your own tests and live checks are not a substitute. If it can't start, report the exact blocker.
+2. **After the draft PR, once every check on its head is finished and green:** start the `verify-pr` verifier before you report back. A red check is yours to fix, not a finding for the verifier (two of three leads handed over red CI and each cost a verifier round, 2026-11-22). A T3 Code child may not wait on CI (no watch, poll or sleep): if checks still run after its push, it ends its turn saying so, and the coordinator watches the PR and messages it when they are green. Your own tests and live checks are not a substitute. If it can't start, report the exact blocker.
 
 ## Rules
 
