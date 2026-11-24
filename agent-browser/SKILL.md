@@ -54,6 +54,12 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 - To prove something is clickable, use `mouse move/down/up` at its coordinates. `eval el.click()` skips hit-testing and passes even when an overlay covers the element.
 - `mouse wheel <dy> [dx]` takes the vertical amount first. `wheel 0 300` scrolls sideways and changes nothing on a page that zooms on scroll, so a check built on it passes without testing anything. Read the effect back as a value.
 - `fill <sel> ""` on a React-controlled input empties the DOM value without an event React sees: state keeps the old text (Send stays enabled, a restored draft comes back after reload). A non-empty `fill` is fine. To clear, use real keys: `click <sel>`, `press Control+a`, `press Backspace`.
+- `network requests` (0.38.1) stamps every entry with the time the log was read, not the request time: reads 10 s apart looked like "3 reads in 1 ms". Use it for counts and status only. For timing, record inside the page (wrap `window.fetch` in an `eval` after each full load), or read `performance.getEntriesByType("resource")`.
+- `find role <role>` with no `--name` (list mode) activates the first match: it navigated a live app to its first link. List elements with `eval` instead.
+- `type` takes a selector first: `type <sel> <text>`. `type 'some text'` fails with "Element not found".
+- `eval` returns JSON: a string comes back in double quotes. A shell test `[[ "$r" == "DELEGATIONS (7)" ]]` never matches; compare with a pattern (`== *'(7)'*`) or return numbers and booleans.
+- `network route <url> --abort` blocks new requests only. An open stream (SSE, long poll) stays open: add the route, then force a reconnect (`set offline on`, `set offline off`) to cut it.
+- `find role link click --name …` that reports "none match name" clicked nothing. A control that only navigates in the app can be a `button`; check the role with `eval` first.
 
 ## Specialized skills
 
