@@ -24,7 +24,7 @@ Before starting any agent, ask the user once which harness and model to use for 
 
 | Option | Sidekick | Verifier |
 |---|---|---|
-| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), SWE-2.1 (`swe-2-1-medium`), thought_level picked by the lead (below) (operator, 2026-11-20: GLM quota is almost out) |
+| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), SWE-2.1 (`swe-2-1-medium`), thought_level picked by the lead (below) |
 | GLM quota available | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
 | Other | user types it | user types it |
 
