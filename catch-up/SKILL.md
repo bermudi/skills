@@ -25,10 +25,10 @@ Before a term the user may not know (a component, a pattern, a system-design ide
 
 ## Shape of the reply
 
-1. **One opening sentence:** what waits on the user, or "nothing needs you".
+1. **Open with the answer, outcome, or decision.** The first sentence must be the most useful sentence for this user message. Write it for the situation; never use a stock opener.
 2. **What happened:** under 100 words. One short line per thing the user asked for: what came of it, and whether it is done, running, failed or not checked. Name bugs found and fixed. Never mark something done that still waits on the user.
-3. **Calls waiting on the user** (below).
-4. **One line** for work left that you can do yourself.
+3. **Calls waiting on the user** (below). If none, omit the section and do not mention that none exist.
+4. **Work left.** If none, omit it.
 
 Nothing happened and nothing waits → say so and stop.
 
