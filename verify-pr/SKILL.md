@@ -27,10 +27,9 @@ You write it; the verifier gets nothing else.
 - The intent in one line.
 - How to run it: the repo's `verify-<app>` skill (`.agents/skills/verify-*`), or "none".
 - Re-check rounds only: the open findings checklist, and "check only these items and the diff since <sha>". A re-check is not a fresh hunt.
-- A time limit, and "at the limit, report what you have". When you start the verifier, tell the user how long it may take: a check with no limit ran 1 h 48 min and the user saw only silence (2026-11-23).
 - Not your design reasoning, not the builder's report. That includes claims of what cannot be driven: one wrong claim in a PR body sent the verifier past an ask it could have driven (2026-11-23).
 
-Then paste the job below into the brief.
+Then paste the job below into the brief. When you start the verifier, tell the user how long it may take.
 
 ## The verifier's job
 

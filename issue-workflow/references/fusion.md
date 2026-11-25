@@ -24,11 +24,13 @@ Before starting any agent, ask the user once which harness and model to use for 
 
 | Option | Sidekick | Verifier |
 |---|---|---|
-| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), SWE-2.1 (`swe-2-1-medium`), thought_level `max` (operator, 2026-11-24) |
+| Default | `pi`, `gpt-6-luna:high` | Devin (`acpRegistry_devin`), SWE-2.1 (`swe-2-1-medium`), thought_level picked by the lead (below) (operator, 2026-11-20: GLM quota is almost out) |
 | GLM quota available | `pi`, `gpt-6-luna:high` | Piz (`acpRegistry_piz`), GLM-5.3 (`account:zai-individual-coding-plan/GLM-5.3`), thought_level `max` |
 | Other | user types it | user types it |
 
 Use only what the user picks. If one is unavailable, say so and stop; never substitute.
+
+SWE-2.1 verifier: the lead picks thought_level `medium` to `xhigh` by the task and how critical verification is. `max` is only for very, very critical PRs (operator, 2026-11-24).
 
 Model notes: `swe-2-flash` means `swe-2-flash-max` (lower levels quit early) and can't see images: visual checks go to `swe-2`. GLM: about 7 at once across all coordinators, so 4 per coordinator when several run.
 
