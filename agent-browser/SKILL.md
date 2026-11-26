@@ -58,6 +58,7 @@ export AGENT_BROWSER_CDP=9222 AGENT_BROWSER_PIN_TAB=1
 - `find role <role>` with no `--name` (list mode) activates the first match: it navigated a live app to its first link. List elements with `eval` instead.
 - `type` takes a selector first: `type <sel> <text>`. `type 'some text'` fails with "Element not found".
 - `eval` returns JSON: a string comes back in double quotes. A shell test `[[ "$r" == "DELEGATIONS (7)" ]]` never matches; compare with a pattern (`== *'(7)'*`) or return numbers and booleans.
+- A pattern does not help when the string itself holds quotes. An `eval` that returns `JSON.stringify(...)` comes back with its inner quotes backslash-escaped (`[\"running\"]`), so a `case` pattern like `*'["running"'*` matches nothing. It silently skipped every screenshot twice on goblin #951 (2026-11-26). Have the `eval` return a count or a boolean and branch on that, or take the screenshot at a fixed time.
 - `network route <url> --abort` blocks new requests only. An open stream (SSE, long poll) stays open: add the route, then force a reconnect (`set offline on`, `set offline off`) to cut it.
 - `find role link click --name …` that reports "none match name" clicked nothing. A control that only navigates in the app can be a `button`; check the role with `eval` first.
 
