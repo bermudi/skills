@@ -125,7 +125,7 @@ For ordinary execution blockers, pick a concrete direction and hand the repair b
 After you accept a change, verify it with the `verify-pr` skill: its brief, proof rule, verdict and re-check rules apply as written. Fusion specifics:
 
 - The verifier is the one the user picked in Models, started as a fresh session, not your subagent. Neither you nor the sidekick.
-- When criticality calls for an AI diff reviewer (`issue-workflow`), trigger it at the same time; the PR is not ready until its head check completes and every review comment is answered.
+- When criticality calls for an AI diff reviewer (`issue-workflow`), trigger it last, after the verifier passes and its findings are fixed and re-checked; the merge ask waits until its head check completes and every review comment is answered.
 - Proven findings go to the sidekick as rework; you answer every finding and note before the next round.
 
 No verify skill in the repo: offer the user `/create-verification-skill`; don't run it unasked.

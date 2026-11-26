@@ -68,7 +68,7 @@ You, the caller, answer it:
 - Every finding: a fix, recorded in the PR's findings checklist (`issue-workflow`), or a rejection with a concrete disproof. Never accept or dismiss one unread.
 - Every note: answered. An unreached ask goes to the user; it never ships as verified.
 - After fixes, start a new verifier for a re-check round. A verdict covers only the commit it marks: any later push has no `verify-pr` status and needs a new verifier.
-- A `verify-pr` status of `success` on the current head (`PASS`, or `PASS+NOTES` with every note answered) → `gh pr ready`. Neither is permission to merge.
+- A `verify-pr` status of `success` on the current head (`PASS`, or `PASS+NOTES` with every note answered) → `gh pr ready`, then the AI diff reviewer if `issue-workflow` calls for one. Neither is permission to merge.
 
 ## Basis
 
