@@ -4,7 +4,7 @@ Terms used across this repo's skills. Each skill remains self-contained; this is
 
 | Term | Meaning |
 |---|---|
-| Fusion | Collaboration policy: a lead agent carries a task to a verified PR, keeping design, authority and review; a cheaper sidekick does implementation, checks and environment work; a clean-session verifier checks the accepted change. Works over Herdr or T3 Code. |
+| Fusion | Collaboration policy: a lead agent carries a task to a verified PR, keeping design, authority and review; a cheaper sidekick does implementation, checks and environment work; a clean-session verifier checks the accepted change. Works over Herdr or T3 Code. Only Claude Opus (Mythos) and GPT Astra lead models load it; other models implement directly. |
 | Lead | The accountable agent: plans, settles design, owns authority actions (commits, pushes, PRs, secrets), reviews every landing point. |
 | Sidekick | The cheaper execution agent: implements settled plans, verifies, repairs environments. Never holds authority actions. |
 | Verifier | Clean-session agent (neither lead nor sidekick) that drives the accepted change live and returns a verdict with proof per finding. |
