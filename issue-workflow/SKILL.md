@@ -70,6 +70,7 @@ Already given a worktree (the brief names one, or your cwd is one): use it. Chec
 
 - Your report and the PR description (or a PR comment) must carry evidence it works and a way for the user to try it. "Tests pass" alone isn't evidence.
 - A way to try it means seconds, not setup: a link to the branch already running on a throwaway instance (plus how to stop it), or one command that starts it configured and lands on the feature. A list of setup steps doesn't count. Leave the user only what really needs them directly, like a real login or token, and say why.
+- On T3 Code, a server you start must run under the Bash tool's `run_in_background`, kept running as long as the link should work (e.g. `<start> && timeout 2h tail -f /dev/null`). T3 stops the agent's systemd scope about 2 minutes after its session goes idle and kills everything in it, `setsid` daemons too; a pending background command keeps the session (t3code `ProviderSessionManager.ts`, two dead try links on 2026-11-27). Check the link answers right before you send it.
 
 ## Test tiers
 
@@ -89,7 +90,7 @@ An AI diff reviewer is a second read of the diff, never a substitute for CI, `ve
 
 - **HeyDeer is free and reviews every PR by itself** once it is ready; no trigger, no known limit. It is the first reviewer: wait for its review of the head, answer and fix its findings, and get the verifier re-check before you spend a limited review.
 - **Limited reviewers come after HeyDeer, only by blast radius**, not issue priority: a miss could expose private data or secrets, spend money, lose or corrupt data, break auth/security/privacy, change production infra, alter a public contract, or the diff is large or cross-cutting. Routine PRs get HeyDeer only.
-- **Which one:** CodeRabbit first; its quota refills hourly. Greptile only for very, very critical PRs (both reviewers on one PR only then too). Before a CodeRabbit trigger, read "Included review availability" in its standing comment; with none left, wait for the refill or skip and say so in your report.
+- **Which one:** CodeRabbit first; its quota refills hourly. **Greptile about once a day** (operator, 2026-11-27: unused monthly reviews are lost): a PR past the blast-radius bar also gets one Greptile review if none was triggered in the last 24 hours. Find recent ones with `gh search prs --owner <owner> --commenter @me greptileai --updated ">=<yesterday>"`, then check the trigger comment's time. A very, very critical PR gets Greptile regardless. Before a CodeRabbit trigger, read "Included review availability" in its standing comment; with none left, wait for the refill or skip and say so in your report.
 - **One limited review per PR.** Never re-trigger after a push that answers its findings: the verifier re-checks the fix.
 
 Manual Greptile and CodeRabbit triggers under this rubric are approved (operator, 2026-11-25); other outside sharing still follows the repo's privacy rules. Quotas as of 2026-11-27: CodeRabbit gives about one free review an hour (sometimes more); Greptile gives 40 free reviews a month (Base costs 1, Plus 3, Apex 10). On this account's free plan a CodeRabbit private-repo review is only a summary and walkthrough. Never pass CodeRabbit `--use-credits`, buy credits, or enable recharge without the user's approval. Greptile Plus and Apex need the very-critical bar above.
