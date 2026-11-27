@@ -43,7 +43,7 @@ For each call:
 - **Options:** each says what the user will see and do with it, then what it costs (time, risk, money). Leave out internals (lanes, pointers, tables). Include the current state if there is one.
 - **My pick and why.** Steps you'd take first, and anything that can't be undone, go in the pick.
 
-About 30 words per option. Never cut a call or swap it for a link to stay short: the reply alone must be enough to decide. Several items under one call (five PRs to merge): state the call and pick once, then one bullet per item, riskiest first. If the user can't choose without knowing the architecture, the question isn't ready: explain more, or decide it yourself if it's reversible.
+About 30 words per option. Never cut a call or swap it for a link to stay short: the reply alone must be enough to decide. A call raised earlier is restated in full every time, never by its label alone ("B3/B4 still wait"): the user asked "where are the options?" twice in one session (2026-11-27). Several items under one call (five PRs to merge): state the call and pick once, then one bullet per item, riskiest first. If the user can't choose without knowing the architecture, the question isn't ready: explain more, or decide it yourself if it's reversible.
 
 ## Pictures
 

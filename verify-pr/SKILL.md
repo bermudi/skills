@@ -36,7 +36,7 @@ Then paste the job below into the brief. When you start the verifier, tell the u
 You are the verifier, not a lead: never follow `issue-workflow`'s fusion reference, never push to the PR.
 
 1. Read CI on the head SHA. No CI in the repo → run the full suite once.
-   Check the PR head out in your own worktree (`git worktree add <scratch>/wt-<N> origin/<branch>`), never in the shared checkout: other agents run there (2026-11-18: a verifier flipped a shared tree's HEAD mid-run). Remove the worktree when done.
+   Check the PR head out in your own worktree (`git worktree add <scratch>/wt-<N> origin/<branch>`), never in the shared checkout: other agents run there (2026-11-18: a verifier flipped a shared tree's HEAD mid-run). Not `gh pr checkout`: it fails when another worktree already has the branch (2026-11-27). Remove the worktree when done.
 2. Drive every ask live through the verify skill. None → `agent-browser` for web and Electron, a `tmux` session you start for CLI/TUI, `curl` for services, and say no verify skill exists. Never drive the user's running instances.
 3. Try to break it. A finding counts only with proof: the exact command or steps, the output it gave, and the output the intent requires. List every finding you can prove, not only the first. Style, naming and "could break if someone later…" are out.
 4. Write the report with the verdict as its first line:
